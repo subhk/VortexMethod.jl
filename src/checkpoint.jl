@@ -1,7 +1,8 @@
 module Checkpoint
 
 export save_checkpoint!, save_checkpoint_mat!, load_latest_checkpoint,
-       save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2
+       save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2,
+       save_state!, mesh_stats, save_state_timeseries!
 
 using DelimitedFiles
 using Dates
@@ -119,7 +120,117 @@ function load_checkpoint_jld2(path::AbstractString)
     dom   = get(data, "domain", nothing)
     grid  = get(data, "grid", nothing)
     params= get(data, "params", nothing)
-    return (; nodeX, nodeY, nodeZ, tri, eleGma, time, dom, grid, params)
+    stats = get(data, "stats", nothing)
+    return (; nodeX, nodeY, nodeZ, tri, eleGma, time, dom, grid, params, stats)
+end
+
+# -------- Convenience helpers --------
+
+function mesh_stats(nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector, tri::Array{Int,2})
+    nv = length(nodeX)
+    nt = size(tri,1)
+    xmin = minimum(nodeX); xmax = maximum(nodeX)
+    ymin = minimum(nodeY); ymax = maximum(nodeY)
+    zmin = minimum(nodeZ); zmax = maximum(nodeZ)
+    # simple ARmax (Euclidean edges)
+    armax = 0.0
+    @inbounds for t in 1:nt
+        v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
+        l12 = sqrt((nodeX[v1]-nodeX[v2])^2 + (nodeY[v1]-nodeY[v2])^2 + (nodeZ[v1]-nodeZ[v2])^2)
+        l23 = sqrt((nodeX[v2]-nodeX[v3])^2 + (nodeY[v2]-nodeY[v3])^2 + (nodeZ[v2]-nodeZ[v3])^2)
+        l31 = sqrt((nodeX[v3]-nodeX[v1])^2 + (nodeY[v3]-nodeY[v1])^2 + (nodeZ[v3]-nodeZ[v1])^2)
+        lmin = min(l12, min(l23, l31)); lmax = max(l12, max(l23, l31))
+        if lmin > 0
+            armax = max(armax, lmax/lmin)
+        end
+    end
+    return (; n_nodes=nv, n_tris=nt, xmin, xmax, ymin, ymax, zmin, zmax, ARmax=armax)
+end
+
+"""
+save_state!(dir, time, nodeX,nodeY,nodeZ, tri, eleGma; dom, grid, dt, CFL, adaptive,
+            poisson_mode, remesh_every, save_interval, ar_max, step, params_extra)
+
+Bundles common fields into a single JLD2 checkpoint call and adds mesh stats.
+"""
+function save_state!(dir::AbstractString, time::Real,
+                     nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
+                     tri::Array{Int,2}, eleGma::AbstractMatrix;
+                     dom=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
+                     poisson_mode=nothing, remesh_every=nothing, save_interval=nothing, ar_max=nothing,
+                     step=nothing, params_extra=NamedTuple())
+    # assemble params NamedTuple
+    params = (;)
+    if dt !== nothing;            params = merge(params, (; dt=dt)); end
+    if CFL !== nothing;           params = merge(params, (; CFL=CFL)); end
+    if adaptive !== nothing;      params = merge(params, (; adaptive=adaptive)); end
+    if poisson_mode !== nothing;  params = merge(params, (; poisson_mode=poisson_mode)); end
+    if remesh_every !== nothing;  params = merge(params, (; remesh_every=remesh_every)); end
+    if save_interval !== nothing; params = merge(params, (; save_interval=save_interval)); end
+    if ar_max !== nothing;        params = merge(params, (; ar_max=ar_max)); end
+    params = merge(params, params_extra)
+
+    stats = mesh_stats(nodeX, nodeY, nodeZ, tri)
+    base = save_checkpoint_jld2!(dir, time, nodeX, nodeY, nodeZ, tri, eleGma;
+                                 dom=dom, grid=grid, params=params, stats=stats, step=step)
+    return base
+end
+
+"""
+Append snapshot into a single time-series JLD2 file.
+
+save_state_timeseries!(file, time, nodeX,nodeY,nodeZ, tri, eleGma; dom, grid,
+                       dt, CFL, adaptive, poisson_mode, remesh_every, save_interval,
+                       ar_max, step, params_extra)
+
+Creates group paths under `snapshots/NNNNNN/` with fields nodeX,nodeY,nodeZ,tri,gamma,time,
+and updates top-level arrays `times` and `steps`. Mesh stats stored at `snapshots/NNNNNN/stats`.
+"""
+function save_state_timeseries!(file::AbstractString, time::Real,
+                                nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
+                                tri::Array{Int,2}, eleGma::AbstractMatrix;
+                                dom=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
+                                poisson_mode=nothing, remesh_every=nothing, save_interval=nothing, ar_max=nothing,
+                                step=nothing, params_extra=NamedTuple())
+    mkpath(dirname(file))
+    # assemble params
+    params = (;)
+    if dt !== nothing;            params = merge(params, (; dt=dt)); end
+    if CFL !== nothing;           params = merge(params, (; CFL=CFL)); end
+    if adaptive !== nothing;      params = merge(params, (; adaptive=adaptive)); end
+    if poisson_mode !== nothing;  params = merge(params, (; poisson_mode=poisson_mode)); end
+    if remesh_every !== nothing;  params = merge(params, (; remesh_every=remesh_every)); end
+    if save_interval !== nothing; params = merge(params, (; save_interval=save_interval)); end
+    if ar_max !== nothing;        params = merge(params, (; ar_max=ar_max)); end
+    params = merge(params, params_extra)
+
+    stats = mesh_stats(nodeX, nodeY, nodeZ, tri)
+
+    JLD2.jldopen(file, "a+") do f
+        # determine next snapshot id
+        count = haskey(f, "count") ? read(f, "count")::Int : 0
+        count += 1
+        write(f, "count", count)
+        # update index arrays
+        times = haskey(f, "times") ? read(f, "times")::Vector{Float64} : Float64[]
+        steps = haskey(f, "steps") ? read(f, "steps")::Vector{Int}     : Int[]
+        push!(times, float(time)); push!(steps, Int(step === nothing ? count : step))
+        write(f, "times", times); write(f, "steps", steps)
+
+        key = @sprintf("snapshots/%06d/", count)
+        write(f, key*"time", float(time))
+        write(f, key*"nodeX", nodeX); write(f, key*"nodeY", nodeY); write(f, key*"nodeZ", nodeZ)
+        write(f, key*"tri", tri);      write(f, key*"gamma", eleGma)
+        if dom !== nothing
+            write(f, key*"domain", Dict("Lx"=>dom.Lx, "Ly"=>dom.Ly, "Lz"=>dom.Lz))
+        end
+        if grid !== nothing
+            write(f, key*"grid", Dict("nx"=>grid.nx, "ny"=>grid.ny, "nz"=>grid.nz))
+        end
+        write(f, key*"params", params)
+        write(f, key*"stats", stats)
+    end
+    return file
 end
 
 end # module

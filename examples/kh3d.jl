@@ -31,6 +31,9 @@ Atg = 0.0
 remesh_every = 1         # perform remesh pass every N steps
 save_interval = 0.1      # physical-time saving interval
 ar_max = 4.0             # aspect ratio threshold (longest/shortest edge)
+ke_stride = 5            # compute KE every Nth save (to reduce cost)
+save_series = true       # append snapshots into a single JLD2 file
+series_file = "checkpoints/series.jld2"
 
 time = 0.0
 next_save_t = save_interval
@@ -93,12 +96,26 @@ for it in 1:nsteps
         println("  max edge len: ", @sprintf("%.3e", maxedge), " (tri=", tmax, ")  min edge len: ", @sprintf("%.3e", minedge), " (tri=", tmin, ")  ARmax=", @sprintf("%.2f", ARmax))
     end
     if rank == 0 && (time >= next_save_t)
-        params = (Atg=Atg, CFL=0.5, adaptive=true, poisson_mode=:fd,
-                  remesh_every=remesh_every, save_interval=save_interval, ar_max=ar_max,
-                  Nx=Nx, Ny=Ny)
-        base = save_checkpoint_jld2!("checkpoints", time, nodeX, nodeY, nodeZ, tri, eleGma;
-                                     dom=dom, grid=gr, params=params, step=it)
-        println("  checkpoint saved (t=$(round(time,digits=4))): ", base)
+        # compute KE with stride
+        save_count = Int(floor(time / save_interval))
+        KE = nothing
+        if save_count % ke_stride == 0
+            KE = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:fd)
+        end
+        if save_series
+            base = save_state_timeseries!(series_file, time, nodeX, nodeY, nodeZ, tri, eleGma;
+                                          dom=dom, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                                          poisson_mode=:fd, remesh_every=remesh_every, save_interval=save_interval,
+                                          ar_max=ar_max, step=it,
+                                          params_extra=(; Atg=Atg, Nx=Nx, Ny=Ny, KE=KE))
+        else
+            base = save_state!("checkpoints", time, nodeX, nodeY, nodeZ, tri, eleGma;
+                               dom=dom, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                               poisson_mode=:fd, remesh_every=remesh_every, save_interval=save_interval,
+                               ar_max=ar_max, step=it,
+                               params_extra=(; Atg=Atg, Nx=Nx, Ny=Ny, KE=KE))
+        end
+        println("  checkpoint saved (t=$(round(time,digits=4))): ", save_series ? series_file : base)
         next_save_t += save_interval
     end
 end
