@@ -25,15 +25,18 @@ dt = 1e-3
 nsteps = 50
 Atg = 0.0
 remesh_every = 1
-checkpoint_every = 10
+save_interval = 0.1
 ar_max = 4.0
+time = 0.0
+next_save_t = save_interval
 
 if rank == 0
     println("Resuming: nt=$(nt), nodes=$(length(nodeX))")
 end
 
 for it in 1:nsteps
-    rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd)
+    dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd)
+    time += dt_used
     # rebuild tris
     nt = size(tri,1)
     triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
@@ -57,11 +60,11 @@ for it in 1:nsteps
             eleGma = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
         end
     end
-    if rank == 0 && (it % checkpoint_every == 0)
-        base = save_checkpoint_mat!(ckpt_dir, it, nodeX, nodeY, nodeZ, tri, eleGma)
-        println("  checkpoint saved: ", base)
+    if rank == 0 && (time >= next_save_t)
+        base = save_checkpoint_jld2!(ckpt_dir, time, nodeX, nodeY, nodeZ, tri, eleGma; step=it)
+        println("  checkpoint saved (t=$(round(time,digits=4))): ", base)
+        next_save_t += save_interval
     end
 end
 
 finalize_mpi!()
-

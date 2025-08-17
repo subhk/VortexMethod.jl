@@ -99,7 +99,7 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSp
     eleGma_new = ele_gamma_from_node_circ(nodeCirc, triXC_new, triYC_new, triZC_new)
     eleGma .= eleGma_new
 
-    return nothing
+    return dt
 end
 
 end # module

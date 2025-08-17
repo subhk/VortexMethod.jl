@@ -1,10 +1,12 @@
 module Checkpoint
 
-export save_checkpoint!, save_checkpoint_mat!, load_latest_checkpoint
+export save_checkpoint!, save_checkpoint_mat!, load_latest_checkpoint,
+       save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2
 
 using DelimitedFiles
 using Dates
 using MAT
+using JLD2
 
 function save_checkpoint!(dir::AbstractString, step::Integer,
                           nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
@@ -72,6 +74,52 @@ function load_latest_checkpoint(dir::AbstractString)
         eleGma= Array{Float64}(readdlm(base*"_gamma.csv", ','))
         return nodeX, nodeY, nodeZ, tri, eleGma
     end
+end
+
+function save_checkpoint_jld2!(dir::AbstractString, time::Real,
+                               nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
+                               tri::Array{Int,2}, eleGma::AbstractMatrix;
+                               dom=nothing, grid=nothing, params=nothing, attrs...)
+    mkpath(dir)
+    ts = Dates.format(now(), dateformat"yyyymmdd_HHMMSS")
+    base = joinpath(dir, @sprintf("chkpt_t%010.6f_%s.jld2", float(time), ts))
+    data = Dict{String,Any}("nodeX"=>nodeX, "nodeY"=>nodeY, "nodeZ"=>nodeZ,
+                            "tri"=>tri, "gamma"=>eleGma, "time"=>float(time))
+    if dom !== nothing
+        data["domain"] = Dict("Lx"=>dom.Lx, "Ly"=>dom.Ly, "Lz"=>dom.Lz)
+    end
+    if grid !== nothing
+        data["grid"] = Dict("nx"=>grid.nx, "ny"=>grid.ny, "nz"=>grid.nz)
+    end
+    if params !== nothing
+        data["params"] = params
+    end
+    # extra attributes
+    for (k,v) in pairs(Dict(attrs))
+        data[String(k)] = v
+    end
+    jldsave(base; data...)
+    return base
+end
+
+function load_latest_jld2(dir::AbstractString)
+    isdir(dir) || error("Checkpoint directory not found: \"$dir\"")
+    files = sort(filter(f->endswith(f, ".jld2"), readdir(dir)))
+    isempty(files) && error("No JLD2 checkpoints in \"$dir\"")
+    return load_checkpoint_jld2(joinpath(dir, files[end]))
+end
+
+function load_checkpoint_jld2(path::AbstractString)
+    data = JLD2.jldopen(path, "r") do f
+        Dict{String,Any}(name=>read(f,name) for name in keys(f))
+    end
+    nodeX = data["nodeX"]; nodeY = data["nodeY"]; nodeZ = data["nodeZ"]
+    tri   = data["tri"];   eleGma = data["gamma"]
+    time  = get(data, "time", 0.0)
+    dom   = get(data, "domain", nothing)
+    grid  = get(data, "grid", nothing)
+    params= get(data, "params", nothing)
+    return (; nodeX, nodeY, nodeZ, tri, eleGma, time, dom, grid, params)
 end
 
 end # module

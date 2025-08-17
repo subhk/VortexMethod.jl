@@ -29,15 +29,19 @@ Atg = 0.0
 
 # Remeshing controls
 remesh_every = 1         # perform remesh pass every N steps
-checkpoint_every = 10    # save checkpoint every N steps (rank 0)
+save_interval = 0.1      # physical-time saving interval
 ar_max = 4.0             # aspect ratio threshold (longest/shortest edge)
+
+time = 0.0
+next_save_t = save_interval
 
 if rank == 0
     println("KH 3D: Nx=$(Nx) Ny=$(Ny) nt=$(nt) dt=$(dt) steps=$(nsteps)")
 end
 
 for it in 1:nsteps
-    rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd)
+    dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd)
+    time += dt_used
     # recompute tri coords for next step (connectivity unchanged)
     @inbounds for k in 1:3, t in 1:size(tri,1)
         v = tri[t,k]
@@ -88,9 +92,14 @@ for it in 1:nsteps
         println("step $it: x=[", minimum(nodeX), ",", maximum(nodeX), "] y=[", minimum(nodeY), ",", maximum(nodeY), "] z=[", minimum(nodeZ), ",", maximum(nodeZ), "]")
         println("  max edge len: ", @sprintf("%.3e", maxedge), " (tri=", tmax, ")  min edge len: ", @sprintf("%.3e", minedge), " (tri=", tmin, ")  ARmax=", @sprintf("%.2f", ARmax))
     end
-    if rank == 0 && (it % checkpoint_every == 0)
-        base = save_checkpoint_mat!("checkpoints", it, nodeX, nodeY, nodeZ, tri, eleGma)
-        println("  checkpoint saved: ", base)
+    if rank == 0 && (time >= next_save_t)
+        params = (Atg=Atg, CFL=0.5, adaptive=true, poisson_mode=:fd,
+                  remesh_every=remesh_every, save_interval=save_interval, ar_max=ar_max,
+                  Nx=Nx, Ny=Ny)
+        base = save_checkpoint_jld2!("checkpoints", time, nodeX, nodeY, nodeZ, tri, eleGma;
+                                     dom=dom, grid=gr, params=params, step=it)
+        println("  checkpoint saved (t=$(round(time,digits=4))): ", base)
+        next_save_t += save_interval
     end
 end
 
