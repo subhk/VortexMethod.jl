@@ -156,7 +156,8 @@ end
 function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                       tri::Array{Int,2}, ds_max::Float64, ds_min::Float64;
                       max_splits::Int=1000, max_flips::Int=1000, max_merges::Int=1000,
-                      dom::DomainSpec=default_domain(), compact::Bool=true)
+                      dom::DomainSpec=default_domain(), compact::Bool=true,
+                      ar_max::Float64=Inf)
     changed = false
     # 1) Long-edge refinement: mark all edges of any tri with any edge > ds_max
     emap = edge_map(tri)
@@ -164,9 +165,13 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
     tris_to_split = Set{Int}()
     @inbounds for t in 1:size(tri,1)
         v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
-        if periodic_edge_length(nodeX,nodeY,nodeZ,v1,v2, dom) > ds_max ||
-           periodic_edge_length(nodeX,nodeY,nodeZ,v2,v3, dom) > ds_max ||
-           periodic_edge_length(nodeX,nodeY,nodeZ,v3,v1, dom) > ds_max
+        # edge lengths
+        l12 = periodic_edge_length(nodeX,nodeY,nodeZ,v1,v2, dom)
+        l23 = periodic_edge_length(nodeX,nodeY,nodeZ,v2,v3, dom)
+        l31 = periodic_edge_length(nodeX,nodeY,nodeZ,v3,v1, dom)
+        # aspect ratio as longest/shortest
+        ar = maximum((l12,l23,l31)) / max(eps(), minimum((l12,l23,l31)))
+        if (l12 > ds_max || l23 > ds_max || l31 > ds_max) || (ar > ar_max)
             push!(tris_to_split, t)
             for (a,b) in ((v1,v2),(v2,v3),(v3,v1))
                 e = a<b ? (a,b) : (b,a)
