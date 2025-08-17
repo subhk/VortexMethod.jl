@@ -80,7 +80,10 @@ function build_all_subcentroids(triXC, triYC, triZC)
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
-        C[t, :, :] = subtriangle_centroids4(p1,p2,p3)
+        T = subtriangle_centroids4(p1,p2,p3) # 4 x 3
+        C[t, :, 1] = view(T, :, 1)
+        C[t, :, 2] = view(T, :, 2)
+        C[t, :, 3] = view(T, :, 3)
     end
     C
 end
@@ -183,7 +186,7 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     # strided work splitting (round-robin like python)
     @inbounds for idx in (rank+1):nprocs:length(coords)
         c = coords[idx]
-        sx,sy,sz = peskin_grid_sum(eleGma, triC, subC, c, (dx,dy,dz,0.0), areas; dom=dom)
+        sx,sy,sz = peskin_grid_sum(eleGma, triC, subC, c, (dx,dy,dz), areas; dom=dom)
         # divide by cell volume like python
         local[idx,1] = sx/(dx*dy*dz)
         local[idx,2] = sy/(dx*dy*dz)
@@ -260,11 +263,13 @@ function interpolate_node_velocity_mpi(gridUx::Array{Float64,3}, gridUy::Array{F
         tiles = ((0.0,0.0),(+dom.Lx,0.0),(-dom.Lx,0.0),(0.0,+dom.Ly),(0.0,-dom.Ly),
                  (+dom.Lx,+dom.Ly),(+dom.Lx,-dom.Ly),(-dom.Lx,+dom.Ly),(-dom.Lx,-dom.Ly))
         for (dxL,dyL) in tiles
-            inds = nearby_grid(xc, yc, zc)
+            # find neighbors relative to shifted tile by querying around (xc-dxL, yc-dyL, zc)
+            xq = xc - dxL; yq = yc - dyL
+            inds = nearby_grid(xq, yq, zc)
             for idxg in inds
                 gx,gy,gz = coords[idxg]
-                dxv = xc - (gx - dxL)
-                dyv = yc - (gy - dyL)
+                dxv = xq - gx
+                dyv = yq - gy
                 dzv = zc - gz
                 w = (1 + cos(pi*dxv/epsx))*(1 + cos(pi*dyv/epsy))*(1 + cos(pi*dzv/epsz)) / (8*delr^3)
                 sx += flatUx[idxg]*w

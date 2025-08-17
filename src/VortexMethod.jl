@@ -8,6 +8,8 @@ include("peskin3d.jl")
 include("poisson3d.jl")
 include("mesh.jl")
 include("timestep.jl")
+include("remesh.jl")
+include("circulation.jl")
 
 export DomainSpec, GridSpec,
        default_domain, default_grid,
@@ -16,6 +18,7 @@ export DomainSpec, GridSpec,
        poisson_velocity_fft, poisson_velocity_fft_mpi,
        interpolate_node_velocity_mpi,
        structured_mesh,
-       node_velocities, rk2_step!
+       node_velocities, rk2_step!,
+       node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma
 
 end

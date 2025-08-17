@@ -2,6 +2,7 @@
 
 using VortexMethod
 using MPI
+using Printf
 
 dom = default_domain()
 gr = default_grid()
@@ -37,9 +38,8 @@ u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, nodesX, nodesY, nodesZ, dom,
 if rank == 0
     println("Computed node velocities (first 3):")
     for i in 1:min(3, length(u))
-        @printf("%3d: (%.4e, %.4e, %.4e)\n", i, u[i], v[i], w[i])
+        println(lpad(string(i),3), ": (", @sprintf("%.4e", u[i]), ", ", @sprintf("%.4e", v[i]), ", ", @sprintf("%.4e", w[i]), ")")
     end
 end
 
 finalize_mpi!()
-
