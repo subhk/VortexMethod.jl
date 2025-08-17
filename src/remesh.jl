@@ -1,7 +1,7 @@
 module Remesh
 
 export detect_max_edge_length, detect_min_edge_length,
-       element_splitting!, edge_flip_small_edge!
+       element_splitting!, edge_flip_small_edge!, remesh_pass!
 
 function detect_max_edge_length(triXC, triYC, triZC, ds_max::Float64)
     nt = size(triXC,1)
@@ -92,6 +92,118 @@ function edge_flip_small_edge!(tri::Array{Int,2}, ele_idx::Int)
         end
     end
     return tri
+end
+
+# Build edge map: (i,j) with i<j -> list of incident triangle indices
+function edge_map(tri::Array{Int,2})
+    m = Dict{Tuple{Int,Int}, Vector{Int}}()
+    @inbounds for t in 1:size(tri,1)
+        v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
+        for (a,b) in ((v1,v2),(v2,v3),(v3,v1))
+            e = a<b ? (a,b) : (b,a)
+            if haskey(m,e)
+                push!(m[e], t)
+            else
+                m[e] = [t]
+            end
+        end
+    end
+    return m
+end
+
+@inline function edge_length(nodeX,nodeY,nodeZ, a::Int,b::Int)
+    dx = nodeX[a]-nodeX[b]; dy = nodeY[a]-nodeY[b]; dz = nodeZ[a]-nodeZ[b]
+    return sqrt(dx*dx+dy*dy+dz*dz)
+end
+
+# Global remeshing pass: propagate 1->4 splits on long edges, then attempt a few edge flips for short edges
+function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                      tri::Array{Int,2}, ds_max::Float64, ds_min::Float64; max_splits::Int=1000, max_flips::Int=1000)
+    changed = false
+    # 1) Long-edge refinement: mark all edges of any tri with any edge > ds_max
+    emap = edge_map(tri)
+    long_edges = Set{Tuple{Int,Int}}()
+    tris_to_split = Set{Int}()
+    @inbounds for t in 1:size(tri,1)
+        v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
+        if edge_length(nodeX,nodeY,nodeZ,v1,v2) > ds_max ||
+           edge_length(nodeX,nodeY,nodeZ,v2,v3) > ds_max ||
+           edge_length(nodeX,nodeY,nodeZ,v3,v1) > ds_max
+            push!(tris_to_split, t)
+            for (a,b) in ((v1,v2),(v2,v3),(v3,v1))
+                e = a<b ? (a,b) : (b,a)
+                push!(long_edges, e)
+                # also mark neighbor triangle sharing this edge to split (to avoid hanging nodes)
+                if haskey(emap,e)
+                    for tnb in emap[e]
+                        push!(tris_to_split, tnb)
+                    end
+                end
+            end
+        end
+    end
+    if !isempty(tris_to_split)
+        changed = true
+        # create midpoints for all long_edges
+        midpoint = Dict{Tuple{Int,Int}, Int}()
+        for e in long_edges
+            a,b = e
+            mx = 0.5*(nodeX[a]+nodeX[b])
+            my = 0.5*(nodeY[a]+nodeY[b])
+            mz = 0.5*(nodeZ[a]+nodeZ[b])
+            push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
+            midpoint[e] = length(nodeX)
+        end
+        # rebuild triangle list with splits
+        newtris = Vector{NTuple{3,Int}}()
+        @inbounds for t in 1:size(tri,1)
+            v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
+            if t in tris_to_split
+                e12 = (min(v1,v2), max(v1,v2)); m12 = get(midpoint, e12, 0)
+                e23 = (min(v2,v3), max(v2,v3)); m23 = get(midpoint, e23, 0)
+                e31 = (min(v3,v1), max(v3,v1)); m31 = get(midpoint, e31, 0)
+                # ensure midpoints for all three edges (if edge not marked long, still create consistent midpoint)
+                if m12==0
+                    push!(nodeX, 0.5*(nodeX[v1]+nodeX[v2])); push!(nodeY, 0.5*(nodeY[v1]+nodeY[v2])); push!(nodeZ, 0.5*(nodeZ[v1]+nodeZ[v2]))
+                    m12 = length(nodeX)
+                end
+                if m23==0
+                    push!(nodeX, 0.5*(nodeX[v2]+nodeX[v3])); push!(nodeY, 0.5*(nodeY[v2]+nodeY[v3])); push!(nodeZ, 0.5*(nodeZ[v2]+nodeZ[v3]))
+                    m23 = length(nodeX)
+                end
+                if m31==0
+                    push!(nodeX, 0.5*(nodeX[v3]+nodeX[v1])); push!(nodeY, 0.5*(nodeY[v3]+nodeY[v1])); push!(nodeZ, 0.5*(nodeZ[v3]+nodeZ[v1]))
+                    m31 = length(nodeX)
+                end
+                push!(newtris, (v1, m12, m31))
+                push!(newtris, (m12, v2, m23))
+                push!(newtris, (m31, m23, v3))
+                push!(newtris, (m12, m23, m31))
+            else
+                push!(newtris, (v1,v2,v3))
+            end
+        end
+        tri = reshape(collect(Iterators.flatten(newtris)), (3, length(newtris)))' # n×3
+    end
+    # 2) Edge flips for short edges (conservative stabilization)
+    flips = 0
+    while flips < max_flips
+        emap = edge_map(tri)
+        didflip = false
+        for (e, tlst) in emap
+            if length(tlst) == 2
+                a,b = e
+                if edge_length(nodeX,nodeY,nodeZ,a,b) < ds_min
+                    tri = edge_flip_small_edge!(tri, tlst[1])
+                    flips += 1
+                    didflip = true
+                    break
+                end
+            end
+        end
+        didflip || break
+    end
+    return tri, changed
 end
 
 end # module
