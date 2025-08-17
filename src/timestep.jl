@@ -11,7 +11,7 @@ function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom::
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
     dx,dy,dz = grid_spacing(dom, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
-    Ux, Uy, Uz = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, dom)
+    Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom)
     u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ, dom, gr)
     return u, v, w
 end
