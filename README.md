@@ -19,6 +19,7 @@ The API is minimal and meant to be composed with your meshing and time-stepping 
 ```
 julia --project -e 'using Pkg; Pkg.instantiate()'
 mpirun -n 4 julia --project examples/simple3d.jl
+mpirun -n 4 julia --project examples/kh3d.jl
 ```
 
 ## API
@@ -28,6 +29,7 @@ mpirun -n 4 julia --project examples/simple3d.jl
 - `spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, grid)` → `(VorX,VorY,VorZ)` as `(nz,ny,nx)` arrays
 - `curl_rhs_centered(VorX,VorY,VorZ, dx,dy,dz)` → `(u_rhs, v_rhs, w_rhs)`
 - `poisson_velocity_fft(u_rhs,v_rhs,w_rhs, dom)` → `(Ux,Uy,Uz)`
+- `poisson_velocity_fft_mpi(u_rhs,v_rhs,w_rhs, dom)` → `(Ux,Uy,Uz)` (rank-0 solve + broadcast)
 - `interpolate_node_velocity_mpi(Ux,Uy,Uz, nodeX,nodeY,nodeZ, dom, grid)` → `(u,v,w)`
 
 Element vorticity `eleGma` is an `nt×3` matrix of vortex strength vectors per triangle. Triangle coordinates are `nt×3` matrices for `x`, `y`, `z` (vertex columns 1:3).
