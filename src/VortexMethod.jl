@@ -6,12 +6,16 @@ using MPI
 include("domain.jl")
 include("peskin3d.jl")
 include("poisson3d.jl")
+include("mesh.jl")
+include("timestep.jl")
 
 export DomainSpec, GridSpec,
        default_domain, default_grid,
        init_mpi!, finalize_mpi!,
        spread_vorticity_to_grid_mpi,
-       poisson_velocity_fft,
-       interpolate_node_velocity_mpi
+       poisson_velocity_fft, poisson_velocity_fft_mpi,
+       interpolate_node_velocity_mpi,
+       structured_mesh,
+       node_velocities, rk2_step!
 
 end

@@ -3,9 +3,10 @@
 module Poisson3D
 
 using FFTW
+using MPI
 using ..DomainImpl
 
-export curl_rhs_centered, poisson_velocity_fft
+export curl_rhs_centered, poisson_velocity_fft, poisson_velocity_fft_mpi
 
 # Periodic finite-difference curl terms with central 4th-order where possible
 function curl_rhs_centered(VorX::Array{Float64,3}, VorY::Array{Float64,3}, VorZ::Array{Float64,3},
@@ -120,7 +121,23 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
     return ux, uy, uz
 end
 
+# MPI wrapper: compute Poisson solve on rank 0 and broadcast to all ranks
+function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec)
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    Ux = Array{Float64}(undef, size(u_rhs))
+    Uy = Array{Float64}(undef, size(v_rhs))
+    Uz = Array{Float64}(undef, size(w_rhs))
+    if rank == 0
+        Ux0, Uy0, Uz0 = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, dom)
+        Ux .= Ux0; Uy .= Uy0; Uz .= Uz0
+    end
+    MPI.Bcast!(Ux, 0, comm)
+    MPI.Bcast!(Uy, 0, comm)
+    MPI.Bcast!(Uz, 0, comm)
+    return Ux, Uy, Uz
+end
+
 end # module
 
 using .Poisson3D: curl_rhs_centered, poisson_velocity_fft
-
