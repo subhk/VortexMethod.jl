@@ -10,6 +10,7 @@ include("mesh.jl")
 include("timestep.jl")
 include("remesh.jl")
 include("circulation.jl")
+include("checkpoint.jl")
 
 export DomainSpec, GridSpec,
        default_domain, default_grid,
@@ -19,6 +20,7 @@ export DomainSpec, GridSpec,
        interpolate_node_velocity_mpi,
        structured_mesh,
        node_velocities, rk2_step!,
-       node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma
+       node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma,
+       save_checkpoint!
 
 end
