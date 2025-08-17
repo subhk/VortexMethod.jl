@@ -2,6 +2,7 @@
 
 using VortexMethod
 using MPI
+using Printf
 
 init_mpi!()
 comm = MPI.COMM_WORLD
@@ -31,7 +32,7 @@ if rank == 0
 end
 
 for it in 1:nsteps
-    rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg)
+    rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd)
     # recompute tri coords for next step (connectivity unchanged)
     @inbounds for k in 1:3, t in 1:size(tri,1)
         v = tri[t,k]
@@ -45,6 +46,31 @@ for it in 1:nsteps
     ds_min = 0.05*max(dx,dy)
     tmax, maxedge = VortexMethod.Remesh.detect_max_edge_length(triXC, triYC, triZC, ds_max)
     tmin, minedge = VortexMethod.Remesh.detect_min_edge_length(triXC, triYC, triZC, ds_min)
+    # perform simple remeshing: split one too-long tri or flip edge for too-short
+    if tmax != -1
+        # preserve node circulation across remesh
+        nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
+        nodeX, nodeY, nodeZ, tri = VortexMethod.Remesh.element_splitting!(nodeX, nodeY, nodeZ, tri, tmax)
+        # rebuild tri coords
+        nt = size(tri,1)
+        triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
+        @inbounds for k in 1:3, t in 1:nt
+            v = tri[t,k]
+            triXC[t,k] = nodeX[v]; triYC[t,k] = nodeY[v]; triZC[t,k] = nodeZ[v]
+        end
+        # recompute gamma
+        eleGma = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
+    elseif tmin != -1
+        nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
+        tri = VortexMethod.Remesh.edge_flip_small_edge!(tri, tmin)
+        nt = size(tri,1)
+        triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
+        @inbounds for k in 1:3, t in 1:nt
+            v = tri[t,k]
+            triXC[t,k] = nodeX[v]; triYC[t,k] = nodeY[v]; triZC[t,k] = nodeZ[v]
+        end
+        eleGma = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
+    end
     if rank == 0 && it % 5 == 0
         println("step $it: x=[", minimum(nodeX), ",", maximum(nodeX), "] y=[", minimum(nodeY), ",", maximum(nodeY), "] z=[", minimum(nodeZ), ",", maximum(nodeZ), "]")
         println("  max edge len: ", @sprintf("%.3e", maxedge), " (tri=", tmax, ")  min edge len: ", @sprintf("%.3e", minedge), " (tri=", tmin, ")")
