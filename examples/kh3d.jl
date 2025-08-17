@@ -23,12 +23,15 @@ eleGma[:,2] .= 1.0 # initial vortex strength aligned with y
 dt = 1e-3
 nsteps = 10
 
+# Atwood*gravity for baroclinic source (set >0 to activate)
+Atg = 0.0
+
 if rank == 0
     println("KH 3D: Nx=$(Nx) Ny=$(Ny) nt=$(nt) dt=$(dt) steps=$(nsteps)")
 end
 
 for it in 1:nsteps
-    rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt)
+    rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg)
     # recompute tri coords for next step (connectivity unchanged)
     @inbounds for k in 1:3, t in 1:size(tri,1)
         v = tri[t,k]
@@ -36,10 +39,16 @@ for it in 1:nsteps
         triYC[t,k] = nodeY[v]
         triZC[t,k] = nodeZ[v]
     end
+    # simple edge-length based diagnostics; thresholds from grid spacing
+    dx,dy,dz = grid_spacing(dom, gr)
+    ds_max = 0.80*max(dx,dy)
+    ds_min = 0.05*max(dx,dy)
+    tmax, maxedge = VortexMethod.Remesh.detect_max_edge_length(triXC, triYC, triZC, ds_max)
+    tmin, minedge = VortexMethod.Remesh.detect_min_edge_length(triXC, triYC, triZC, ds_min)
     if rank == 0 && it % 5 == 0
         println("step $it: x=[", minimum(nodeX), ",", maximum(nodeX), "] y=[", minimum(nodeY), ",", maximum(nodeY), "] z=[", minimum(nodeZ), ",", maximum(nodeZ), "]")
+        println("  max edge len: ", @sprintf("%.3e", maxedge), " (tri=", tmax, ")  min edge len: ", @sprintf("%.3e", minedge), " (tri=", tmin, ")")
     end
 end
 
 finalize_mpi!()
-

@@ -16,7 +16,7 @@ function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom::
     return u, v, w
 end
 
-function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSpec, dt::Float64)
+function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSpec, dt::Float64; At::Float64=0.0)
     # velocities at t^n
     triXC = similar(eleGma, size(tri,1), 3); triYC = similar(triXC); triZC = similar(triXC)
     @inbounds for k in 1:3, t in 1:size(tri,1)
@@ -25,6 +25,8 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSp
         triYC[t,k] = nodeY[v]
         triZC[t,k] = nodeZ[v]
     end
+    # compute node circulation from current gamma
+    nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
     u1, v1, w1 = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom, gr)
 
     # half-step positions
@@ -43,7 +45,15 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSp
         triYC[t,k] = yh[v]
         triZC[t,k] = zh[v]
     end
-    u2, v2, w2 = node_velocities(eleGma, triXC, triYC, triZC, xh, yh, zh, dom, gr)
+    # baroclinic update at half step
+    if At != 0.0
+        dGmid = baroclinic_ele_gamma(At, 0.5*dt, triXC, triYC, triZC)
+        dTau = node_circulation_from_ele_gamma(triXC, triYC, triZC, dGmid)
+        nodeCirc .+= dTau
+    end
+    # recompute gamma at half-step geometry from updated node circulation
+    eleGma_mid = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
+    u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, dom, gr)
 
     # full-step update
     nodeX .+= dt .* u2
@@ -61,8 +71,14 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSp
         triYC_new[t,k] = nodeY[v]
         triZC_new[t,k] = nodeZ[v]
     end
-    # transport element gamma by preserving node circulation across geometry change
-    eleGma_new = transport_ele_gamma(eleGma, triXC, triYC, triZC, triXC_new, triYC_new, triZC_new)
+    # second baroclinic update at end step
+    if At != 0.0
+        dGend = baroclinic_ele_gamma(At, 0.5*dt, triXC_new, triYC_new, triZC_new)
+        dTau2 = node_circulation_from_ele_gamma(triXC_new, triYC_new, triZC_new, dGend)
+        nodeCirc .+= dTau2
+    end
+    # produce gamma at new geometry from node circulation
+    eleGma_new = ele_gamma_from_node_circ(nodeCirc, triXC_new, triYC_new, triZC_new)
     eleGma .= eleGma_new
 
     return nothing
