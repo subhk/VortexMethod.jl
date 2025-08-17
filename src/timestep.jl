@@ -7,16 +7,28 @@ using ..Circulation
 
 export node_velocities, rk2_step!
 
-function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom::DomainSpec, gr::GridSpec)
+function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
     dx,dy,dz = grid_spacing(dom, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
-    Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom)
+    Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
     u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ, dom, gr)
     return u, v, w
 end
 
-function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSpec, dt::Float64; At::Float64=0.0)
+function max_grid_speed(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
+    VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
+    dx,dy,dz = grid_spacing(dom, gr)
+    u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+    Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    # compute max |U| over grid and reduce across ranks
+    magmax_local = maximum(sqrt.(Ux.^2 .+ Uy.^2 .+ Uz.^2))
+    magmax = MPI.Allreduce(magmax_local, MPI.MAX, MPI.COMM_WORLD)
+    return magmax
+end
+
+function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSpec, dt::Float64;
+                   At::Float64=0.0, adaptive::Bool=false, CFL::Float64=0.5, poisson_mode::Symbol=:spectral)
     # velocities at t^n
     triXC = similar(eleGma, size(tri,1), 3); triYC = similar(triXC); triZC = similar(triXC)
     @inbounds for k in 1:3, t in 1:size(tri,1)
@@ -27,7 +39,13 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSp
     end
     # compute node circulation from current gamma
     nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-    u1, v1, w1 = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom, gr)
+    # adaptive dt based on grid max speed if requested
+    if adaptive
+        dx,dy,_ = grid_spacing(dom, gr)
+        umax = max_grid_speed(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=poisson_mode)
+        dt = CFL * min(dx,dy) / max(umax, 1e-12)
+    end
+    u1, v1, w1 = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom, gr; poisson_mode=poisson_mode)
 
     # half-step positions
     xh = nodeX .+ 0.5 .* dt .* u1
@@ -53,7 +71,7 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSp
     end
     # recompute gamma at half-step geometry from updated node circulation
     eleGma_mid = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
-    u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, dom, gr)
+    u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, dom, gr; poisson_mode=poisson_mode)
 
     # full-step update
     nodeX .+= dt .* u2
