@@ -52,25 +52,25 @@ def _init_nodeCirculation_(_triXC, tri_verti_, _nodeXC):
 	return _Circ
 		
 
-def _init_meshing_(u, v):
-
-	u, v = np.meshgrid(u, v)
-	u = u.flatten()
-	v = v.flatten()
+def _init_meshing_(x, y):
 	
-	#evaluate the parameterization at the flattened u and v
-	_xgrid = u #+ 0.01*np.sin(2.*np.pi*u)
-	_ygrid = v
-	_zgrid = 0.01*np.sin(2.*np.pi*u) #+ 0.01*np.sin(4.*np.pi*v) #+ 0.01*np.sin(4.*np.pi*_ygrid)
+	x, y = np.meshgrid(x, y)
+	x = x.flatten()
+	y = y.flatten()
+	
+	#evaluate the parameterization at the flattened x and y
+	_xgrid = x + 0.01*np.sin(2.*np.pi*x)
+	_ygrid = y
+	_zgrid = 0.01*np.sin(2.*np.pi*x) + 0.01*np.sin(4.*np.pi*y) #+ 0.01*np.sin(4.*np.pi*_ygrid)
 	
 	#print(np.shape(_zgrid))
 	
-	#define 2D points, as input data for the Delaunay triangulation of U
+	#define 2D points, as input data for the Delaunay triangulation 
 	points2D = np.vstack([_xgrid,_ygrid]).T
 	tri = Delaunay(points2D)
 	tri_vertices_ = tri.simplices  # vertices of each triangle
 	_no_triangle_ = np.shape(tri_vertices_)[0]
-	print('no of elements  = ', _no_triangle_)
+#	print('no of elements  = ', _no_triangle_)
 	
 	#print('length = ', len(_xgrid))
 	
@@ -107,8 +107,8 @@ def tri_indices(simplices):
 	#simplices is a numpy array defining the simplices of the triangularization
 	#returns the lists of indices i, j, k
 	
-	return ([triplet[c] for triplet in simplices] for c in range(3))	
-			
+	return ([triplet[c] for triplet in simplices] for c in range(3))
+	
 
 def _tri_coord_( _nodeXC, _nodeYC, _nodeZC, _no_tri_, tri_verti_ ):
 
@@ -121,6 +121,26 @@ def _tri_coord_( _nodeXC, _nodeYC, _nodeZC, _no_tri_, tri_verti_ ):
 	_triZC[0:_no_tri_,0:3] = _nodeZC[tri_verti_[0:_no_tri_,0:3]]
 	
 	return _triXC, _triYC, _triZC
+	
+	
+def _tri_coord_mod_( _nodeXC, _nodeYC, _nodeZC, _no_tri_, tri_verti_ ):
+
+	_triXC = np.zeros( (_no_tri_,3) )
+	_triYC = np.zeros( (_no_tri_,3) )
+	_triZC = np.zeros( (_no_tri_,3) )
+	
+	for itr in range(_no_tri_):
+		( _triXC[itr,0], _triXC[itr,1], _triXC[itr,2] ) = \
+		( _nodeXC[tri_verti_[itr,0]], _nodeXC[tri_verti_[itr,1]], _nodeXC[tri_verti_[itr,2]] )
+		
+		( _triYC[itr,0], _triYC[itr,1], _triYC[itr,2] ) = \
+		( _nodeYC[tri_verti_[itr,0]], _nodeYC[tri_verti_[itr,1]], _nodeYC[tri_verti_[itr,2]] )
+		
+		( _triZC[itr,0], _triZC[itr,1], _triZC[itr,2] ) = \
+		( _nodeZC[tri_verti_[itr,0]], _nodeZC[tri_verti_[itr,1]], _nodeZC[tri_verti_[itr,2]] )
+		
+	return _triXC, _triYC, _triZC
+	
 	
 	
 def _boundary_elements_(_Coord, _no_tri_, bundry_val, tol):
@@ -148,9 +168,7 @@ def _boundary_elements_(_Coord, _no_tri_, bundry_val, tol):
 	return _bndry_ele_
 	
 	
-def _finding_boundary_elements_( _nodeXC, _nodeYC, _nodeZC, _no_tri_, tri_verti_, xmin, xmax, ymin, ymax ):
-
-	_triXC, _triYC, _triZC = _tri_coord_( _nodeXC, _nodeYC, _nodeZC, _no_tri_, tri_verti_ )
+def _finding_boundary_elements_( _nodeXC, _nodeYC, _nodeZC, _triXC, _triYC, _triZC, _no_tri_, tri_verti_, xmin, xmax, ymin, ymax ):
 	
 	tol = 1.e-3
 	
@@ -185,20 +203,22 @@ def _boundary_nodes_(_Coord, bundry_val, tol):
 	
 def _finding_boundary_nodes_( _nodeXC, _nodeYC, xmin, xmax, ymin, ymax ):
 	
-	tol = 1.e-3
+	tol = 1.e-4
 	
 	# finding nodes on left boundary -> x = xmin
-	_bndry_node_l = _boundary_nodes_( _nodeXC, xmin, tol )
+	_node_l = _boundary_nodes_( _nodeXC, xmin, tol )
 	
 	# finding nodes on right boundary -> x = xmax 
-	_bndry_node_r = _boundary_nodes_( _nodeXC, xmax, tol )
+	_node_r = _boundary_nodes_( _nodeXC, xmax, tol )
 	
 	# finding nodes on lower boundary -> y = ymin 	
-	_bndry_node_d = _boundary_nodes_( _nodeYC, ymin, tol )
+	_node_d = _boundary_nodes_( _nodeYC, ymin, tol )
 		
 	# finding nodes on upper boundary -> y = ymax 
-	_bndry_node_u = _boundary_nodes_( _nodeYC, ymax, tol )
+	_node_u = _boundary_nodes_( _nodeYC, ymax, tol )
 	
-	return _bndry_node_l, _bndry_node_r, _bndry_node_d, _bndry_node_u
+	print('No of Lagrangian nodes at the boundary - [', len(_node_l), '|', len(_node_r), '|', len(_node_d), '|', len(_node_u), ']' )
+	
+	return _node_l, _node_r, _node_d, _node_u
 
 	

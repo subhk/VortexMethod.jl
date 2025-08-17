@@ -7,8 +7,8 @@ import unittest
 import ctypes
 from scipy.linalg import lstsq
 
-from utility_3d_paral import _allTriangle_Area_, _D1_Peskin_function_, _SmoothGrid_Generation_, _allTriangle_Centroid_
-from utility_3d_paral import _centroid_16subTriangle_, _centroid_4subTriangle_, Domain, _allTriangle_Area_ 
+from utility_3d_paral import _D1_Peskin_function_, _SmoothGrid_Generation_
+from utility_3d_paral import _centroid_16subTriangle_, _centroid_4subTriangle_, Domain
 from utility_3d_paral import _chk_GridPoint_close_boundary, _chk_GridPoint_on_boundary, _chk_GridPoint_cl_corner_line_
 
 #from utility_3d_paral import _chk_GridPoint_on_corner_line_, 
@@ -17,7 +17,7 @@ from utility_3d_paral import _chk_GridPoint_close_boundary, _chk_GridPoint_on_bo
 from utility_3d_paral import _find_elements_nearby_
 	
 	
-def _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0):
+def _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, epsx, epsy, epsz):
 	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
 	_length_ = _all_centroid_coord_.shape[1]
 	
@@ -47,7 +47,7 @@ def _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0):
 			dx = coord[0] - _all_centroid_coord_[_tri,_sub_tri,0]
 			dy = coord[1] - _all_centroid_coord_[_tri,_sub_tri,1]
 			dz = coord[2] - _all_centroid_coord_[_tri,_sub_tri,2]
-			_tmp_ = delr*( 1. + np.cos(np.pi*dx/eps0) )*( 1. + np.cos(np.pi*dy/eps0) )*( 1. + np.cos(np.pi*dz/eps0) )/(8.*delr**3.)
+			_tmp_ = ( 1. + np.cos(np.pi*dx/epsx) )*( 1. + np.cos(np.pi*dy/epsy) )*( 1. + np.cos(np.pi*dz/epsz) )/(8.*delr**3.)
 			
 			_sum_ += _tmp_
 		
@@ -61,12 +61,12 @@ def _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0):
 def _D3_Peskin_function_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
 	Lx, Ly, Lz = Domain()
 	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
 	 
 	# middle box
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid_ ) 
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid_ ) 
 	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
 	
 	return sum_x, sum_y, sum_z
 	
@@ -74,20 +74,22 @@ def _D3_Peskin_function_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord,
 def _D3_Peskin_function_W_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
 	Lx, Ly, Lz = Domain()
 	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
 	
 	# western box = middle box - Lx
 	_tri_centroid0_ = np.copy(_tri_centroid_)
+	_all_centroid_coord0_ = np.copy(_all_centroid_coord_)
+	
 	_leng_ = len(_tri_centroid_[:,0])
 	_tri_centroid0_[0:_leng_, 0] = _tri_centroid_[0:_leng_, 0] - Lx
 	
 	_len0_ = _all_centroid_coord_.shape[0]
 	_len1_ = _all_centroid_coord_.shape[1]
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] - Lx
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] - Lx
 	
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid0_ )
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid0_ )
 	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord0_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
 	
 	return sum_x, sum_y, sum_z
 	
@@ -95,20 +97,22 @@ def _D3_Peskin_function_W_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, 
 def _D3_Peskin_function_E_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
 	Lx, Ly, Lz = Domain()
 	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
 	
 	# eastern box = middle box + Lx
 	_tri_centroid0_ = np.copy(_tri_centroid_)
+	_all_centroid_coord0_ = np.copy(_all_centroid_coord_)
+	
 	_leng_ = len(_tri_centroid_[:,0])
 	_tri_centroid0_[0:_leng_,0] = _tri_centroid_[0:_leng_,0] + Lx
 	
 	_len0_ = _all_centroid_coord_.shape[0]
 	_len1_ = _all_centroid_coord_.shape[1]
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] + Lx
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] + Lx
 	
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid0_ )
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid0_ )
 	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord0_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
 	
 	return sum_x, sum_y, sum_z
 	
@@ -116,20 +120,22 @@ def _D3_Peskin_function_E_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, 
 def _D3_Peskin_function_S_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
 	Lx, Ly, Lz = Domain()
 	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
 	
 	# southern box = middle box - Ly
 	_tri_centroid0_ = np.copy(_tri_centroid_)
+	_all_centroid_coord0_ = np.copy(_all_centroid_coord_)
+	
 	_leng_ = len(_tri_centroid_[:,0])
 	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] - Ly
 	
 	_len0_ = _all_centroid_coord_.shape[0]
 	_len1_ = _all_centroid_coord_.shape[1]
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] - Ly
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] - Ly
 	
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid0_ )
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid0_ )
 	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord0_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
 	
 	return sum_x, sum_y, sum_z
 	
@@ -137,89 +143,22 @@ def _D3_Peskin_function_S_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, 
 def _D3_Peskin_function_N_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
 	Lx, Ly, Lz = Domain()
 	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
 	
 	# northern box = middle box + Ly
 	_tri_centroid0_ = np.copy(_tri_centroid_)
+	_all_centroid_coord0_ = np.copy(_all_centroid_coord_)
+	
 	_leng_ = len(_tri_centroid_[:,0])
 	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] + Ly
 	
 	_len0_ = _all_centroid_coord_.shape[0]
 	_len1_ = _all_centroid_coord_.shape[1]
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] + Ly
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] + Ly
 	
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid0_ )
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid0_ )
 	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
-	
-	return sum_x, sum_y, sum_z
-	
-	
-def _D3_Peskin_function_WS_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
-	Lx, Ly, Lz = Domain()
-	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
-	
-	# west-southern box = middle box - Lx, - Ly
-	_tri_centroid0_ = np.copy(_tri_centroid_)
-	_leng_ = len(_tri_centroid_[:,0]) 
-	_tri_centroid0_[0:_leng_,0] = _tri_centroid_[0:_leng_,0] - Lx
-	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] - Ly
-	
-	_len0_ = _all_centroid_coord_.shape[0]
-	_len1_ = _all_centroid_coord_.shape[1]
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] - Lx
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] - Ly
-		
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid0_ )
-	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
-	
-	return sum_x, sum_y, sum_z
-	
-	
-def _D3_Peskin_function_ES_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
-	Lx, Ly, Lz = Domain()
-	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
-	
-	# east-southern box = middle box + Lx, - Ly
-	_tri_centroid0_ = np.copy(_tri_centroid_)
-	_leng_ = len(_tri_centroid_[:,0]) 
-	_tri_centroid0_[0:_leng_,0] = _tri_centroid_[0:_leng_,0] + Lx
-	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] - Ly
-	
-	_len0_ = _all_centroid_coord_.shape[0]
-	_len1_ = _all_centroid_coord_.shape[1]
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] + Lx
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] - Ly
-	
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid0_ )
-	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
-	
-	return sum_x, sum_y, sum_z
-	
-	
-def _D3_Peskin_function_WN_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
-	Lx, Ly, Lz = Domain()
-	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
-	
-	# west-northern box = middle box - Lx, + Ly
-	_tri_centroid0_ = np.copy(_tri_centroid_)
-	_leng_ = len(_tri_centroid_[:,0])
-	_tri_centroid0_[0:_leng_,0] = _tri_centroid_[0:_leng_,0] - Lx
-	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] + Ly
-	
-	_len0_ = _all_centroid_coord_.shape[0]
-	_len1_ = _all_centroid_coord_.shape[1]
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] - Lx
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] + Ly
-	
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid0_ )
-	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord0_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
 	
 	return sum_x, sum_y, sum_z
 	
@@ -227,25 +166,101 @@ def _D3_Peskin_function_WN_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_,
 def _D3_Peskin_function_EN_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
 	Lx, Ly, Lz = Domain()
 	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
-	eps0 = delr*ds[0]
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
 	
 	# east-northern box = middle box + Lx, + Ly
 	_tri_centroid0_ = np.copy(_tri_centroid_)
+	_all_centroid_coord0_ = np.copy(_all_centroid_coord_)
+	
 	_leng_ = len(_tri_centroid_[:,0])
 	_tri_centroid0_[0:_leng_,0] = _tri_centroid_[0:_leng_,0] + Lx
 	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] + Ly
 	
 	_len0_ = _all_centroid_coord_.shape[0]
 	_len1_ = _all_centroid_coord_.shape[1]
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] + Lx
-	_all_centroid_coord_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] + Ly
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] + Lx
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] + Ly
 	
-	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], eps0, eps0, eps0, _tri_centroid0_ )
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid0_ )
 	if len(_list_) > 0: 
-		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord_, coord, _Area_, _list_, delr, eps0)
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord0_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
 	
 	return sum_x, sum_y, sum_z
 	
+	
+def _D3_Peskin_function_ES_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
+	Lx, Ly, Lz = Domain()
+	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
+	
+	# east-southern box = middle box + Lx, - Ly
+	_tri_centroid0_ = np.copy(_tri_centroid_)
+	_all_centroid_coord0_ = np.copy(_all_centroid_coord_)
+	
+	_leng_ = len(_tri_centroid_[:,0]) 
+	_tri_centroid0_[0:_leng_,0] = _tri_centroid_[0:_leng_,0] + Lx
+	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] - Ly
+	
+	_len0_ = _all_centroid_coord_.shape[0]
+	_len1_ = _all_centroid_coord_.shape[1]
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] + Lx
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] - Ly
+	
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid0_ )
+	if len(_list_) > 0: 
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord0_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
+	
+	return sum_x, sum_y, sum_z
+	
+	
+def _D3_Peskin_function_WN_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
+	Lx, Ly, Lz = Domain()
+	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
+	
+	# west-northern box = middle box - Lx, + Ly
+	_tri_centroid0_ = np.copy(_tri_centroid_)
+	_all_centroid_coord0_ = np.copy(_all_centroid_coord_)
+	
+	_leng_ = len(_tri_centroid_[:,0])
+	_tri_centroid0_[0:_leng_,0] = _tri_centroid_[0:_leng_,0] - Lx
+	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] + Ly
+	
+	_len0_ = _all_centroid_coord_.shape[0]
+	_len1_ = _all_centroid_coord_.shape[1]
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] - Lx
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] + Ly
+	
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid0_ )
+	if len(_list_) > 0: 
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord0_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
+	
+	return sum_x, sum_y, sum_z
+	
+	
+def _D3_Peskin_function_WS_box_(_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr):
+	Lx, Ly, Lz = Domain()
+	( sum_x, sum_y, sum_z ) = ( 0., 0., 0. )
+	( epsx, epsy, epsz ) = ( delr*ds[0], delr*ds[1], delr*ds[2] )
+	
+	# west-southern box = middle box - Lx, - Ly
+	_tri_centroid0_ = np.copy(_tri_centroid_)
+	_all_centroid_coord0_ = np.copy(_all_centroid_coord_)
+	
+	_leng_ = len(_tri_centroid_[:,0]) 
+	_tri_centroid0_[0:_leng_,0] = _tri_centroid_[0:_leng_,0] - Lx
+	_tri_centroid0_[0:_leng_,1] = _tri_centroid_[0:_leng_,1] - Ly
+	
+	_len0_ = _all_centroid_coord_.shape[0]
+	_len1_ = _all_centroid_coord_.shape[1]
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 0] = _all_centroid_coord_[0:_len0_, 0:_len1_, 0] - Lx
+	_all_centroid_coord0_[0:_len0_, 0:_len1_, 1] = _all_centroid_coord_[0:_len0_, 0:_len1_, 1] - Ly
+		
+	_list_ = _find_elements_nearby_( coord[0], coord[1], coord[2], epsx, epsy, epsz, _tri_centroid0_ )
+	if len(_list_) > 0: 
+		sum_x, sum_y, sum_z = _add_(_eleGma0_, _all_centroid_coord0_, coord, _Area_, _list_, delr, epsx, epsy, epsz)
+	
+	return sum_x, sum_y, sum_z
 	
 	
 def _D3b_Peskin_function_toget_gridVor_( _eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_ ):
@@ -255,10 +270,10 @@ def _D3b_Peskin_function_toget_gridVor_( _eleGma0_, _tri_centroid_, _all_centroi
 	x, y, z = _SmoothGrid_Generation_()
 	( nx, ny ) = ( len(x), len(y) )
 	
-	delr = 2.
-	eps = delr*ds[0]
+	delr = 4.
 	
 	sum_x0, sum_y0, sum_z0 = _D3_Peskin_function_       (_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr)
+	
 	sum_x1, sum_y1, sum_z1 = _D3_Peskin_function_E_box_ (_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr)
 	sum_x2, sum_y2, sum_z2 = _D3_Peskin_function_W_box_ (_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr)
 	sum_x3, sum_y3, sum_z3 = _D3_Peskin_function_N_box_ (_eleGma0_, _tri_centroid_, _all_centroid_coord_, coord, ds, _Area_, delr)
@@ -284,10 +299,11 @@ def _remeshing_all_triangles_( _no_tri_, _triXC, _triYC, _triZC ):
 	for _tri in range(_no_tri_):
 	
 		p1_C = np.array( [_triXC[_tri,0], _triYC[_tri,0], _triZC[_tri,0]] )
-		p2_C = np.array( [_triXC[_tri,1], _triYC[_tri,1], _triZC[_tri,1]] )		
-		p3_C = np.array( [_triXC[_tri,2], _triYC[_tri,2], _triZC[_tri,2]] )  
+		p2_C = np.array( [_triXC[_tri,1], _triYC[_tri,1], _triZC[_tri,1]] )
+		p3_C = np.array( [_triXC[_tri,2], _triYC[_tri,2], _triZC[_tri,2]] )
 		
-		_centroid_sub_tri = _centroid_4subTriangle_(p1_C, p2_C, p3_C)
+		if _no_sub_elems_ == 4:  _centroid_sub_tri = _centroid_4subTriangle_(p1_C, p2_C, p3_C)
+		if _no_sub_elems_ == 16: _centroid_sub_tri = _centroid_16subTriangle_(p1_C, p2_C, p3_C)
 		
 		_all_centroid_coord_[_tri,0:_no_sub_elems_,0] = _centroid_sub_tri[0:_no_sub_elems_,0]
 		_all_centroid_coord_[_tri,0:_no_sub_elems_,1] = _centroid_sub_tri[0:_no_sub_elems_,1]

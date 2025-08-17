@@ -20,10 +20,8 @@ def _left_edge_BndryPts_(_input_, _imax_):
 			Cnt += 1
 	
 	return _LeftEdge_BndryPts_
-		
 	
-#def _Enforce_Predic_Cond_on_Nodes_(_input_, _imax_, _jmax_, _LeftEdge_BndryPts_, Xcnst, Ycnst):
-
+	
 def _Enforce_Predic_Cond_on_Nodes_(_input_, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up, Xcnst, Ycnst):
 	
 	if len(_bndry_node_lt) != len(_bndry_node_rt): raise ValueError('No of nodes on left and right boundary should be same')
@@ -35,23 +33,6 @@ def _Enforce_Predic_Cond_on_Nodes_(_input_, _bndry_node_lt, _bndry_node_rt, _bnd
 	for _tri in range( len(_bndry_node_dn) ):
 		_input_[_bndry_node_dn[_tri]] = _input_[_bndry_node_up[_tri]] - Ycnst
 	
-	
-#	gr_pts = len(_input_)
-#	
-##	if Xcnst is None: Xcnst = 0.
-##	if Ycnst is None: Xcnst = 0.
-#	
-#	# bottom = top
-#	#_input_[(_jmax_-1)*_imax_:gr_pts] = _input_[0:_imax_] + Ycnst
-#	
-#	_input_[0:_imax_] = _input_[(_jmax_-1)*_imax_:gr_pts] - Ycnst
-#	
-#	# right = left
-#	length = len(_LeftEdge_BndryPts_)
-#	for itr in range(length):
-#		#_input_[_LeftEdge_BndryPts_[itr]+_imax_-1] = _input_[_LeftEdge_BndryPts_[itr]] + Xcnst 
-#		_input_[_LeftEdge_BndryPts_[itr]] = _input_[_LeftEdge_BndryPts_[itr]+_imax_-1] - Xcnst
-		
 	return _input_
 	
 
@@ -68,49 +49,37 @@ def _Enforce_Predic_Cond_on_Tri(_input_, _bndry_ele_lt, _bndry_ele_rt, _bndry_el
 		
 	return _input_
 	
-
-#def _Enforce_Predic_Cond_on_Vel_(_uXg_, _vYg_, _wZg_, _imax_, _jmax_, _LeftEdge_BndryPts_):
 	
-def _Enforce_Predic_Cond_on_Vel_(_uXg_, _vYg_, _wZg_, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up):
+def _Enforce_Predic_Cond_on_Vel_(_uXg_, _vYg_, _wZg_, _node_lt, _node_rt, _node_dn, _node_up):
 	
-#	_Enforce_Predic_Cond_on_Nodes_(_uXg_, _imax_, _jmax_, _LeftEdge_BndryPts_, 0., 0.)
-#	_Enforce_Predic_Cond_on_Nodes_(_vYg_, _imax_, _jmax_, _LeftEdge_BndryPts_, 0., 0.)
-#	_Enforce_Predic_Cond_on_Nodes_(_wZg_, _imax_, _jmax_, _LeftEdge_BndryPts_, 0., 0.)
-	
-	_Enforce_Predic_Cond_on_Nodes_(_uXg_, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up, 0., 0.)
-	_Enforce_Predic_Cond_on_Nodes_(_vYg_, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up, 0., 0.)
-	_Enforce_Predic_Cond_on_Nodes_(_wZg_, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up, 0., 0.)
+	_Enforce_Predic_Cond_on_Nodes_(_uXg_, _node_lt, _node_rt, _node_dn, _node_up, 0., 0.)
+	_Enforce_Predic_Cond_on_Nodes_(_vYg_, _node_lt, _node_rt, _node_dn, _node_up, 0., 0.)
+	_Enforce_Predic_Cond_on_Nodes_(_wZg_, _node_lt, _node_rt, _node_dn, _node_up, 0., 0.)
 	
 	return _uXg_, _vYg_, _wZg_
 	
 	
-def _Enforce_Predic_Cond_on_Gma_(_eleGmaX_, _eleGmaY_, _eleGmaZ_, _bndry_ele_lt, _bndry_ele_rt, _bndry_ele_dn, _bndry_ele_up):
+def _Enforce_Predic_Cond_on_Gma_(_eleGmaX_, _eleGmaY_, _eleGmaZ_, _ele_lt, _ele_rt, _ele_dn, _ele_up):
 	
-	_Enforce_Predic_Cond_on_Tri(_eleGmaX_, _bndry_ele_lt, _bndry_ele_rt, _bndry_ele_dn, _bndry_ele_up, 0., 0.)
-	_Enforce_Predic_Cond_on_Tri(_eleGmaY_, _bndry_ele_lt, _bndry_ele_rt, _bndry_ele_dn, _bndry_ele_up, 0., 0.)
-	_Enforce_Predic_Cond_on_Tri(_eleGmaZ_, _bndry_ele_lt, _bndry_ele_rt, _bndry_ele_dn, _bndry_ele_up, 0., 0.)
+	_Enforce_Predic_Cond_on_Tri(_eleGmaX_, _ele_lt, _ele_rt, _ele_dn, _ele_up, 0., 0.)
+	_Enforce_Predic_Cond_on_Tri(_eleGmaY_, _ele_lt, _ele_rt, _ele_dn, _ele_up, 0., 0.)
+	_Enforce_Predic_Cond_on_Tri(_eleGmaZ_, _ele_lt, _ele_rt, _ele_dn, _ele_up, 0., 0.)
 	
 	return _eleGmaX_, _eleGmaY_, _eleGmaZ_
 	
 	
-#def _Enforce_Predic_Cond_on_nodeCoord_(_nodeXC, _nodeYC, _nodeZC, _imax_, _jmax_, _LeftEdge_BndryPts_, Lx, Ly):
+def _Enforce_Predic_Cond_on_nodeCoord_(_nodeXC, _nodeYC, _nodeZC, _node_lt, _node_rt, _node_dn, _node_up, Lx, Ly):
 	
-def _Enforce_Predic_Cond_on_nodeCoord_(_nodeXC, _nodeYC, _nodeZC, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up, Lx, Ly):
-	
-#	_Enforce_Predic_Cond_on_Nodes_(_nodeXC, _imax_, _jmax_, _LeftEdge_BndryPts_, Lx, 0.)
-#	_Enforce_Predic_Cond_on_Nodes_(_nodeYC, _imax_, _jmax_, _LeftEdge_BndryPts_, 0., Ly)
-#	_Enforce_Predic_Cond_on_Nodes_(_nodeZC, _imax_, _jmax_, _LeftEdge_BndryPts_, 0., 0.)
-	
-	_Enforce_Predic_Cond_on_Nodes_(_nodeXC, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up, Lx, 0.)
-	_Enforce_Predic_Cond_on_Nodes_(_nodeYC, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up, 0., Ly)
-	_Enforce_Predic_Cond_on_Nodes_(_nodeZC, _bndry_node_lt, _bndry_node_rt, _bndry_node_dn, _bndry_node_up, 0., 0.)
+	_Enforce_Predic_Cond_on_Nodes_(_nodeXC, _node_lt, _node_rt, _node_dn, _node_up, Lx, 0.)
+	_Enforce_Predic_Cond_on_Nodes_(_nodeYC, _node_lt, _node_rt, _node_dn, _node_up, 0., Ly)
+	_Enforce_Predic_Cond_on_Nodes_(_nodeZC, _node_lt, _node_rt, _node_dn, _node_up, 0., 0.)
 	
 	return _nodeXC, _nodeYC, _nodeZC
 	
 	
 def _euclid_3d_dist(x1, y1, z1, x2, y2, z2):
 
-	_tmp_ = np.sqrt((x1-x2)**2.+(y1-y2)**2.+(z1-z2)**2.)
+	_tmp_ = np.sqrt( (x1-x2)**2. + (y1-y2)**2. + (z1-z2)**2. )
 	
 	return _tmp_
 	
@@ -118,30 +87,30 @@ def _euclid_3d_dist(x1, y1, z1, x2, y2, z2):
 def _centroid_triangle_( p1_C, p2_C, p3_C ):
 
 	_centroid_ = np.zeros(3)
-	_centroid_[0] = (p1_C[0]+p2_C[0]+p3_C[0])/3. 	
+	_centroid_[0] = (p1_C[0]+p2_C[0]+p3_C[0])/3.
 	_centroid_[1] = (p1_C[1]+p2_C[1]+p3_C[1])/3.
 	_centroid_[2] = (p1_C[2]+p2_C[2]+p3_C[2])/3.
 		
 	return _centroid_
 	
-def _allTriangle_Centroid_( _triXC, _triYC, _triZC, _no_tri_, tri_verti_ ):
+def _allTriangle_Centroid_( _triXC, _triYC, _triZC ):
 
-	_centroid_ = np.zeros( (_no_tri_,3) )
+	_centroid_ = np.zeros( (len(_triXC[:,0]),3) )
 	
-	for it in range(_no_tri_):
+	for it in range( len(_triXC[:,0]) ):
 		
 		p1_C = np.array( [_triXC[it,0], _triYC[it,0], _triZC[it,0]] )
-		p2_C = np.array( [_triXC[it,1], _triYC[it,1], _triZC[it,1]] )		
+		p2_C = np.array( [_triXC[it,1], _triYC[it,1], _triZC[it,1]] )
 		p3_C = np.array( [_triXC[it,2], _triYC[it,2], _triZC[it,2]] )  
-			
-		_centroid_[it,0] = (p1_C[0]+p2_C[0]+p3_C[0])/3. 	
+		
+		_centroid_[it,0] = (p1_C[0]+p2_C[0]+p3_C[0])/3.
 		_centroid_[it,1] = (p1_C[1]+p2_C[1]+p3_C[1])/3.
 		_centroid_[it,2] = (p1_C[2]+p2_C[2]+p3_C[2])/3.
 	
 	return _centroid_
 	
 	
-def _Triangle_Area_(p1_C, p2_C, p3_C):
+def _oneTriangle_Area_(p1_C, p2_C, p3_C):
 	
 	a = np.sqrt( (p1_C[0]-p2_C[0])**2. + (p1_C[1]-p2_C[1])**2. + (p1_C[2]-p2_C[2])**2. )
 	b = np.sqrt( (p2_C[0]-p3_C[0])**2. + (p2_C[1]-p3_C[1])**2. + (p2_C[2]-p3_C[2])**2. )
@@ -154,22 +123,22 @@ def _Triangle_Area_(p1_C, p2_C, p3_C):
 	return _Area_
 	
 
-def _allTriangle_Area_( _triXC, _triYC, _triZC, _no_tri_, tri_verti_ ):
+def _allTriangle_Area_( _triXC, _triYC, _triZC ):
 
-	_Area_ = np.zeros(_no_tri_)
+	_Area_ = np.zeros( len(_triXC[:,0]) )
 	
-	for it in range(_no_tri_):
+	for it in range( len(_triXC[:,0]) ):
 		
 		p1_C = np.array( [_triXC[it,0], _triYC[it,0], _triZC[it,0]] )
-		p2_C = np.array( [_triXC[it,1], _triYC[it,1], _triZC[it,1]] )		
-		p3_C = np.array( [_triXC[it,2], _triYC[it,2], _triZC[it,2]] )  
-			
+		p2_C = np.array( [_triXC[it,1], _triYC[it,1], _triZC[it,1]] )
+		p3_C = np.array( [_triXC[it,2], _triYC[it,2], _triZC[it,2]] )
+		
 		a = np.sqrt( (p1_C[0]-p2_C[0])**2. + (p1_C[1]-p2_C[1])**2. + (p1_C[2]-p2_C[2])**2. )
 		b = np.sqrt( (p2_C[0]-p3_C[0])**2. + (p2_C[1]-p3_C[1])**2. + (p2_C[2]-p3_C[2])**2. )
-		c = np.sqrt( (p3_C[0]-p1_C[0])**2. + (p3_C[1]-p1_C[1])**2. + (p3_C[2]-p1_C[2])**2. )	
-	
+		c = np.sqrt( (p3_C[0]-p1_C[0])**2. + (p3_C[1]-p1_C[1])**2. + (p3_C[2]-p1_C[2])**2. )
+		
 		s = (a+b+c)/2.
-	
+		
 		_Area_[it] = np.sqrt( s*(s-a)*(s-b)*(s-c) )
 	
 	return _Area_
@@ -179,9 +148,9 @@ def _D1_Peskin_function_( x, xp, dx, eps):
 	
 	if abs(x-xp)/dx <= eps:		
 		delta = ( 1. + np.cos( np.pi*(x-xp)/(dx*eps) ) )/(2.*eps)
-	else:	  
+	else:
 		delta = 0.
-		
+	
 	return delta
 		
 
@@ -196,75 +165,99 @@ def _D1_Peskin_function_( x, xp, dx, eps):
 
 class _cal_Normal_Vector(object):
 
-	def __init__(self, _nodeXC, _nodeYC, _nodeZC, _no_tri_, tri_verti_):
+	def __init__(self, _nodeXC, _nodeYC, _nodeZC, _triXC, _triYC, _triZC, _no_tri_, tri_verti_):
+		
 		self._nodeXC = _nodeXC
 		self._nodeYC = _nodeYC
-		self._nodeZC = _nodeZC		
+		self._nodeZC = _nodeZC
+		
+		self._triXC = _triXC
+		self._triYC = _triYC
+		self._triZC = _triZC
+		
 		self._no_tri_ = _no_tri_
 		self.tri_verti_ = tri_verti_
-
-	def _tri_coord_(self):
-
-		_triXC = np.zeros( (self._no_tri_,3) )
-		_triYC = np.zeros( (self._no_tri_,3) )
-		_triZC = np.zeros( (self._no_tri_,3) )
-		
-		_triXC[0:self._no_tri_,0:3] = self._nodeXC[self.tri_verti_[0:self._no_tri_,0:3]]
-		_triYC[0:self._no_tri_,0:3] = self._nodeYC[self.tri_verti_[0:self._no_tri_,0:3]]
-		_triZC[0:self._no_tri_,0:3] = self._nodeZC[self.tri_verti_[0:self._no_tri_,0:3]]
-			
-		return _triXC, _triYC, _triZC
-		
-		
+	
+	
 	def _all_triangle_surf_normal_(self):
 
 		_unit_normal_vec_ = np.zeros( (self._no_tri_,3) )
 		
-		_triXC, _triYC, _triZC = self._tri_coord_()
-		#sio.savemat('xT.mat', {'xT':xT})
-		#sio.savemat('yT.mat', {'yT':yT})
-		#sio.savemat('zT.mat', {'zT':zT})
+#		_triXC, _triYC, _triZC = self._tri_coord_()
+#		#sio.savemat('xT.mat', {'xT':xT})
+#		#sio.savemat('yT.mat', {'yT':yT})
+#		#sio.savemat('zT.mat', {'zT':zT})
 		
 		for it in range(self._no_tri_):
 		
-			poly = \
-			np.array([ [_triXC[it,0],_triYC[it,0],_triZC[it,0]], \
-			[_triXC[it,1],_triYC[it,1],_triZC[it,1] ], \
-			[_triXC[it,2],_triYC[it,2],_triZC[it,2] ] ])
+			p0 = np.array( [ self._triXC[it,0], self._triYC[it,0], self._triZC[it,0] ] )
+			p1 = np.array( [ self._triXC[it,1], self._triYC[it,1], self._triZC[it,1] ] )
+			p2 = np.array( [ self._triXC[it,2], self._triYC[it,2], self._triZC[it,2] ] )
 			
-			n = np.array([0.0, 0.0, 0.0])
+			det = p0[0]*( p1[1]*p2[2] - p2[1]*p1[2] ) - p1[0]*( p0[1]*p2[2] - p2[1]*p0[2] ) + p2[0]*( p0[1]*p1[2] - p1[1]*p0[2] )
 			
-			for i, v_curr in enumerate(poly):
-				v_next = poly[(i+1) % len(poly),:]
-				n[0] += (v_curr[1] - v_next[1]) * (v_curr[2] + v_next[2]) 
-				n[1] += (v_curr[2] - v_next[2]) * (v_curr[0] + v_next[0])
-				n[2] += (v_curr[0] - v_next[0]) * (v_curr[1] + v_next[1])
+			#if det > 0:
+			r01 = np.array( [ p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2] ] )
+			r12 = np.array( [ p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] ] )
 			
-			norm = np.linalg.norm(n)
-
-			if norm==0:
-				raise ValueError('zero norm')
-			else:
-				_unit_normal_vec_[it,:] = n/norm
+			r01xr12 = np.array( [ r01[1]*r12[2] - r01[2]*r12[1], r12[0]*r01[2] - r12[2]*r01[0], r01[0]*r12[1] - r01[1]*r12[0] ] )
+			norm = np.linalg.norm(r01xr12)
+			if norm == 0.: raise ValueError('zero norm')
 			
-			#_unit_normal_vec_[it,:] = n[:]
-			#print('normal vec = ', _unit_normal_vec_)
+			_unit_normal_vec_[it,:] = r01xr12/norm
+				
+			#if det < 0:
+			#	r02 = np.array( [ p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2] ] )
+			#	r21 = np.array( [ p1[0] - p2[0], p1[1] - p2[1], p1[2] - p2[2] ] )
+			#	
+			#	r02xr21 = np.array( [ r02[1]*r21[2] - r02[2]*r21[1], r21[0]*r02[2] - r21[2]*r02[0], r02[0]*r21[1] - r02[1]*r21[0] ] )
+			#	norm = np.linalg.norm(r02xr21)
+			#	if norm == 0.: raise ValueError('zero norm')
+				
+			#_unit_normal_vec_[it,:] = r02xr21/norm
 			
+			if _unit_normal_vec_[it,2] < 0: _unit_normal_vec_[it,:] = -1.*_unit_normal_vec_[it,:]
+			
+#			poly = \
+#			np.array([ [ self._triXC[it,0], self._triYC[it,0], self._triZC[it,0] ], \
+#			[ self._triXC[it,1], self._triYC[it,1], self._triZC[it,1] ], \
+#			[ self._triXC[it,2], self._triYC[it,2], self._triZC[it,2] ] ])
+#			
+#			n = np.array([0.0, 0.0, 0.0])
+#			
+#			for i, v_curr in enumerate(poly):
+#				v_next = poly[(i+1) % len(poly),:]
+#				n[0] += (v_curr[1] - v_next[1]) * (v_curr[2] + v_next[2]) 
+#				n[1] += (v_curr[2] - v_next[2]) * (v_curr[0] + v_next[0])
+#				n[2] += (v_curr[0] - v_next[0]) * (v_curr[1] + v_next[1])
+#			
+#			norm = np.linalg.norm(n)
+#			
+#			if norm==0:
+#				print('itr = ', it)
+#				print('n = ', n)
+#				raise ValueError('zero norm')
+#			else:
+#				_unit_normal_vec_[it,:] = n/norm
+#			
+#			#_unit_normal_vec_[it,:] = n[:]
+#			#print('normal vec = ', _unit_normal_vec_)
+#			
 		return _unit_normal_vec_
 	
 	
-	def _edge_length_(self):
-		
-		_triXC, _triYC, _triZC = self._tri_coord_()
-		
-		len_ = _euclid_3d_dist(_triXC[0,0], _triYC[0,0], _triZC[0,0], _triXC[0,1], _triYC[0,1], _triZC[0,1])	
-		
-		return len_
+#	def _edge_length_(self):
+#		
+#		_triXC, _triYC, _triZC = self._tri_coord_()
+#		
+#		len_ = _euclid_3d_dist(_triXC[0,0], _triYC[0,0], _triZC[0,0], _triXC[0,1], _triYC[0,1], _triZC[0,1])	
+#		
+#		return len_
 	
 	
 def Domain():
 	
-	( Lx, Ly, Lz ) = ( 1., 1., 2. )
+	( Lx, Ly, Lz ) = ( 1., 1., 1. )
 	
 	return Lx, Ly, Lz
 	
@@ -273,10 +266,16 @@ def _SmoothGrid_Generation_():
 	
 	Lx, Ly, Lz = Domain()
 	
-	x = np.linspace( 0., Lx, 25 )
-	y = np.linspace( 0., Ly, 25 )
-	z = np.linspace( -Lz, Lz, 97 )  # nz = 2*nx-1 if Lz=Lx or, nz=2*(2*nx-1)-1 if Lz=2*Lx
-		
+	# nz = 2*nx-1 if Lz=Lx or, nz=2*(2*nx-1)-1 if Lz=2*Lx  
+	nx = 25
+	ny = 50
+	if Lz == 1.*Lx: nz = 2*ny-1
+	if Lz == 2.*Lx: nz = 2*(2*ny-1)-1
+	
+	x = np.linspace( 0., Lx, nx )
+	y = np.linspace( 0., Ly, ny )
+	z = np.linspace( -Lz, Lz, nz )
+	
 	return x, y, z
 	
 
@@ -383,7 +382,6 @@ def _centroid_16subTriangle_(p1_C, p2_C, p3_C):
 	_centroid_sub_tri = np.zeros( (16,3) ) 
 	
 	for i in range(4):
-		
 		sub_tri_p1C = np.array( [ _sub_triC1[i,0,0], _sub_triC1[i,0,1], _sub_triC1[i,0,2] ] )
 		sub_tri_p2C = np.array( [ _sub_triC1[i,1,0], _sub_triC1[i,1,1], _sub_triC1[i,1,2] ] )
 		sub_tri_p3C = np.array( [ _sub_triC1[i,2,0], _sub_triC1[i,2,1], _sub_triC1[i,2,2] ] )
@@ -391,7 +389,6 @@ def _centroid_16subTriangle_(p1_C, p2_C, p3_C):
 		_centroid_sub_tri[i,0:3] = _centroid_triangle_( sub_tri_p1C, sub_tri_p2C, sub_tri_p3C  )
 
 	for i in range(4):
-		
 		sub_tri_p1C = np.array( [ _sub_triC2[i,0,0], _sub_triC2[i,0,1], _sub_triC2[i,0,2] ] )
 		sub_tri_p2C = np.array( [ _sub_triC2[i,1,0], _sub_triC2[i,1,1], _sub_triC2[i,1,2] ] )
 		sub_tri_p3C = np.array( [ _sub_triC2[i,2,0], _sub_triC2[i,2,1], _sub_triC2[i,2,2] ] )
@@ -399,7 +396,6 @@ def _centroid_16subTriangle_(p1_C, p2_C, p3_C):
 		_centroid_sub_tri[4+i,0:3] = _centroid_triangle_( sub_tri_p1C, sub_tri_p2C, sub_tri_p3C  )
 
 	for i in range(4):
-		
 		sub_tri_p1C = np.array( [ _sub_triC3[i,0,0], _sub_triC3[i,0,1], _sub_triC3[i,0,2] ] )
 		sub_tri_p2C = np.array( [ _sub_triC3[i,1,0], _sub_triC3[i,1,1], _sub_triC3[i,1,2] ] )
 		sub_tri_p3C = np.array( [ _sub_triC3[i,2,0], _sub_triC3[i,2,1], _sub_triC3[i,2,2] ] )
@@ -407,7 +403,6 @@ def _centroid_16subTriangle_(p1_C, p2_C, p3_C):
 		_centroid_sub_tri[8+i,0:3] = _centroid_triangle_( sub_tri_p1C, sub_tri_p2C, sub_tri_p3C  )
 	
 	for i in range(4):
-		
 		sub_tri_p1C = np.array( [ _sub_triC4[i,0,0], _sub_triC4[i,0,1], _sub_triC4[i,0,2] ] )
 		sub_tri_p2C = np.array( [ _sub_triC4[i,1,0], _sub_triC4[i,1,1], _sub_triC4[i,1,2] ] )
 		sub_tri_p3C = np.array( [ _sub_triC4[i,2,0], _sub_triC4[i,2,1], _sub_triC4[i,2,2] ] )
