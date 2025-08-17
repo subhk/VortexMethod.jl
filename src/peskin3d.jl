@@ -44,11 +44,14 @@ end
 
 # Split a triangle into 4 and return centroids (to mirror python _centroid_4subTriangle_)
 function subtriangle_centroids4(p1::NTuple{3,Float64}, p2::NTuple{3,Float64}, p3::NTuple{3,Float64})
+
     ds12 = ((p2[1]-p1[1])/2, (p2[2]-p1[2])/2, (p2[3]-p1[3])/2)
     ds23 = ((p3[1]-p2[1])/2, (p3[2]-p2[2])/2, (p3[3]-p2[3])/2)
     ds31 = ((p1[1]-p3[1])/2, (p1[2]-p3[2])/2, (p1[3]-p3[3])/2)
+
     # 4 sub-triangles (same as python)
     T = Array{Float64}(undef, 4, 3)
+    
     # tri 1: p1, p1+ds12, p1-ds31
     v1 = p1
     v2 = (p1[1]+ds12[1], p1[2]+ds12[2], p1[3]+ds12[3])
