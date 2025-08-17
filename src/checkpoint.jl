@@ -2,7 +2,8 @@ module Checkpoint
 
 export save_checkpoint!, save_checkpoint_mat!, load_latest_checkpoint,
        save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2,
-       save_state!, mesh_stats, save_state_timeseries!
+       save_state!, mesh_stats, save_state_timeseries!,
+       series_times, load_series_snapshot, load_series_nearest_time
 
 using DelimitedFiles
 using Dates
@@ -231,6 +232,53 @@ function save_state_timeseries!(file::AbstractString, time::Real,
         write(f, key*"stats", stats)
     end
     return file
+end
+
+"""
+series_times(file) -> times::Vector{Float64}, steps::Vector{Int}, count::Int
+
+Reads top-level times/steps/count from a series JLD2 file.
+"""
+function series_times(file::AbstractString)
+    return JLD2.jldopen(file, "r") do f
+        times = haskey(f, "times") ? read(f, "times")::Vector{Float64} : Float64[]
+        steps = haskey(f, "steps") ? read(f, "steps")::Vector{Int} : Int[]
+        count = haskey(f, "count") ? read(f, "count")::Int : length(times)
+        (times, steps, count)
+    end
+end
+
+"""
+load_series_snapshot(file, idx) -> NamedTuple
+
+Loads snapshot at 1-based index `idx` from the series file.
+Returns (; nodeX, nodeY, nodeZ, tri, eleGma, time, dom, grid, params, stats)
+"""
+function load_series_snapshot(file::AbstractString, idx::Integer)
+    return JLD2.jldopen(file, "r") do f
+        key = @sprintf("snapshots/%06d/", idx)
+        nodeX = read(f, key*"nodeX"); nodeY = read(f, key*"nodeY"); nodeZ = read(f, key*"nodeZ")
+        tri   = read(f, key*"tri");    eleGma = read(f, key*"gamma")
+        time  = read(f, key*"time")
+        dom   = haskey(f, key*"domain") ? read(f, key*"domain") : nothing
+        grid  = haskey(f, key*"grid")   ? read(f, key*"grid")   : nothing
+        params= haskey(f, key*"params") ? read(f, key*"params") : nothing
+        stats = haskey(f, key*"stats")  ? read(f, key*"stats")  : nothing
+        (; nodeX, nodeY, nodeZ, tri, eleGma, time, dom, grid, params, stats)
+    end
+end
+
+"""
+load_series_nearest_time(file, t) -> (idx, snapshot)
+
+Finds snapshot index nearest to time `t` and returns (idx, NamedTuple snapshot).
+"""
+function load_series_nearest_time(file::AbstractString, t::Real)
+    times, steps, count = series_times(file)
+    isempty(times) && error("No snapshots in series: $file")
+    # find index of closest time
+    idx = argmin(abs.(times .- float(t)))
+    return idx, load_series_snapshot(file, idx)
 end
 
 end # module
