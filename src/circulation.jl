@@ -1,6 +1,7 @@
 module Circulation
 
-export node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma
+export node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma,
+       triangle_normals, baroclinic_ele_gamma
 
 # Compute per-triangle node circulations (3 per triangle) from element vorticity vectors.
 # Mirrors python: _MatrixInversion_2_cal_nodeCircu_frm_eleVor_
@@ -71,5 +72,45 @@ function transport_ele_gamma(eleGma_old::AbstractMatrix,
     return eleGma_new
 end
 
-end # module
+# Unit normals for each triangle; flip to ensure positive z-component like python helper
+function triangle_normals(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
+    nt = size(triXC,1)
+    N = zeros(Float64, nt, 3)
+    @inbounds for t in 1:nt
+        p0 = (triXC[t,1], triYC[t,1], triZC[t,1])
+        p1 = (triXC[t,2], triYC[t,2], triZC[t,2])
+        p2 = (triXC[t,3], triYC[t,3], triZC[t,3])
+        r01 = (p1[1]-p0[1], p1[2]-p0[2], p1[3]-p0[3])
+        r12 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
+        nx = r01[2]*r12[3] - r01[3]*r12[2]
+        ny = r12[1]*r01[3] - r12[3]*r01[1]
+        nz = r01[1]*r12[2] - r01[2]*r12[1]
+        norm = sqrt(nx*nx + ny*ny + nz*nz)
+        if norm == 0
+            nx,ny,nz = 0.0,0.0,1.0
+            norm = 1.0
+        end
+        nx/=norm; ny/=norm; nz/=norm
+        if nz < 0.0
+            nx = -nx; ny = -ny; nz = -nz
+        end
+        N[t,1]=nx; N[t,2]=ny; N[t,3]=nz
+    end
+    return N
+end
 
+# Baroclinic contribution to element vorticity over dt: dγ = [+2At*ny, -2At*nx, 0]*dt
+function baroclinic_ele_gamma(At::Float64, dt::Float64, triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
+    N = triangle_normals(triXC, triYC, triZC)
+    nt = size(triXC,1)
+    dG = zeros(Float64, nt, 3)
+    @inbounds for t in 1:nt
+        nx = N[t,1]; ny = N[t,2]
+        dG[t,1] = +2*At*ny*dt
+        dG[t,2] = -2*At*nx*dt
+        dG[t,3] = 0.0
+    end
+    return dG
+end
+
+end # module
