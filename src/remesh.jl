@@ -3,6 +3,8 @@ module Remesh
 export detect_max_edge_length, detect_min_edge_length,
        element_splitting!, edge_flip_small_edge!, remesh_pass!
 
+using ..DomainImpl
+
 function detect_max_edge_length(triXC, triYC, triZC, ds_max::Float64)
     nt = size(triXC,1)
     maxlen = 0.0
@@ -116,9 +118,45 @@ end
     return sqrt(dx*dx+dy*dy+dz*dz)
 end
 
+@inline min_image(d::Float64, L::Float64) = begin
+    if L <= 0; return d; end
+    d1 = d
+    if d1 >  L/2; d1 -= L; end
+    if d1 < -L/2; d1 += L; end
+    d1
+end
+
+function periodic_edge_length(nodeX,nodeY,nodeZ, a::Int,b::Int, dom::DomainSpec)
+    Lx = dom.Lx; Ly = dom.Ly; Lz2 = 2*dom.Lz
+    dx = min_image(nodeX[a]-nodeX[b], Lx)
+    dy = min_image(nodeY[a]-nodeY[b], Ly)
+    dz = min_image(nodeZ[a]-nodeZ[b], Lz2)
+    return sqrt(dx*dx + dy*dy + dz*dz)
+end
+
+function midpoint_periodic(x1,y1,z1, x2,y2,z2, dom::DomainSpec)
+    Lx = dom.Lx; Ly = dom.Ly; Lz2 = 2*dom.Lz
+    # unwrap x2,y2,z2 near x1,y1,z1 using minimum image
+    dx = min_image(x2 - x1, Lx)
+    dy = min_image(y2 - y1, Ly)
+    dz = min_image(z2 - z1, Lz2)
+    xm = x1 + 0.5*dx
+    ym = y1 + 0.5*dy
+    zm = z1 + 0.5*dz
+    # wrap back to domain ranges: x in [0,Lx), y in [0,Ly), z in [-Lz,+Lz]
+    xm = (xm % Lx)
+    ym = (ym % Ly)
+    zshift = zm + dom.Lz
+    zshift = (zshift % (2*dom.Lz))
+    zm = zshift - dom.Lz
+    return xm, ym, zm
+end
+
 # Global remeshing pass: propagate 1->4 splits on long edges, then attempt a few edge flips for short edges
 function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                      tri::Array{Int,2}, ds_max::Float64, ds_min::Float64; max_splits::Int=1000, max_flips::Int=1000)
+                      tri::Array{Int,2}, ds_max::Float64, ds_min::Float64;
+                      max_splits::Int=1000, max_flips::Int=1000, max_merges::Int=1000,
+                      dom::DomainSpec=default_domain())
     changed = false
     # 1) Long-edge refinement: mark all edges of any tri with any edge > ds_max
     emap = edge_map(tri)
@@ -126,9 +164,9 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
     tris_to_split = Set{Int}()
     @inbounds for t in 1:size(tri,1)
         v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
-        if edge_length(nodeX,nodeY,nodeZ,v1,v2) > ds_max ||
-           edge_length(nodeX,nodeY,nodeZ,v2,v3) > ds_max ||
-           edge_length(nodeX,nodeY,nodeZ,v3,v1) > ds_max
+        if periodic_edge_length(nodeX,nodeY,nodeZ,v1,v2, dom) > ds_max ||
+           periodic_edge_length(nodeX,nodeY,nodeZ,v2,v3, dom) > ds_max ||
+           periodic_edge_length(nodeX,nodeY,nodeZ,v3,v1, dom) > ds_max
             push!(tris_to_split, t)
             for (a,b) in ((v1,v2),(v2,v3),(v3,v1))
                 e = a<b ? (a,b) : (b,a)
@@ -148,9 +186,7 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
         midpoint = Dict{Tuple{Int,Int}, Int}()
         for e in long_edges
             a,b = e
-            mx = 0.5*(nodeX[a]+nodeX[b])
-            my = 0.5*(nodeY[a]+nodeY[b])
-            mz = 0.5*(nodeZ[a]+nodeZ[b])
+            mx,my,mz = midpoint_periodic(nodeX[a],nodeY[a],nodeZ[a], nodeX[b],nodeY[b],nodeZ[b], dom)
             push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
             midpoint[e] = length(nodeX)
         end
@@ -164,15 +200,18 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
                 e31 = (min(v3,v1), max(v3,v1)); m31 = get(midpoint, e31, 0)
                 # ensure midpoints for all three edges (if edge not marked long, still create consistent midpoint)
                 if m12==0
-                    push!(nodeX, 0.5*(nodeX[v1]+nodeX[v2])); push!(nodeY, 0.5*(nodeY[v1]+nodeY[v2])); push!(nodeZ, 0.5*(nodeZ[v1]+nodeZ[v2]))
+                    mx,my,mz = midpoint_periodic(nodeX[v1],nodeY[v1],nodeZ[v1], nodeX[v2],nodeY[v2],nodeZ[v2], dom)
+                    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
                     m12 = length(nodeX)
                 end
                 if m23==0
-                    push!(nodeX, 0.5*(nodeX[v2]+nodeX[v3])); push!(nodeY, 0.5*(nodeY[v2]+nodeY[v3])); push!(nodeZ, 0.5*(nodeZ[v2]+nodeZ[v3]))
+                    mx,my,mz = midpoint_periodic(nodeX[v2],nodeY[v2],nodeZ[v2], nodeX[v3],nodeY[v3],nodeZ[v3], dom)
+                    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
                     m23 = length(nodeX)
                 end
                 if m31==0
-                    push!(nodeX, 0.5*(nodeX[v3]+nodeX[v1])); push!(nodeY, 0.5*(nodeY[v3]+nodeY[v1])); push!(nodeZ, 0.5*(nodeZ[v3]+nodeZ[v1]))
+                    mx,my,mz = midpoint_periodic(nodeX[v3],nodeY[v3],nodeZ[v3], nodeX[v1],nodeY[v1],nodeZ[v1], dom)
+                    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
                     m31 = length(nodeX)
                 end
                 push!(newtris, (v1, m12, m31))
@@ -193,7 +232,7 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
         for (e, tlst) in emap
             if length(tlst) == 2
                 a,b = e
-                if edge_length(nodeX,nodeY,nodeZ,a,b) < ds_min
+                if periodic_edge_length(nodeX,nodeY,nodeZ,a,b, dom) < ds_min
                     tri = edge_flip_small_edge!(tri, tlst[1])
                     flips += 1
                     didflip = true
@@ -202,6 +241,41 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
             end
         end
         didflip || break
+    end
+    # 3) Edge collapses for persistent short edges
+    merges = 0
+    while merges < max_merges
+        emap = edge_map(tri)
+        collapsed = false
+        for (e, tlst) in emap
+            a,b = e
+            if periodic_edge_length(nodeX,nodeY,nodeZ,a,b, dom) < ds_min
+                # midpoint and new node
+                mx,my,mz = midpoint_periodic(nodeX[a],nodeY[a],nodeZ[a], nodeX[b],nodeY[b],nodeZ[b], dom)
+                push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
+                m = length(nodeX)
+                # replace all occurrences of a or b with m
+                @inbounds for t in 1:size(tri,1), k in 1:3
+                    v = tri[t,k]
+                    if v==a || v==b
+                        tri[t,k] = m
+                    end
+                end
+                # remove degenerate triangles (duplicate vertices)
+                keep = trues(size(tri,1))
+                @inbounds for t in 1:size(tri,1)
+                    v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
+                    if v1==v2 || v2==v3 || v3==v1
+                        keep[t] = false
+                    end
+                end
+                tri = tri[keep, :]
+                merges += 1
+                collapsed = true
+                break
+            end
+        end
+        collapsed || break
     end
     return tri, changed
 end
