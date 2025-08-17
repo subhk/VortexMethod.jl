@@ -3,6 +3,7 @@ module TimeStepper
 using ..DomainImpl
 using ..Poisson3D
 using ..Peskin3D
+using ..Circulation
 
 export node_velocities, rk2_step!
 
@@ -52,10 +53,21 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom::DomainSpec, gr::GridSp
     nodeY .= mod.(nodeY, dom.Ly)
     nodeZ .= mod.(nodeZ .+ dom.Lz, 2*dom.Lz) .- dom.Lz
 
+    # rebuild triangle coords at t^{n+1}
+    triXC_new = similar(triXC); triYC_new = similar(triYC); triZC_new = similar(triZC)
+    @inbounds for k in 1:3, t in 1:size(tri,1)
+        v = tri[t,k]
+        triXC_new[t,k] = nodeX[v]
+        triYC_new[t,k] = nodeY[v]
+        triZC_new[t,k] = nodeZ[v]
+    end
+    # transport element gamma by preserving node circulation across geometry change
+    eleGma_new = transport_ele_gamma(eleGma, triXC, triYC, triZC, triXC_new, triYC_new, triZC_new)
+    eleGma .= eleGma_new
+
     return nothing
 end
 
 end # module
 
 using .TimeStepper: node_velocities, rk2_step!
-
