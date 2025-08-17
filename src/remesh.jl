@@ -156,7 +156,7 @@ end
 function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                       tri::Array{Int,2}, ds_max::Float64, ds_min::Float64;
                       max_splits::Int=1000, max_flips::Int=1000, max_merges::Int=1000,
-                      dom::DomainSpec=default_domain())
+                      dom::DomainSpec=default_domain(), compact::Bool=true)
     changed = false
     # 1) Long-edge refinement: mark all edges of any tri with any edge > ds_max
     emap = edge_map(tri)
@@ -276,6 +276,29 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
             end
         end
         collapsed || break
+    end
+    # 4) Optional compaction: remove unused node indices and remap tri connectivity
+    if compact
+        used = falses(length(nodeX))
+        @inbounds for t in 1:size(tri,1), k in 1:3
+            used[tri[t,k]] = true
+        end
+        # build map old->new indices
+        old2new = Dict{Int,Int}()
+        nodeXnew = Float64[]; nodeYnew = Float64[]; nodeZnew = Float64[]
+        newidx = 0
+        for i in 1:length(nodeX)
+            if used[i]
+                newidx += 1
+                push!(nodeXnew, nodeX[i]); push!(nodeYnew, nodeY[i]); push!(nodeZnew, nodeZ[i])
+                old2new[i] = newidx
+            end
+        end
+        # remap tri
+        @inbounds for t in 1:size(tri,1), k in 1:3
+            tri[t,k] = old2new[tri[t,k]]
+        end
+        nodeX[:] = nodeXnew; nodeY[:] = nodeYnew; nodeZ[:] = nodeZnew
     end
     return tri, changed
 end

@@ -22,10 +22,14 @@ eleGma = zeros(Float64, nt, 3)
 eleGma[:,2] .= 1.0 # initial vortex strength aligned with y
 
 dt = 1e-3
-nsteps = 10
+nsteps = 50
 
 # Atwood*gravity for baroclinic source (set >0 to activate)
 Atg = 0.0
+
+# Remeshing controls
+remesh_every = 1         # perform remesh pass every N steps
+checkpoint_every = 10    # save checkpoint every N steps (rank 0)
 
 if rank == 0
     println("KH 3D: Nx=$(Nx) Ny=$(Ny) nt=$(nt) dt=$(dt) steps=$(nsteps)")
@@ -46,21 +50,26 @@ for it in 1:nsteps
     ds_min = 0.05*max(dx,dy)
     tmax, maxedge = VortexMethod.Remesh.detect_max_edge_length(triXC, triYC, triZC, ds_max)
     tmin, minedge = VortexMethod.Remesh.detect_min_edge_length(triXC, triYC, triZC, ds_min)
-    # perform simple remeshing: split one too-long tri or flip edge for too-short
-    nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-    tri, didsplit = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; dom=dom)
-    if didsplit
-        nt = size(tri,1)
-        triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
-        @inbounds for k in 1:3, t in 1:nt
-            v = tri[t,k]
-            triXC[t,k] = nodeX[v]; triYC[t,k] = nodeY[v]; triZC[t,k] = nodeZ[v]
+    if it % remesh_every == 0
+        nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
+        tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; dom=dom)
+        if changed
+            nt = size(tri,1)
+            triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
+            @inbounds for k in 1:3, t in 1:nt
+                v = tri[t,k]
+                triXC[t,k] = nodeX[v]; triYC[t,k] = nodeY[v]; triZC[t,k] = nodeZ[v]
+            end
+            eleGma = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
         end
-        eleGma = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
     end
     if rank == 0 && it % 5 == 0
         println("step $it: x=[", minimum(nodeX), ",", maximum(nodeX), "] y=[", minimum(nodeY), ",", maximum(nodeY), "] z=[", minimum(nodeZ), ",", maximum(nodeZ), "]")
         println("  max edge len: ", @sprintf("%.3e", maxedge), " (tri=", tmax, ")  min edge len: ", @sprintf("%.3e", minedge), " (tri=", tmin, ")")
+    end
+    if rank == 0 && (it % checkpoint_every == 0)
+        base = save_checkpoint!("checkpoints", it, nodeX, nodeY, nodeZ, tri, eleGma)
+        println("  checkpoint saved: ", base)
     end
 end
 
