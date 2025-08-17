@@ -48,7 +48,7 @@ for it in 1:nsteps
     tmin, minedge = VortexMethod.Remesh.detect_min_edge_length(triXC, triYC, triZC, ds_min)
     # perform simple remeshing: split one too-long tri or flip edge for too-short
     nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-    tri, didsplit = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min)
+    tri, didsplit = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; dom=dom)
     if didsplit
         nt = size(tri,1)
         triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
