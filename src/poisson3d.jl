@@ -69,7 +69,7 @@ function curl_rhs_centered(VorX::Array{Float64,3}, VorY::Array{Float64,3}, VorZ:
 end
 
 # FFT-based Poisson solve (periodic): ∇^2 U = RHS -> Û = -RHŜ/k^2
-function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec)
+function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec; mode::Symbol=:spectral)
     nz, ny, nx = size(u_rhs)
     dx = dom.Lx/(nx-1)
     dy = dom.Ly/(ny-1)
@@ -79,11 +79,22 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
     ky = kvec(ny, dom.Ly)
     kz = kvec(nz, 2*dom.Lz)
 
-    # Create grids of wavenumbers
-    KX = reshape(kx, 1,1,nx)
-    KY = reshape(ky, 1,ny,1)
-    KZ = reshape(kz, nz,1,1)
-    k2 = KX.^2 .+ KY.^2 .+ KZ.^2
+    # Create grids of wavenumbers or FD symbol
+    if mode == :spectral
+        KX = reshape(kx, 1,1,nx)
+        KY = reshape(ky, 1,ny,1)
+        KZ = reshape(kz, nz,1,1)
+        sym = KX.^2 .+ KY.^2 .+ KZ.^2
+    elseif mode == :fd
+        # Discrete Laplacian symbol used by Python code
+        mx = collect(0:nx-1); my = collect(0:ny-1); mz = collect(0:nz-1)
+        CX = reshape(cos.(2pi .* mx ./ nx) .- 1.0, 1,1,nx) ./ (dx^2)
+        CY = reshape(cos.(2pi .* my ./ ny) .- 1.0, 1,ny,1) ./ (dy^2)
+        CZ = reshape(cos.(2pi .* mz ./ nz) .- 1.0, nz,1,1) ./ (dz^2)
+        sym = CX .+ CY .+ CZ
+    else
+        error("Unknown Poisson mode: $mode (use :spectral or :fd)")
+    end
 
     function solve_one(rhs)
         F = rfft(rhs) # real-to-complex along last dim only would be wrong; do full fftn via FFTW.fft.
@@ -95,10 +106,17 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
     Fw = FFTW.fft(w_rhs)
 
     # Avoid division by zero at k=0
-    k2[1,1,1] = 1.0
-    Û = -Fu ./ k2
-    V̂ = -Fv ./ k2
-    Ŵ = -Fw ./ k2
+    sym[1,1,1] = 1.0
+    if mode == :fd
+        scale = 0.5/(dom.Lx*dom.Ly*dom.Lz)
+        Û = scale .* Fu ./ sym
+        V̂ = scale .* Fv ./ sym
+        Ŵ = scale .* Fw ./ sym
+    else
+        Û = -Fu ./ sym
+        V̂ = -Fv ./ sym
+        Ŵ = -Fw ./ sym
+    end
     Û[1,1,1] = 0.0 + 0.0im
     V̂[1,1,1] = 0.0 + 0.0im
     Ŵ[1,1,1] = 0.0 + 0.0im
@@ -122,14 +140,14 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
 end
 
 # MPI wrapper: compute Poisson solve on rank 0 and broadcast to all ranks
-function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec)
+function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec; mode::Symbol=:spectral)
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     Ux = Array{Float64}(undef, size(u_rhs))
     Uy = Array{Float64}(undef, size(v_rhs))
     Uz = Array{Float64}(undef, size(w_rhs))
     if rank == 0
-        Ux0, Uy0, Uz0 = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, dom)
+        Ux0, Uy0, Uz0 = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, dom; mode=mode)
         Ux .= Ux0; Uy .= Uy0; Uz .= Uz0
     end
     MPI.Bcast!(Ux, 0, comm)
