@@ -67,23 +67,23 @@ end
 
 # Enhanced FFT solver with boundary condition handling
 function solve_poisson!(solver::FFTSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
-                       dom::DomainSpec)
+                       domain::DomainSpec)
     if isa(solver.bc, PeriodicBC)
         # Use existing FFT method for periodic BC
-        return poisson_velocity_fft(u_rhs, v_rhs, w_rhs, dom; mode=solver.mode)
+        return poisson_velocity_fft(u_rhs, v_rhs, w_rhs, domain; mode=solver.mode)
     else
         # For non-periodic BC, use DCT/DST transforms
-        return solve_poisson_nonperiodic!(solver, u_rhs, v_rhs, w_rhs, dom)
+        return solve_poisson_nonperiodic!(solver, u_rhs, v_rhs, w_rhs, domain)
     end
 end
 
 # Non-periodic FFT solver using DCT/DST
 function solve_poisson_nonperiodic!(solver::FFTSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
-                                   dom::DomainSpec)
+                                   domain::DomainSpec)
     nz, ny, nx = size(u_rhs)
-    dx = dom.Lx/(nx-1)
-    dy = dom.Ly/(ny-1)
-    dz = (2*dom.Lz)/(nz-1)
+    dx = domain.Lx/(nx-1)
+    dy = domain.Ly/(ny-1)
+    dz = (2*domain.Lz)/(nz-1)
     
     # For Dirichlet BC, use DST; for Neumann BC, use DCT
     if isa(solver.bc, DirichletBC)
@@ -93,9 +93,9 @@ function solve_poisson_nonperiodic!(solver::FFTSolver, u_rhs::Array{Float64,3}, 
         Fw = sin_transform_3d(w_rhs)
         
         # Eigenvalues for DST
-        kx = [π*i/dom.Lx for i in 1:nx]
-        ky = [π*j/dom.Ly for j in 1:ny] 
-        kz = [π*k/(2*dom.Lz) for k in 1:nz]
+        kx = [π*i/domain.Lx for i in 1:nx]
+        ky = [π*j/domain.Ly for j in 1:ny] 
+        kz = [π*k/(2*domain.Lz) for k in 1:nz]
         
     elseif isa(solver.bc, NeumannBC)
         # Discrete Cosine Transform
@@ -104,9 +104,9 @@ function solve_poisson_nonperiodic!(solver::FFTSolver, u_rhs::Array{Float64,3}, 
         Fw = cos_transform_3d(w_rhs)
         
         # Eigenvalues for DCT
-        kx = [π*i/dom.Lx for i in 0:nx-1]
-        ky = [π*j/dom.Ly for j in 0:ny-1]
-        kz = [π*k/(2*dom.Lz) for k in 0:nz-1]
+        kx = [π*i/domain.Lx for i in 0:nx-1]
+        ky = [π*j/domain.Ly for j in 0:ny-1]
+        kz = [π*k/(2*domain.Lz) for k in 0:nz-1]
     end
     
     # Create eigenvalue arrays
@@ -238,11 +238,11 @@ end
 
 # Iterative solver implementation
 function solve_poisson!(solver::IterativeSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
-                       dom::DomainSpec)
+                       domain::DomainSpec)
     nz, ny, nx = size(u_rhs)
-    dx = dom.Lx/(nx-1)
-    dy = dom.Ly/(ny-1)
-    dz = (2*dom.Lz)/(nz-1)
+    dx = domain.Lx/(nx-1)
+    dy = domain.Ly/(ny-1)
+    dz = (2*domain.Lz)/(nz-1)
     
     # Build system matrix
     A = build_laplacian_matrix(nx, ny, nz, dx, dy, dz, solver.bc)
@@ -339,42 +339,42 @@ end
 
 # Multigrid solver (simplified V-cycle)
 function solve_poisson!(solver::MultigridSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
-                       dom::DomainSpec)
+                       domain::DomainSpec)
     # For simplicity, fall back to iterative solver
     # Full multigrid implementation would be quite extensive
     iter_solver = IterativeSolver(:cg, solver.tolerance, 1000, :jacobi, solver.bc)
-    return solve_poisson!(iter_solver, u_rhs, v_rhs, w_rhs, dom)
+    return solve_poisson!(iter_solver, u_rhs, v_rhs, w_rhs, domain)
 end
 
 # Hybrid solver with automatic fallback
 function solve_poisson!(solver::HybridSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
-                       dom::DomainSpec)
+                       domain::DomainSpec)
     try
         # Try primary solver
-        ux, uy, uz = solve_poisson!(solver.primary, u_rhs, v_rhs, w_rhs, dom)
+        ux, uy, uz = solve_poisson!(solver.primary, u_rhs, v_rhs, w_rhs, domain)
         
         # Check residual quality
-        residual = compute_residual(ux, uy, uz, u_rhs, v_rhs, w_rhs, dom)
+        residual = compute_residual(ux, uy, uz, u_rhs, v_rhs, w_rhs, domain)
         
         if residual > solver.switch_criterion
             # Fall back to secondary solver
-            ux, uy, uz = solve_poisson!(solver.fallback, u_rhs, v_rhs, w_rhs, dom)
+            ux, uy, uz = solve_poisson!(solver.fallback, u_rhs, v_rhs, w_rhs, domain)
         end
         
         return ux, uy, uz
     catch
         # If primary solver fails, use fallback
-        return solve_poisson!(solver.fallback, u_rhs, v_rhs, w_rhs, dom)
+        return solve_poisson!(solver.fallback, u_rhs, v_rhs, w_rhs, domain)
     end
 end
 
 # Compute residual for quality assessment
 function compute_residual(ux::Array{Float64,3}, uy::Array{Float64,3}, uz::Array{Float64,3},
-                         u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec)
+                         u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, domain::DomainSpec)
     nz, ny, nx = size(ux)
-    dx = dom.Lx/(nx-1)
-    dy = dom.Ly/(ny-1)
-    dz = (2*dom.Lz)/(nz-1)
+    dx = domain.Lx/(nx-1)
+    dy = domain.Ly/(ny-1)
+    dz = (2*domain.Lz)/(nz-1)
     
     # Compute discrete Laplacian of solution
     lap_ux = discrete_laplacian(ux, dx, dy, dz)
@@ -405,7 +405,7 @@ end
 
 # Advanced Poisson solver with automatic method selection
 function solve_poisson_adaptive!(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
-                                 dom::DomainSpec; bc::BoundaryCondition=PeriodicBC(), tolerance::Float64=1e-8)
+                                 domain::DomainSpec; bc::BoundaryCondition=PeriodicBC(), tolerance::Float64=1e-8)
     nz, ny, nx = size(u_rhs)
     total_points = nx * ny * nz
     
@@ -423,12 +423,12 @@ function solve_poisson_adaptive!(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3
         solver = HybridSolver(primary, fallback, tolerance)
     end
     
-    return solve_poisson!(solver, u_rhs, v_rhs, w_rhs, dom)
+    return solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
 end
 
 # MPI-parallel version of advanced solver
 function solve_poisson_advanced_mpi!(solver::PoissonSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
-                                    dom::DomainSpec)
+                                    domain::DomainSpec)
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     
@@ -437,7 +437,7 @@ function solve_poisson_advanced_mpi!(solver::PoissonSolver, u_rhs::Array{Float64
     Uz = Array{Float64}(undef, size(w_rhs))
     
     if rank == 0
-        Ux0, Uy0, Uz0 = solve_poisson!(solver, u_rhs, v_rhs, w_rhs, dom)
+        Ux0, Uy0, Uz0 = solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
         Ux .= Ux0; Uy .= Uy0; Uz .= Uz0
     end
     

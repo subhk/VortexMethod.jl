@@ -5,10 +5,10 @@ using ..DomainImpl
 export structured_mesh
 
 # Build a structured periodic mesh (Nx by Ny points) with sinusoidal z-perturbation
-function structured_mesh(Nx::Int, Ny::Int; dom::DomainSpec=default_domain(),
+function structured_mesh(Nx::Int, Ny::Int; domain::DomainSpec=default_domain(),
                          amp::Float64=1e-2)
-    x = range(0.0, dom.Lx; length=Nx) |> collect
-    y = range(0.0, dom.Ly; length=Ny) |> collect
+    x = range(0.0, domain.Lx; length=Nx) |> collect
+    y = range(0.0, domain.Ly; length=Ny) |> collect
     # perturb x slightly like python (_xgrid = x + 0.01*sin(2πx))
     X = Array{Float64}(undef, Ny, Nx)
     Y = Array{Float64}(undef, Ny, Nx)
@@ -55,4 +55,3 @@ end
 end # module
 
 using .Mesh: structured_mesh
-

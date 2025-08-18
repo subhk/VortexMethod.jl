@@ -21,21 +21,21 @@ end
 default_domain() = DomainSpec(1.0, 1.0, 1.0)
 default_grid()   = GridSpec(25, 50, 2*50-1) # mirrors python utility_3d_paral._SmoothGrid_Generation_
 
-function grid_vectors(dom::DomainSpec, gr::GridSpec)
-    x = range(0.0, dom.Lx; length=gr.nx) |> collect
-    y = range(0.0, dom.Ly; length=gr.ny) |> collect
+function grid_vectors(domain::DomainSpec, gr::GridSpec)
+    x = range(0.0, domain.Lx; length=gr.nx) |> collect
+    y = range(0.0, domain.Ly; length=gr.ny) |> collect
     # z is symmetric [-Lz, Lz]
-    z = range(-dom.Lz, dom.Lz; length=gr.nz) |> collect
+    z = range(-domain.Lz, domain.Lz; length=gr.nz) |> collect
     return x, y, z
 end
 
-grid_spacing(dom::DomainSpec, gr::GridSpec) = begin
-    x, y, z = grid_vectors(dom, gr)
+grid_spacing(domain::DomainSpec, gr::GridSpec) = begin
+    x, y, z = grid_vectors(domain, gr)
     (abs(x[2]-x[1]), abs(y[2]-y[1]), abs(z[2]-z[1]))
 end
 
-function grid_mesh(dom::DomainSpec, gr::GridSpec)
-    x, y, z = grid_vectors(dom, gr)
+function grid_mesh(domain::DomainSpec, gr::GridSpec)
+    x, y, z = grid_vectors(domain, gr)
     # match python ordering: y3d, z3d, x3d = np.meshgrid(y, z, x)
     # We return x3d, y3d, z3d flattened to 1D for convenience
     x3d = Array{Float64}(undef, gr.ny, gr.nz, gr.nx)
@@ -67,17 +67,17 @@ function kvec(n::Int, L::Float64)
 end
 
 # Wrap a point into periodic domain ranges
-function wrap_point(x::Float64, y::Float64, z::Float64, dom::DomainSpec)
-    xw = (x % dom.Lx)
-    yw = (y % dom.Ly)
-    zw = ((z + dom.Lz) % (2*dom.Lz)) - dom.Lz
+function wrap_point(x::Float64, y::Float64, z::Float64, domain::DomainSpec)
+    xw = (x % domain.Lx)
+    yw = (y % domain.Ly)
+    zw = ((z + domain.Lz) % (2*domain.Lz)) - domain.Lz
     return xw, yw, zw
 end
 
 # In-place wrapping of node arrays
-function wrap_nodes!(nodeX::AbstractVector{<:Real}, nodeY::AbstractVector{<:Real}, nodeZ::AbstractVector{<:Real}, dom::DomainSpec)
+function wrap_nodes!(nodeX::AbstractVector{<:Real}, nodeY::AbstractVector{<:Real}, nodeZ::AbstractVector{<:Real}, domain::DomainSpec)
     @inbounds for i in eachindex(nodeX)
-        xw, yw, zw = wrap_point(Float64(nodeX[i]), Float64(nodeY[i]), Float64(nodeZ[i]), dom)
+        xw, yw, zw = wrap_point(Float64(nodeX[i]), Float64(nodeY[i]), Float64(nodeZ[i]), domain)
         nodeX[i] = xw; nodeY[i] = yw; nodeZ[i] = zw
     end
     return nothing

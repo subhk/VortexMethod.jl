@@ -70,15 +70,15 @@ function curl_rhs_centered(VorX::Array{Float64,3}, VorY::Array{Float64,3}, VorZ:
 end
 
 # FFT-based Poisson solve (periodic): ∇^2 U = RHS -> Û = -RHŜ/k^2
-function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec; mode::Symbol=:spectral)
+function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, domain::DomainSpec; mode::Symbol=:spectral)
     nz, ny, nx = size(u_rhs)
-    dx = dom.Lx/(nx-1)
-    dy = dom.Ly/(ny-1)
-    dz = (2*dom.Lz)/(nz-1)
+    dx = domain.Lx/(nx-1)
+    dy = domain.Ly/(ny-1)
+    dz = (2*domain.Lz)/(nz-1)
 
-    kx = kvec(nx, dom.Lx)
-    ky = kvec(ny, dom.Ly)
-    kz = kvec(nz, 2*dom.Lz)
+    kx = kvec(nx, domain.Lx)
+    ky = kvec(ny, domain.Ly)
+    kz = kvec(nz, 2*domain.Lz)
 
     # Create grids of wavenumbers or FD symbol
     if mode == :spectral
@@ -109,7 +109,7 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
     # Avoid division by zero at k=0
     sym[1,1,1] = 1.0
     if mode == :fd
-        scale = 0.5/(dom.Lx*dom.Ly*dom.Lz)
+        scale = 0.5/(domain.Lx*domain.Ly*domain.Lz)
         Û = scale .* Fu ./ sym
         V̂ = scale .* Fv ./ sym
         Ŵ = scale .* Fw ./ sym
@@ -141,20 +141,20 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
 end
 
 """
-poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, dom; mode=:spectral)
+poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=:spectral)
 
 Parallel FFT-based Poisson solve using PencilFFTs for true MPI parallelism.
 Distributes FFT computation across all MPI ranks using pencil decomposition.
 
 # Arguments
 - `u_rhs, v_rhs, w_rhs::Array{Float64,3}`: Right-hand side curl terms
-- `dom::DomainSpec`: Domain specification
+- `domain::DomainSpec`: Domain specification
 - `mode::Symbol=:spectral`: FFT mode (`:spectral` or `:fd`)
 
 # Returns
 - `(ux, uy, uz)`: Velocity field arrays with periodic boundary conditions applied
 """
-function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec; mode::Symbol=:spectral)
+function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, domain::DomainSpec; mode::Symbol=:spectral)
     comm = MPI.COMM_WORLD
     nz, ny, nx = size(u_rhs)
     
@@ -165,13 +165,13 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
     # Create FFT plans
     fft_plan = PencilFFTPlans(pen, Float64, FFT!)
     
-    dx = dom.Lx/(nx-1)
-    dy = dom.Ly/(ny-1) 
-    dz = (2*dom.Lz)/(nz-1)
+    dx = domain.Lx/(nx-1)
+    dy = domain.Ly/(ny-1) 
+    dz = (2*domain.Lz)/(nz-1)
     
-    kx = kvec(nx, dom.Lx)
-    ky = kvec(ny, dom.Ly)
-    kz = kvec(nz, 2*dom.Lz)
+    kx = kvec(nx, domain.Lx)
+    ky = kvec(ny, domain.Ly)
+    kz = kvec(nz, 2*domain.Lz)
     
     # Get local array dimensions for this MPI rank
     local_dims = size_local(pen, LogicalOrder())
@@ -225,7 +225,7 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
     end
     
     if mode == :fd
-        scale = 0.5/(dom.Lx*dom.Ly*dom.Lz)
+        scale = 0.5/(domain.Lx*domain.Ly*domain.Lz)
         Û = scale .* Fu ./ sym
         V̂ = scale .* Fv ./ sym
         Ŵ = scale .* Fw ./ sym
@@ -293,14 +293,14 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
 end
 
 # MPI wrapper: compute Poisson solve on rank 0 and broadcast to all ranks (original implementation)
-function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec; mode::Symbol=:spectral)
+function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, domain::DomainSpec; mode::Symbol=:spectral)
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     Ux = Array{Float64}(undef, size(u_rhs))
     Uy = Array{Float64}(undef, size(v_rhs))
     Uz = Array{Float64}(undef, size(w_rhs))
     if rank == 0
-        Ux0, Uy0, Uz0 = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, dom; mode=mode)
+        Ux0, Uy0, Uz0 = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, domain; mode=mode)
         Ux .= Ux0; Uy .= Uy0; Uz .= Uz0
     end
     MPI.Bcast!(Ux, 0, comm)

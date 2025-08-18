@@ -217,9 +217,9 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::Do
     yh = nodeY .+ 0.5 .* dt .* v1
     zh = nodeZ .+ 0.5 .* dt .* w1
     # periodic wrap
-    xh .= mod.(xh, dom.Lx)
-    yh .= mod.(yh, dom.Ly)
-    zh .= mod.(zh .+ dom.Lz, 2*dom.Lz) .- dom.Lz
+    xh .= mod.(xh, domain.Lx)
+    yh .= mod.(yh, domain.Ly)
+    zh .= mod.(zh .+ domain.Lz, 2*domain.Lz) .- domain.Lz
 
     # velocities at half step
     @inbounds for k in 1:3, t in 1:size(tri,1)

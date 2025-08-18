@@ -48,14 +48,14 @@ end
 function save_checkpoint_jld2!(dir::AbstractString, time::Real,
                                nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
                                tri::Array{Int,2}, eleGma::AbstractMatrix;
-                               dom=nothing, grid=nothing, params=nothing, attrs...)
+                               domain=nothing, grid=nothing, params=nothing, attrs...)
     mkpath(dir)
     ts = Dates.format(now(), dateformat"yyyymmdd_HHMMSS")
     base = joinpath(dir, @sprintf("chkpt_t%010.6f_%s.jld2", float(time), ts))
     data = Dict{String,Any}("nodeX"=>nodeX, "nodeY"=>nodeY, "nodeZ"=>nodeZ,
                             "tri"=>tri, "gamma"=>eleGma, "time"=>float(time))
-    if dom !== nothing
-        data["domain"] = Dict("Lx"=>dom.Lx, "Ly"=>dom.Ly, "Lz"=>dom.Lz)
+    if domain !== nothing
+        data["domain"] = Dict("Lx"=>domain.Lx, "Ly"=>domain.Ly, "Lz"=>domain.Lz)
     end
     if grid !== nothing
         data["grid"] = Dict("nx"=>grid.nx, "ny"=>grid.ny, "nz"=>grid.nz)
@@ -90,11 +90,11 @@ function load_checkpoint_jld2(path::AbstractString)
     nodeX = data["nodeX"]; nodeY = data["nodeY"]; nodeZ = data["nodeZ"]
     tri   = data["tri"];   eleGma = data["gamma"]
     time  = get(data, "time", 0.0)
-    dom   = get(data, "domain", nothing)
+    domain   = get(data, "domain", nothing)
     grid  = get(data, "grid", nothing)
     params= get(data, "params", nothing)
     stats = get(data, "stats", nothing)
-    return (; nodeX, nodeY, nodeZ, tri, eleGma, time, dom, grid, params, stats)
+    return (; nodeX, nodeY, nodeZ, tri, eleGma, time, domain, grid, params, stats)
 end
 
 # -------- Convenience helpers --------
@@ -124,13 +124,13 @@ end
 Periodic mesh stats using minimum-image edge lengths.
 """
 function mesh_stats(nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
-                    tri::Array{Int,2}, dom::DomainSpec)
+                    tri::Array{Int,2}, domain::DomainSpec)
     nv = length(nodeX)
     nt = size(tri,1)
     xmin = minimum(nodeX); xmax = maximum(nodeX)
     ymin = minimum(nodeY); ymax = maximum(nodeY)
     zmin = minimum(nodeZ); zmax = maximum(nodeZ)
-    Lx, Ly, Lz2 = dom.Lx, dom.Ly, 2*dom.Lz
+    Lx, Ly, Lz2 = domain.Lx, domain.Ly, 2*domain.Lz
     _mi(d,L) = (L<=0 ? d : (d - L*round(d/L)))
     armax = 0.0
     @inbounds for t in 1:nt
@@ -150,7 +150,7 @@ function mesh_stats(nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::Abstrac
 end
 
 """
-save_state!(dir, time, nodeX,nodeY,nodeZ, tri, eleGma; dom, grid, dt, CFL, adaptive,
+save_state!(dir, time, nodeX,nodeY,nodeZ, tri, eleGma; domain, grid, dt, CFL, adaptive,
             poisson_mode, remesh_every, save_interval, ar_max, step, params_extra)
 
 Bundles common fields into a single JLD2 checkpoint call and adds mesh stats.
@@ -158,7 +158,7 @@ Bundles common fields into a single JLD2 checkpoint call and adds mesh stats.
 function save_state!(dir::AbstractString, time::Real,
                      nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
                      tri::Array{Int,2}, eleGma::AbstractMatrix;
-                     dom=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
+                     domain=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
                      poisson_mode=nothing, remesh_every=nothing, save_interval=nothing, ar_max=nothing,
                      step=nothing, params_extra=NamedTuple())
     # assemble params NamedTuple
@@ -172,16 +172,16 @@ function save_state!(dir::AbstractString, time::Real,
     if ar_max !== nothing;        params = merge(params, (; ar_max=ar_max)); end
     params = merge(params, params_extra)
 
-    stats = dom === nothing ? mesh_stats(nodeX, nodeY, nodeZ, tri) : mesh_stats(nodeX, nodeY, nodeZ, tri, dom)
+    stats = domain === nothing ? mesh_stats(nodeX, nodeY, nodeZ, tri) : mesh_stats(nodeX, nodeY, nodeZ, tri, domain)
     base = save_checkpoint_jld2!(dir, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                                 dom=dom, grid=grid, params=params, stats=stats, step=step)
+                                 domain=domain, grid=grid, params=params, stats=stats, step=step)
     return base
 end
 
 """
 Append snapshot into a single time-series JLD2 file.
 
-save_state_timeseries!(file, time, nodeX,nodeY,nodeZ, tri, eleGma; dom, grid,
+save_state_timeseries!(file, time, nodeX,nodeY,nodeZ, tri, eleGma; domain, grid,
                        dt, CFL, adaptive, poisson_mode, remesh_every, save_interval,
                        ar_max, step, params_extra)
 
@@ -191,7 +191,7 @@ and updates top-level arrays `times` and `steps`. Mesh stats stored at `snapshot
 function save_state_timeseries!(file::AbstractString, time::Real,
                                 nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
                                 tri::Array{Int,2}, eleGma::AbstractMatrix;
-                                dom=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
+                                domain=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
                                 poisson_mode=nothing, remesh_every=nothing, save_interval=nothing, ar_max=nothing,
                                 step=nothing, params_extra=NamedTuple())
     mkpath(dirname(file))
@@ -206,7 +206,7 @@ function save_state_timeseries!(file::AbstractString, time::Real,
     if ar_max !== nothing;        params = merge(params, (; ar_max=ar_max)); end
     params = merge(params, params_extra)
 
-    stats = dom === nothing ? mesh_stats(nodeX, nodeY, nodeZ, tri) : mesh_stats(nodeX, nodeY, nodeZ, tri, dom)
+    stats = domain === nothing ? mesh_stats(nodeX, nodeY, nodeZ, tri) : mesh_stats(nodeX, nodeY, nodeZ, tri, domain)
 
     JLD2.jldopen(file, "a+") do f
         # determine next snapshot id
@@ -223,8 +223,8 @@ function save_state_timeseries!(file::AbstractString, time::Real,
         write(f, key*"time", float(time))
         write(f, key*"nodeX", nodeX); write(f, key*"nodeY", nodeY); write(f, key*"nodeZ", nodeZ)
         write(f, key*"tri", tri);      write(f, key*"gamma", eleGma)
-        if dom !== nothing
-            write(f, key*"domain", Dict("Lx"=>dom.Lx, "Ly"=>dom.Ly, "Lz"=>dom.Lz))
+        if domain !== nothing
+            write(f, key*"domain", Dict("Lx"=>domain.Lx, "Ly"=>domain.Ly, "Lz"=>domain.Lz))
         end
         if grid !== nothing
             write(f, key*"grid", Dict("nx"=>grid.nx, "ny"=>grid.ny, "nz"=>grid.nz))
@@ -253,7 +253,7 @@ end
 load_series_snapshot(file, idx) -> NamedTuple
 
 Loads snapshot at 1-based index `idx` from the series file.
-Returns (; nodeX, nodeY, nodeZ, tri, eleGma, time, dom, grid, params, stats)
+Returns (; nodeX, nodeY, nodeZ, tri, eleGma, time, domain, grid, params, stats)
 """
 function load_series_snapshot(file::AbstractString, idx::Integer)
     return JLD2.jldopen(file, "r") do f
@@ -261,11 +261,11 @@ function load_series_snapshot(file::AbstractString, idx::Integer)
         nodeX = read(f, key*"nodeX"); nodeY = read(f, key*"nodeY"); nodeZ = read(f, key*"nodeZ")
         tri   = read(f, key*"tri");    eleGma = read(f, key*"gamma")
         time  = read(f, key*"time")
-        dom   = haskey(f, key*"domain") ? read(f, key*"domain") : nothing
+        domain   = haskey(f, key*"domain") ? read(f, key*"domain") : nothing
         grid  = haskey(f, key*"grid")   ? read(f, key*"grid")   : nothing
         params= haskey(f, key*"params") ? read(f, key*"params") : nothing
         stats = haskey(f, key*"stats")  ? read(f, key*"stats")  : nothing
-        (; nodeX, nodeY, nodeZ, tri, eleGma, time, dom, grid, params, stats)
+        (; nodeX, nodeY, nodeZ, tri, eleGma, time, domain, grid, params, stats)
     end
 end
 

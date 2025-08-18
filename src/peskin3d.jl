@@ -135,14 +135,14 @@ function peskin_add_ele!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix, subC, t
 end
 
 # Accumulate vorticity at a coordinate from periodic tiles (9 tiles in xy like python)
-function peskin_grid_sum(eleGma, triC, subC, coord, ds, triAreas; delr=4.0, dom::DomainSpec=default_domain())
+function peskin_grid_sum(eleGma, triC, subC, coord, ds, triAreas; delr=4.0, domain::DomainSpec=default_domain())
     eps = (delr*ds[1], delr*ds[2], delr*ds[3]) # ds tuple indexing (dx,dy,dz)
     (sx,sy,sz) = (0.0,0.0,0.0)
     # Middle tile
     tri_list = find_elements_nearby(coord[1], coord[2], coord[3], eps... , triC)
     (sx,sy,sz) = peskin_add_ele!((sx,sy,sz), eleGma, subC, triAreas, tri_list, coord, delr, eps)
     # Neighbor tiles (E,W,N,S, and corners)
-    Lx,Ly,Lz = dom.Lx, dom.Ly, dom.Lz
+    Lx,Ly,Lz = domain.Lx, domain.Ly, domain.Lz
     function shifted(tile::Tuple{Float64,Float64})
         dx,dy = tile
         triC0 = copy(triC); subC0 = copy(subC)
@@ -161,7 +161,7 @@ function peskin_grid_sum(eleGma, triC, subC, coord, ds, triAreas; delr=4.0, dom:
 end
 
 # Enhanced grid sum with kernel selection
-function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, kernel::KernelType; dom::DomainSpec=default_domain())
+function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, kernel::KernelType; domain::DomainSpec=default_domain())
     delr = kernel_support_radius(kernel)
     eps = (delr*ds[1], delr*ds[2], delr*ds[3])
     (sx,sy,sz) = (0.0,0.0,0.0)
@@ -171,7 +171,7 @@ function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, kernel:
     (sx,sy,sz) = spread_element_kernel!((sx,sy,sz), eleGma, subC, triAreas, tri_list, coord, kernel, eps)
     
     # Neighbor tiles (E,W,N,S, and corners)
-    Lx,Ly,Lz = dom.Lx, dom.Ly, dom.Lz
+    Lx,Ly,Lz = domain.Lx, domain.Ly, domain.Lz
     function shifted(tile::Tuple{Float64,Float64})
         dx,dy = tile
         triC0 = copy(triC); subC0 = copy(subC)
@@ -192,7 +192,7 @@ end
 # MPI-parallel: spread element vorticity to grid with kernel selection
 function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
                                             triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                                            dom::DomainSpec, gr::GridSpec, kernel::KernelType=PeskinStandard())
+                                            domain::DomainSpec, gr::GridSpec, kernel::KernelType=PeskinStandard())
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
@@ -203,8 +203,8 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     subC = build_all_subcentroids(triXC, triYC, triZC)
     areas = triangle_areas(triXC, triYC, triZC)
 
-    x, y, z = grid_vectors(dom, gr)
-    (dx,dy,dz) = grid_spacing(dom, gr)
+    x, y, z = grid_vectors(domain, gr)
+    (dx,dy,dz) = grid_spacing(domain, gr)
     nx,ny,nz = gr.nx, gr.ny, gr.nz
     
     coords = Vector{NTuple{3,Float64}}(undef, nx*ny*nz)
