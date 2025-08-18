@@ -21,7 +21,7 @@ Modules = [VortexMethod]
   - min_angle_quality=0.4, min_jacobian_quality=0.4
   - grad_threshold=0.2 (Frobenius norm of ∇U), curvature_threshold=0.6 rad
 - Kernel-based interpolation options are available via `Kernels`.
-- New helper: `grid_velocity(eleGma, triXC, triYC, triZC, dom, gr)` computes `(Ux,Uy,Uz)` for reuse.
+- New helper: `grid_velocity(eleGma, triXC, triYC, triZC, domain, gr)` computes `(Ux,Uy,Uz)` for reuse.
 
 ### Tuning Thresholds
 
@@ -32,5 +32,5 @@ Modules = [VortexMethod]
 
 ### Velocity Reuse
 
-- Use `make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr)` to build a closure `(x,y,z)->(u,v,w)` backed by a single spread/Poisson solve.
+- Use `make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr)` to build a closure `(x,y,z)->(u,v,w)` backed by a single spread/Poisson solve.
 - This reduces repeated Poisson solves during remeshing and sheet tracking in the same time step.
