@@ -32,28 +32,36 @@ Returns a closure (x,y,z) -> (u,v,w) that interpolates velocity from a precomput
 velocity field built from the provided element vorticity and geometry. Useful to avoid
 recomputing spread/Poisson repeatedly within a timestep.
 """
-function make_velocity_sampler(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
-    Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=poisson_mode)
+function make_velocity_sampler(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
+    Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=poisson_mode, parallel_fft=parallel_fft)
     return (x::Float64, y::Float64, z::Float64) -> begin
         u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, (Float64[x]), (Float64[y]), (Float64[z]), dom, gr)
         (u[1], v[1], w[1])
     end
 end
 
-function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
+function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
     dx,dy,dz = grid_spacing(dom, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
-    Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    if parallel_fft
+        Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    else
+        Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    end
     u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ, dom, gr)
     return u, v, w
 end
 
-function max_grid_speed(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
+function max_grid_speed(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
     dx,dy,dz = grid_spacing(dom, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
-    Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    if parallel_fft
+        Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    else
+        Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    end
     # compute max |U| over grid and reduce across ranks
     magmax_local = maximum(sqrt.(Ux.^2 .+ Uy.^2 .+ Uz.^2))
     magmax = MPI.Allreduce(magmax_local, MPI.MAX, MPI.COMM_WORLD)
