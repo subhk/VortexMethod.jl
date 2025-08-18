@@ -4,7 +4,8 @@ export save_checkpoint!, load_latest_checkpoint,
        save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2,
        save_checkpoint_jld2, load_latest_checkpoint_jld2, load_checkpoint,
        save_state!, mesh_stats, save_state_timeseries!,
-       series_times, load_series_snapshot, load_series_nearest_time
+       series_times, load_series_snapshot, load_series_nearest_time,
+       find_series_files, get_series_info
 
 using Dates
 using Printf
@@ -497,6 +498,85 @@ function load_series_nearest_time(file::AbstractString, t::Real)
     # find index of closest time
     idx = argmin(abs.(times .- float(t)))
     return idx, load_series_snapshot(file, idx)
+end
+
+"""
+    find_series_files(base_file) -> Vector{String}
+
+Find all series files that match the base filename pattern.
+
+Returns a vector of filenames sorted by their sequence number (e.g., ["sim.jld2", "sim_001.jld2", "sim_002.jld2"]).
+"""
+function find_series_files(base_file::AbstractString)
+    dir = dirname(base_file)
+    base_name = splitext(basename(base_file))[1]
+    
+    if !isdir(dir)
+        return String[]
+    end
+    
+    files = String[]
+    
+    # Check for the base file
+    if isfile(base_file)
+        push!(files, base_file)
+    end
+    
+    # Find numbered files
+    pattern = Regex("^$(escape_string(base_name))_(\\d+)\\.jld2\$")
+    numbered_files = Tuple{Int, String}[]
+    
+    for f in readdir(dir)
+        m = match(pattern, f)
+        if m !== nothing
+            num = parse(Int, m.captures[1])
+            push!(numbered_files, (num, joinpath(dir, f)))
+        end
+    end
+    
+    # Sort by number and add to files list
+    sort!(numbered_files, by=x->x[1])
+    append!(files, [f[2] for f in numbered_files])
+    
+    return files
+end
+
+"""
+    get_series_info(base_file) -> NamedTuple
+
+Get comprehensive information about all files in a series.
+
+Returns:
+- `files`: Vector of all series file paths
+- `total_snapshots`: Total number of snapshots across all files
+- `file_counts`: Number of snapshots in each file
+- `time_ranges`: Time range (min, max) for each file
+"""
+function get_series_info(base_file::AbstractString)
+    files = find_series_files(base_file)
+    total_snapshots = 0
+    file_counts = Int[]
+    time_ranges = Tuple{Float64, Float64}[]
+    
+    for file in files
+        try
+            times, steps, count = series_times(file)
+            total_snapshots += count
+            push!(file_counts, count)
+            
+            if !isempty(times)
+                push!(time_ranges, (minimum(times), maximum(times)))
+            else
+                push!(time_ranges, (NaN, NaN))
+            end
+        catch e
+            push!(file_counts, 0)
+            push!(time_ranges, (NaN, NaN))
+        end
+    end
+    
+    return (files=files, total_snapshots=total_snapshots, 
+            file_counts=file_counts, time_ranges=time_ranges)
 end
 
 end # module
