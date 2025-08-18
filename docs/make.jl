@@ -26,4 +26,5 @@ deploydocs(
     repo="github.com/subhk/VortexMethod.jl",
     devbranch="main",
     provider=Documenter.GitHubActions(),
+    push_preview=false,
 )

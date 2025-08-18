@@ -56,7 +56,12 @@ jobs:
           julia --project -e '
             using Pkg; Pkg.build("MPI");
             using MPI;
-            println("MPI library: ", MPI.identify_library());
+            try
+              MPI.Init()
+              println("MPI library version: ", MPI.Get_library_version())
+            finally
+              MPI.Finalize()
+            end
           '
       - name: Run MPI sanity test (2 ranks)
         run: |

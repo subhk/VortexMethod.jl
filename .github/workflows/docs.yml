@@ -25,6 +25,8 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    env:
+      JULIA_MPI_BINARY: artifacts
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,6 +70,5 @@ jobs:
           julia --project=. make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
       
       # Documenter handles deployment internally via push to gh-pages
