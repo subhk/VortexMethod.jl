@@ -1,26 +1,87 @@
-name: Docs
+
+name: Documentation
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
+    tags: '*'
   pull_request:
+    branches:
+      - main
+      - master
+
+permissions:
+  actions: write
+  contents: read
+  pages: write
+  id-token: write
+
+# Cancel in-progress documentation builds for the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  docs:
+    name: Documentation
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Fetch full history for GitHubActions deploydocs
+          fetch-depth: 0
+      
       - uses: julia-actions/setup-julia@v2
         with:
-          version: '1'
-      - name: Install dependencies
+          version: '1.11'
+      
+      - name: Cache Julia packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.julia/packages
+            ~/.julia/compiled
+          key: ${{ runner.os }}-julia-docs-${{ hashFiles('**/Project.toml', '**/Manifest.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-julia-docs-
+      
+      - name: Install system dependencies
         run: |
-          julia --project=docs -e 'using Pkg; Pkg.develop(path="../src"); Pkg.instantiate()'
-      - name: Build and deploy docs
+          sudo apt-get update
+          sudo apt-get install -y build-essential gfortran libfftw3-dev
+          # Note: SHTns C library would need to be installed for full functionality
+          # For docs-only build, we can skip this if examples don't execute
+      
+      - name: Set up documentation environment
+        run: |
+          cd docs
+          julia --project=. -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=".."))
+            Pkg.instantiate()
+            Pkg.precompile()
+          '
+      
+      - name: Build documentation
+        run: |
+          cd docs
+          julia --project=. make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          julia --project=docs -e 'include("docs/make.jl")'
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+      
+      - name: Upload documentation artifacts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/build
 
+      - name: Deploy to GitHub Pages
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
+        id: deployment
+        uses: actions/deploy-pages@v4
