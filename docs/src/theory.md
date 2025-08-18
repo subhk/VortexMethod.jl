@@ -56,8 +56,12 @@ Thesis figures to include here:
 
 ![](assets/fig_1_23.png)
 
+_Figure 1.23: High-level overview of the Lagrangian–Eulerian vortex method pipeline (spreading → curl RHS → Poisson → interpolation → time stepping)._ 
+
 - Figure 3.19 (supporting theory/parallel pipeline; suggested filename: `fig_3_19.png`):
 
 ![](assets/fig_3_19.png)
+
+_Figure 3.19: Parallelization sketch showing MPI distribution for spreading/interpolation and centralized Poisson solve/broadcast._
 
 Add short captions below each image once extracted.

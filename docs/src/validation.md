@@ -54,6 +54,32 @@ After saving, include figures in the appropriate pages (Theory/Remeshing/Paralle
 
 ![](assets/fig_1_23.png)
 
+### Direct page extraction (user-provided pages)
+
+You shared the page numbers for these figures: 3.19, 1.23, 3.26, 3.52 → pages 90, 98, 118, 140.
+
+Extract at 300 dpi and save with the suggested filenames:
+
+```
+# Figure 3.19 on page 90
+pdftoppm -png -r 300 -f 90 -l 90 mstock_dissertation.pdf docs/src/assets/fig_3_19
+mv docs/src/assets/fig_3_19-090.png docs/src/assets/fig_3_19.png || \
+  mv docs/src/assets/fig_3_19-90.png docs/src/assets/fig_3_19.png
+
+# Figure 1.23 on page 98
+pdftoppm -png -r 300 -f 98 -l 98 mstock_dissertation.pdf docs/src/assets/fig_1_23
+mv docs/src/assets/fig_1_23-098.png docs/src/assets/fig_1_23.png || \
+  mv docs/src/assets/fig_1_23-98.png docs/src/assets/fig_1_23.png
+
+# Figure 3.26 on page 118
+pdftoppm -png -r 300 -f 118 -l 118 mstock_dissertation.pdf docs/src/assets/fig_3_26
+mv docs/src/assets/fig_3_26-118.png docs/src/assets/fig_3_26.png
+
+# Figure 3.52 on page 140
+pdftoppm -png -r 300 -f 140 -l 140 mstock_dissertation.pdf docs/src/assets/fig_3_52
+mv docs/src/assets/fig_3_52-140.png docs/src/assets/fig_3_52.png
+```
+
 ## Notes
 
 - Ensure that any figure usage aligns with the thesis’ distribution rights.
