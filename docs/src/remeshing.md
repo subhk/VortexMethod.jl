@@ -45,3 +45,12 @@ This preserves the discrete circulation across re-meshing operations.
 
 Add quality metrics illustrations and sheet roll-up examples from the thesis PDF into `docs/src/assets/` and reference them here.
 
+- Figure 3.26 (remeshing/quality illustration; suggested filename: `fig_3_26.png`):
+
+![](assets/fig_3_26.png)
+
+- Figure 3.52 (curvature/flow-adaptive example; suggested filename: `fig_3_52.png`):
+
+![](assets/fig_3_52.png)
+
+Add brief captions describing what each figure illustrates once extracted.

@@ -48,12 +48,16 @@ The support radius `delr` defines the number of grid spacings over which the ker
 
 ## Figures from the thesis
 
-Place figures (e.g., kernel shapes, flow schematics, sheet roll-up) from the thesis PDF (`mstock_dissertation.pdf`) into `docs/src/assets/` and reference them here, for example:
+Place figures (e.g., kernel shapes, flow schematics, sheet roll-up) from the thesis PDF (`mstock_dissertation.pdf`) into `docs/src/assets/`.
 
-```
-![](assets/fig_kernel.png)
-![](assets/fig_pipeline.png)
-```
+Thesis figures to include here:
 
-If you share the specific figure numbers/pages, we can add captions and references directly.
+- Figure 1.23 (theory overview; suggested filename: `fig_1_23.png`):
 
+![](assets/fig_1_23.png)
+
+- Figure 3.19 (supporting theory/parallel pipeline; suggested filename: `fig_3_19.png`):
+
+![](assets/fig_3_19.png)
+
+Add short captions below each image once extracted.
