@@ -51,7 +51,6 @@ function grid_mesh(domain::DomainSpec, gr::GridSpec)
     return vec(permutedims(x3d, (3,1,2))),
            vec(permutedims(y3d, (3,1,2))),
            vec(permutedims(z3d, (3,1,2)))
-       )
 end
 
 # Spectral wavenumber vector for periodic FFT Poisson solve
