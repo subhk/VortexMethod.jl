@@ -9,13 +9,13 @@ export save_checkpoint!, load_latest_checkpoint,
 using DelimitedFiles
 using Dates
 using Printf
-# MAT dependency removed - JLD2 only
 using JLD2
 using ..DomainImpl
 
 function save_checkpoint!(dir::AbstractString, step::Integer,
                           nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
                           tri::Array{Int,2}, eleGma::AbstractMatrix)
+
     # Default to JLD2 format, using step as time approximation
     return save_checkpoint_jld2!(dir, Float64(step), nodeX, nodeY, nodeZ, tri, eleGma; step=step)
 end
@@ -26,9 +26,11 @@ function load_latest_checkpoint(dir::AbstractString)
     isdir(dir) || error("Checkpoint directory not found: \"$dir\"")
     files = filter(f->occursin("chkpt_", f), readdir(dir))
     isempty(files) && error("No checkpoints in \"$dir\"")
+
     # prefer JLD2 files if present, fallback to CSV
     jld2s = sort(filter(f->endswith(f, ".jld2"), files))
     csvs = sort(filter(f->endswith(f, ".csv"), files))
+    
     if !isempty(jld2s)
         ck = load_checkpoint_jld2(joinpath(dir, jld2s[end]))
         return ck.nodeX, ck.nodeY, ck.nodeZ, ck.tri, ck.eleGma
