@@ -214,4 +214,4 @@ end
 
 end # module
 
-using .TimeStepper: node_velocities, rk2_step!
+using .TimeStepper: node_velocities, rk2_step!, rk2_step_with_dissipation!

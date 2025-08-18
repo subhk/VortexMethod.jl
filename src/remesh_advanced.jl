@@ -281,6 +281,17 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
     nt = size(tri, 1)
     refinement_scores = zeros(Float64, nt)
     
+    # Build triangle coordinates
+    triXC = Array{Float64}(undef, nt, 3)
+    triYC = Array{Float64}(undef, nt, 3) 
+    triZC = Array{Float64}(undef, nt, 3)
+    @inbounds for k in 1:3, t in 1:nt
+        v = tri[t,k]
+        triXC[t,k] = nodeX[v]
+        triYC[t,k] = nodeY[v]
+        triZC[t,k] = nodeZ[v]
+    end
+    
     # Compute mesh quality scores
     qualities = compute_mesh_quality(triXC, triYC, triZC)
     

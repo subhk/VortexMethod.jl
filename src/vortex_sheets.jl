@@ -469,8 +469,8 @@ function compute_mesh_quality_sheet(sheet::LagrangianSheet)
         p2 = tuple(sheet.nodes[v2, :]...)
         p3 = tuple(sheet.nodes[v3, :]...)
         
-        # Use existing quality metrics
-        quality = element_quality_metrics(p1, p2, p3)
+        # Use existing quality metrics from RemeshAdvanced module
+        quality = VortexMethod.RemeshAdvanced.element_quality_metrics(p1, p2, p3)
         qualities[t] = quality.jacobian_quality
     end
     
