@@ -38,16 +38,12 @@ jobs:
   mpi-test:
     runs-on: ubuntu-latest
     env:
-      JULIA_MPI_BINARY: system
+      JULIA_MPI_BINARY: artifacts
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
-      - name: Install OpenMPI
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openmpi-bin libopenmpi-dev
       - name: Instantiate
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate()'
@@ -65,4 +61,4 @@ jobs:
           '
       - name: Run MPI sanity test (2 ranks)
         run: |
-          mpirun -n 2 julia --project test/mpi_sanity.jl
+          ~/.julia/bin/mpiexecjl -n 2 julia --project test/mpi_sanity.jl
