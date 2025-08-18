@@ -38,7 +38,7 @@ using VortexMethod
         @test y ≈ 1.5  # -0.5 + 2.0 = 1.5
         @test z ≈ 0.8  # -1.2 + 2*1.0 = 0.8
         
-        println("✓ Periodic boundary wrapping works correctly")
+        println("Periodic boundary wrapping works correctly")
     end
     
     @testset "Particle insertion criteria" begin
@@ -60,7 +60,7 @@ using VortexMethod
         @test default_criteria.min_vorticity_threshold == 1e-6
         @test default_criteria.max_particles == 100000
         
-        println("✓ Particle insertion criteria work correctly")
+        println("Particle insertion criteria work correctly")
     end
     
     @testset "Particle removal criteria" begin
@@ -75,7 +75,7 @@ using VortexMethod
         @test criteria.boundary_removal_zone == 0.02  # default
         @test criteria.age_threshold == 1000          # default
         
-        println("✓ Particle removal criteria work correctly")
+        println("Particle removal criteria work correctly")
     end
     
     @testset "Particle insertion (basic functionality)" begin
@@ -109,7 +109,7 @@ using VortexMethod
             @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
-        println("✓ Basic particle insertion works correctly")
+        println("Basic particle insertion works correctly")
     end
     
     @testset "Particle removal (basic functionality)" begin
@@ -139,7 +139,7 @@ using VortexMethod
             @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
-        println("✓ Basic particle removal works correctly")
+        println("Basic particle removal works correctly")
     end
     
     @testset "Vortex blob insertion" begin
@@ -172,7 +172,7 @@ using VortexMethod
             @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
-        println("✓ Vortex blob insertion works correctly")
+        println("Vortex blob insertion works correctly")
     end
     
     @testset "Particle count maintenance" begin
@@ -203,7 +203,7 @@ using VortexMethod
             @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
-        println("✓ Particle count maintenance works correctly")
+        println("Particle count maintenance works correctly")
     end
     
     @testset "Weak vortex removal" begin
@@ -229,7 +229,7 @@ using VortexMethod
             @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
-        println("✓ Weak vortex removal works correctly")
+        println("Weak vortex removal works correctly")
     end
     
     @testset "Particle redistribution" begin
@@ -255,7 +255,7 @@ using VortexMethod
             @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
-        println("✓ Particle redistribution works correctly")
+        println("Particle redistribution works correctly")
     end
 end
 
