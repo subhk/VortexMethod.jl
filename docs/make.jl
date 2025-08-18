@@ -22,7 +22,12 @@ makedocs(;
     ],
 )
 
-deploydocs(
-    repo="github.com/subhk/VortexMethod.jl",
-    devbranch="main",
-)
+# Deploy only when explicitly requested by CI.
+# The GitHub Actions workflow uploads `docs/build` as a Pages artifact,
+# so we skip Documenter's git push by default to avoid permission errors.
+if get(ENV, "DOCS_DEPLOY", "false") == "true"
+    deploydocs(
+        repo="github.com/subhk/VortexMethod.jl",
+        devbranch="main",
+    )
+end
