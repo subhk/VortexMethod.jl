@@ -68,4 +68,9 @@ jobs:
           '
       - name: Run MPI sanity test (2 ranks)
         run: |
-          ~/.julia/bin/mpiexecjl -n 2 julia --project test/mpi_sanity.jl
+          julia --project -e '
+            using MPI
+            cmd = `$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) --project test/mpi_sanity.jl`
+            println("Launching: ", cmd)
+            run(cmd)
+          '
