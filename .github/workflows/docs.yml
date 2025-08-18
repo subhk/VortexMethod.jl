@@ -14,9 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 # Cancel in-progress documentation builds for the same PR/branch
 concurrency:
@@ -73,12 +71,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Upload documentation artifacts
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs/build
-
-      - name: Deploy to GitHub Pages
+      - name: Deploy to gh-pages branch
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs/build
