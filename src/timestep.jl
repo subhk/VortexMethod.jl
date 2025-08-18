@@ -207,7 +207,9 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::Do
         end
         u1, v1, w1 = interpolate_node_velocity_kernel_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ, domain, gr, kernel)
     else
-        u1, v1, w1 = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, domain, gr; poisson_mode=poisson_mode, parallel_fft=parallel_fft)
+        u1, v1, w1 = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, 
+                                domain, gr; poisson_mode=poisson_mode, 
+                                parallel_fft=parallel_fft)
     end
 
     # half-step positions
