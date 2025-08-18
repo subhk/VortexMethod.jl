@@ -154,16 +154,28 @@ function mesh_stats(nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::Abstrac
     armax = 0.0
     @inbounds for t in 1:nt
         v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
-        dx12 = _mi(nodeX[v1]-nodeX[v2], Lx); dy12 = _mi(nodeY[v1]-nodeY[v2], Ly); dz12 = _mi(nodeZ[v1]-nodeZ[v2], Lz2)
-        dx23 = _mi(nodeX[v2]-nodeX[v3], Lx); dy23 = _mi(nodeY[v2]-nodeY[v3], Ly); dz23 = _mi(nodeZ[v2]-nodeZ[v3], Lz2)
-        dx31 = _mi(nodeX[v3]-nodeX[v1], Lx); dy31 = _mi(nodeY[v3]-nodeY[v1], Ly); dz31 = _mi(nodeZ[v3]-nodeZ[v1], Lz2)
+        dx12 = _mi(nodeX[v1]-nodeX[v2], Lx); 
+        dy12 = _mi(nodeY[v1]-nodeY[v2], Ly); 
+        dz12 = _mi(nodeZ[v1]-nodeZ[v2], Lz2)
+
+        dx23 = _mi(nodeX[v2]-nodeX[v3], Lx); 
+        dy23 = _mi(nodeY[v2]-nodeY[v3], Ly); 
+        dz23 = _mi(nodeZ[v2]-nodeZ[v3], Lz2)
+
+        dx31 = _mi(nodeX[v3]-nodeX[v1], Lx); 
+        dy31 = _mi(nodeY[v3]-nodeY[v1], Ly); 
+        dz31 = _mi(nodeZ[v3]-nodeZ[v1], Lz2)
+
         l12 = sqrt(dx12^2 + dy12^2 + dz12^2)
         l23 = sqrt(dx23^2 + dy23^2 + dz23^2)
         l31 = sqrt(dx31^2 + dy31^2 + dz31^2)
+
         lmin = min(l12, min(l23, l31)); lmax = max(l12, max(l23, l31))
+
         if lmin > 0
             armax = max(armax, lmax/lmin)
         end
+
     end
     return (; n_nodes=nv, n_tris=nt, xmin, xmax, ymin, ymax, zmin, zmax, ARmax=armax)
 end
@@ -180,6 +192,7 @@ function save_state!(dir::AbstractString, time::Real,
                      domain=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
                      poisson_mode=nothing, remesh_every=nothing, save_interval=nothing, ar_max=nothing,
                      step=nothing, params_extra=NamedTuple())
+
     # assemble params NamedTuple
     params = (;)
     if dt !== nothing;            params = merge(params, (; dt=dt)); end
@@ -192,8 +205,10 @@ function save_state!(dir::AbstractString, time::Real,
     params = merge(params, params_extra)
 
     stats = domain === nothing ? mesh_stats(nodeX, nodeY, nodeZ, tri) : mesh_stats(nodeX, nodeY, nodeZ, tri, domain)
+
     base = save_checkpoint_jld2!(dir, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                                 domain=domain, grid=grid, params=params, stats=stats, step=step)
+                            domain=domain, grid=grid, params=params, stats=stats, step=step)
+
     return base
 end
 
@@ -235,13 +250,21 @@ function save_state_timeseries!(file::AbstractString, time::Real,
         # update index arrays
         times = haskey(f, "times") ? read(f, "times")::Vector{Float64} : Float64[]
         steps = haskey(f, "steps") ? read(f, "steps")::Vector{Int}     : Int[]
-        push!(times, float(time)); push!(steps, Int(step === nothing ? count : step))
-        write(f, "times", times); write(f, "steps", steps)
+        
+        push!(times, float(time)); 
+        push!(steps, Int(step === nothing ? count : step))
+
+        write(f, "times", times); 
+        write(f, "steps", steps)
 
         key = @sprintf("snapshots/%06d/", count)
         write(f, key*"time", float(time))
-        write(f, key*"nodeX", nodeX); write(f, key*"nodeY", nodeY); write(f, key*"nodeZ", nodeZ)
-        write(f, key*"tri", tri);      write(f, key*"gamma", eleGma)
+        write(f, key*"nodeX", nodeX); 
+        write(f, key*"nodeY", nodeY); 
+        write(f, key*"nodeZ", nodeZ)
+        write(f, key*"tri", tri);      
+        write(f, key*"gamma", eleGma)
+
         if domain !== nothing
             write(f, key*"domain", Dict("Lx"=>domain.Lx, "Ly"=>domain.Ly, "Lz"=>domain.Lz))
         end
@@ -277,13 +300,19 @@ Returns (; nodeX, nodeY, nodeZ, tri, eleGma, time, domain, grid, params, stats)
 function load_series_snapshot(file::AbstractString, idx::Integer)
     return JLD2.jldopen(file, "r") do f
         key = @sprintf("snapshots/%06d/", idx)
-        nodeX = read(f, key*"nodeX"); nodeY = read(f, key*"nodeY"); nodeZ = read(f, key*"nodeZ")
-        tri   = read(f, key*"tri");    eleGma = read(f, key*"gamma")
+        nodeX = read(f, key*"nodeX"); 
+        nodeY = read(f, key*"nodeY"); 
+        nodeZ = read(f, key*"nodeZ")
+
+        tri   = read(f, key*"tri");    
+        eleGma = read(f, key*"gamma")
         time  = read(f, key*"time")
+
         domain   = haskey(f, key*"domain") ? read(f, key*"domain") : nothing
         grid  = haskey(f, key*"grid")   ? read(f, key*"grid")   : nothing
         params= haskey(f, key*"params") ? read(f, key*"params") : nothing
         stats = haskey(f, key*"stats")  ? read(f, key*"stats")  : nothing
+        
         (; nodeX, nodeY, nodeZ, tri, eleGma, time, domain, grid, params, stats)
     end
 end

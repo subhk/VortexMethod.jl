@@ -70,9 +70,10 @@ end
 
 # Wrap a point into periodic domain ranges
 function wrap_point(x::Float64, y::Float64, z::Float64, domain::DomainSpec)
-    xw = (x % domain.Lx)
-    yw = (y % domain.Ly)
-    zw = ((z + domain.Lz) % (2*domain.Lz)) - domain.Lz
+    # Use mod to ensure results lie within [0,L) and [-Lz, Lz]
+    xw = mod(x, domain.Lx)
+    yw = mod(y, domain.Ly)
+    zw = mod(z + domain.Lz, 2 * domain.Lz) - domain.Lz
     return xw, yw, zw
 end
 

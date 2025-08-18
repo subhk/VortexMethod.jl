@@ -855,13 +855,133 @@ Redistribute particles to maintain more uniform spacing while preserving circula
 function redistribute_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                                         tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec)
     
-    # This would implement particle redistribution algorithm
-    # 1. Compute local particle density
-    # 2. Move particles from high to low density regions
-    # 3. Maintain circulation conservation
-    # 4. Respect periodic boundaries
+    if length(nodeX) < 4
+        wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+        return length(nodeX)  # Too few particles to redistribute
+    end
     
+    # 1. Compute local particle density using spatial binning
+    grid_nx, grid_ny, grid_nz = 8, 8, 8
+    dx = domain.Lx / grid_nx
+    dy = domain.Ly / grid_ny
+    dz = 2 * domain.Lz / grid_nz
+    
+    # Count particles in each grid cell
+    grid_counts = zeros(Int, grid_nx, grid_ny, grid_nz)
+    particle_assignments = zeros(Int, length(nodeX))  # Which cell each particle belongs to
+    
+    for p in 1:length(nodeX)
+        # Map particle to grid cell
+        i = min(grid_nx, max(1, Int(ceil(nodeX[p] / dx))))
+        j = min(grid_ny, max(1, Int(ceil(nodeY[p] / dy))))
+        k = min(grid_nz, max(1, Int(ceil((nodeZ[p] + domain.Lz) / dz))))
+        
+        grid_counts[i, j, k] += 1
+        particle_assignments[p] = (k-1) * grid_nx * grid_ny + (j-1) * grid_nx + i
+    end
+    
+    # 2. Find cells that are too dense or too sparse
+    target_density = length(nodeX) / (grid_nx * grid_ny * grid_nz)
+    density_tolerance = 0.5
+    
+    overcrowded_cells = Int[]
+    underpopulated_cells = Int[]
+    
+    for i in 1:grid_nx, j in 1:grid_ny, k in 1:grid_nz
+        cell_id = (k-1) * grid_nx * grid_ny + (j-1) * grid_nx + i
+        density = grid_counts[i, j, k]
+        
+        if density > target_density * (1 + density_tolerance)
+            push!(overcrowded_cells, cell_id)
+        elseif density < target_density * (1 - density_tolerance)
+            push!(underpopulated_cells, cell_id)
+        end
+    end
+    
+    # 3. Move particles from overcrowded to underpopulated regions
+    n_redistributed = 0
+    
+    for overcrowded_cell in overcrowded_cells
+        if isempty(underpopulated_cells)
+            break
+        end
+        
+        # Find particles in this overcrowded cell
+        particles_in_cell = Int[]
+        for p in 1:length(nodeX)
+            if particle_assignments[p] == overcrowded_cell
+                push!(particles_in_cell, p)
+            end
+        end
+        
+        if length(particles_in_cell) <= 1
+            continue  # Need to keep at least one particle
+        end
+        
+        # Move some particles to underpopulated regions
+        n_to_move = min(length(particles_in_cell) ÷ 2, length(underpopulated_cells))
+        
+        for m in 1:n_to_move
+            if isempty(underpopulated_cells) || isempty(particles_in_cell)
+                break
+            end
+            
+            # Select particle to move (prefer those with weaker circulation)
+            node_circulations = compute_node_circulations(tri, eleGma)
+            particle_to_move = particles_in_cell[1]  # Default to first
+            
+            if length(particles_in_cell) > 1
+                min_circulation = Inf
+                for p in particles_in_cell
+                    if p <= length(node_circulations)
+                        circ = node_circulations[p]
+                        circ_mag = sqrt(circ[1]^2 + circ[2]^2 + circ[3]^2)
+                        if circ_mag < min_circulation
+                            min_circulation = circ_mag
+                            particle_to_move = p
+                        end
+                    end
+                end
+            end
+            
+            # Select target underpopulated cell
+            target_cell = underpopulated_cells[1]
+            
+            # Convert cell ID back to grid coordinates
+            target_k = (target_cell - 1) ÷ (grid_nx * grid_ny) + 1
+            target_j = ((target_cell - 1) % (grid_nx * grid_ny)) ÷ grid_nx + 1
+            target_i = ((target_cell - 1) % grid_nx) + 1
+            
+            # Calculate new position within target cell (with some randomness)
+            new_x = (target_i - 0.5 + 0.2 * (rand() - 0.5)) * dx
+            new_y = (target_j - 0.5 + 0.2 * (rand() - 0.5)) * dy
+            new_z = (target_k - 0.5 + 0.2 * (rand() - 0.5)) * dz - domain.Lz
+            
+            # Apply periodic wrapping
+            new_x, new_y, new_z = wrap_point(new_x, new_y, new_z, domain)
+            
+            # Move the particle
+            nodeX[particle_to_move] = new_x
+            nodeY[particle_to_move] = new_y
+            nodeZ[particle_to_move] = new_z
+            
+            # Update assignments
+            filter!(p -> p != particle_to_move, particles_in_cell)
+            particle_assignments[particle_to_move] = target_cell
+            n_redistributed += 1
+            
+            # Check if target cell is no longer underpopulated
+            # Update grid counts
+            target_cell_count = count(p -> particle_assignments[p] == target_cell for p in 1:length(nodeX))
+            if target_cell_count >= target_density * (1 - density_tolerance)
+                filter!(c -> c != target_cell, underpopulated_cells)
+            end
+        end
+    end
+    
+    # 4. Ensure all particles are within periodic boundaries
     wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+    
     return length(nodeX)  # Return final particle count
 end
 
