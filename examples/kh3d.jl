@@ -59,16 +59,21 @@ for it in 1:nsteps
     tmax, maxedge = VortexMethod.Remesh.detect_max_edge_length(triXC, triYC, triZC, ds_max)
     tmin, minedge = VortexMethod.Remesh.detect_min_edge_length(triXC, triYC, triZC, ds_min)
     # aspect ratio diagnostic (max over all triangles)
-    function max_aspect_ratio(triXC, triYC, triZC)
+    function max_aspect_ratio(triXC, triYC, triZC, dom)
         nt = size(triXC,1)
         armax = 0.0
         @inbounds for t in 1:nt
             p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
             p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
             p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
-            l12 = sqrt((p1[1]-p2[1])^2 + (p1[2]-p2[2])^2 + (p1[3]-p2[3])^2)
-            l23 = sqrt((p2[1]-p3[1])^2 + (p2[2]-p3[2])^2 + (p2[3]-p3[3])^2)
-            l31 = sqrt((p3[1]-p1[1])^2 + (p3[2]-p1[2])^2 + (p3[3]-p1[3])^2)
+            # periodic minimum-image edge lengths
+            _mi(d,L) = (L<=0 ? d : (d - L*round(d/L)))
+            dx12 = _mi(p1[1]-p2[1], dom.Lx); dy12 = _mi(p1[2]-p2[2], dom.Ly); dz12 = _mi(p1[3]-p2[3], 2*dom.Lz)
+            dx23 = _mi(p2[1]-p3[1], dom.Lx); dy23 = _mi(p2[2]-p3[2], dom.Ly); dz23 = _mi(p2[3]-p3[3], 2*dom.Lz)
+            dx31 = _mi(p3[1]-p1[1], dom.Lx); dy31 = _mi(p3[2]-p1[2], dom.Ly); dz31 = _mi(p3[3]-p1[3], 2*dom.Lz)
+            l12 = sqrt(dx12^2 + dy12^2 + dz12^2)
+            l23 = sqrt(dx23^2 + dy23^2 + dz23^2)
+            l31 = sqrt(dx31^2 + dy31^2 + dz31^2)
             lmin = min(l12, min(l23, l31)); lmax = max(l12, max(l23, l31))
             if lmin > 0
                 ar = lmax / lmin
@@ -77,7 +82,7 @@ for it in 1:nsteps
         end
         return armax
     end
-    ARmax = max_aspect_ratio(triXC, triYC, triZC)
+    ARmax = max_aspect_ratio(triXC, triYC, triZC, dom)
     if it % remesh_every == 0
         nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
         tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; dom=dom, ar_max=ar_max)

@@ -96,19 +96,19 @@ for it in 1:nsteps
         triZC[t,k] = nodeZ[v]
     end
     
+    # Build grid velocity once per step for reuse (remeshing + sheet tracking)
+    Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+
     # Advanced quality-based remeshing
     if it % remesh_every == 0
-        # Compute mesh quality
-        qualities = compute_mesh_quality(triXC, triYC, triZC)
+        # Compute mesh quality (periodic minimum-image)
+        qualities = compute_mesh_quality(triXC, triYC, triZC, dom)
         min_quality = minimum([q.jacobian_quality for q in qualities])
         max_aspect = maximum([q.aspect_ratio for q in qualities])
         
         if min_quality < quality_threshold || max_aspect > ar_max
             # Store circulation before remeshing
             nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-
-            # Build a grid velocity field once for this remeshing decision
-            Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
 
             # Define velocity sampling function using interpolation on the precomputed grid
             velocity_field(x, y, z) = begin
@@ -159,11 +159,9 @@ for it in 1:nsteps
     
     # Vortex sheet tracking and analysis
     if it % 5 == 0
-        # Track sheet interface evolution using periodic quality metrics
+        # Track sheet interface evolution using periodic quality metrics and reused grid velocity
         adaptive_sheet_tracking!(vortex_sheet,
             (x,y,z) -> begin
-                # Reuse latest grid velocity for efficiency
-                Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
                 u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, [x], [y], [z], dom, gr)
                 (u[1], v[1], w[1])
             end,
@@ -197,7 +195,7 @@ for it in 1:nsteps
         mean_eddy_visc = mean(eddy_viscosity)
         
         # Mesh quality statistics
-        qualities = compute_mesh_quality(triXC, triYC, triZC)
+        qualities = compute_mesh_quality(triXC, triYC, triZC, dom)
         quality_stats = (
             min_jacobian = minimum([q.jacobian_quality for q in qualities]),
             mean_aspect = mean([q.aspect_ratio for q in qualities]),
