@@ -17,23 +17,23 @@ finalize_mpi!() = (MPI.Finalized() || MPI.Finalize(); nothing)
 
 # Basic geometry helpers
 triangle_centroids(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix) = begin
-    nt = size(triXC,1)
+    nt = size(triXC, 1)
     C = zeros(Float64, nt, 3)
     @inbounds for t in 1:nt
-        C[t,1] = (triXC[t,1]+triXC[t,2]+triXC[t,3]) / 3
-        C[t,2] = (triYC[t,1]+triYC[t,2]+triYC[t,3]) / 3
-        C[t,3] = (triZC[t,1]+triZC[t,2]+triZC[t,3]) / 3
+        C[t, 1] = (triXC[t, 1] + triXC[t, 2] + triXC[t, 3]) / 3
+        C[t, 2] = (triYC[t, 1] + triYC[t, 2] + triYC[t, 3]) / 3
+        C[t, 3] = (triZC[t, 1] + triZC[t, 2] + triZC[t, 3]) / 3
     end
     C
 end
 
 function triangle_areas(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
-    nt = size(triXC,1)
+    nt = size(triXC, 1)
     A = zeros(Float64, nt)
     @inbounds for t in 1:nt
-        p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
-        p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
-        p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+        p1 = (triXC[t, 1], triYC[t, 1], triZC[t, 1])
+        p2 = (triXC[t, 2], triYC[t, 2], triZC[t, 2])
+        p3 = (triXC[t, 3], triYC[t, 3], triZC[t, 3])
         a = hypot(hypot(p1[1]-p2[1], p1[2]-p2[2]), p1[3]-p2[3])
         b = hypot(hypot(p2[1]-p3[1], p2[2]-p3[2]), p2[3]-p3[3])
         c = hypot(hypot(p3[1]-p1[1], p3[2]-p1[2]), p3[3]-p1[3])
