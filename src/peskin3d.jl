@@ -226,8 +226,8 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     end
 
     # Reduce across ranks
-    global = similar(local)
-    MPI.Allreduce!(local, global, MPI.SUM, comm)
+    global_buf = similar(local_buf)
+    MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
 
     # Reshape to (nz,ny,nx)
     VorX = reshape(view(global,:,1), nz, ny, nx)
@@ -286,8 +286,8 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     end
 
     # Reduce across ranks (sum), even though strided fill is disjoint this is safe
-    global = similar(local)
-    MPI.Allreduce!(local, global, MPI.SUM, comm)
+    global_buf = similar(local_buf)
+    MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
 
     # Reshape to (nz,ny,nx)
     VorX = reshape(view(global,:,1), nz, ny, nx)
@@ -371,9 +371,9 @@ function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::
         local[i,1]=sx; local[i,2]=sy; local[i,3]=sz
     end
 
-    global = similar(local)
-    MPI.Allreduce!(local, global, MPI.SUM, comm)
-    return view(global,:,1), view(global,:,2), view(global,:,3)
+    global_buf = similar(local_buf)
+    MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
+    return view(global_buf,:,1), view(global_buf,:,2), view(global_buf,:,3)
 end
 
 # Interpolate node velocities from grid (MPI parallel over nodes) - original function
@@ -440,9 +440,9 @@ function interpolate_node_velocity_mpi(gridUx::Array{Float64,3}, gridUy::Array{F
         local[i,1]=sx; local[i,2]=sy; local[i,3]=sz
     end
 
-    global = similar(local)
-    MPI.Allreduce!(local, global, MPI.SUM, comm)
-    return view(global,:,1), view(global,:,2), view(global,:,3)
+    global_buf = similar(local_buf)
+    MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
+    return view(global_buf,:,1), view(global_buf,:,2), view(global_buf,:,3)
 end
 
 end # module
