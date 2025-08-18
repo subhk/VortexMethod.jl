@@ -14,11 +14,15 @@ grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
 Computes the grid velocity fields (Ux,Uy,Uz) from element vorticity without interpolating to nodes.
 Performs spreading to grid, curl RHS, and Poisson solve.
 """
-function grid_velocity(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
+function grid_velocity(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
     dx,dy,dz = grid_spacing(dom, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
-    return poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    if parallel_fft
+        return poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    else
+        return poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+    end
 end
 
 """
