@@ -4,24 +4,44 @@
 [![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://subhk.github.io/VortexMethod.jl/dev/)
 [![Coverage](https://codecov.io/gh/subhk/VortexMethod.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/subhk/VortexMethod.jl)
 
-A 3D Lagrangian vortex method with MPI parallelism, periodic domains, multiple interpolation kernels, advanced remeshing, dissipation models, and vortex-sheet utilities. 
+A high-performance 3D Lagrangian vortex method with MPI parallelism, periodic domains, multiple interpolation kernels, advanced remeshing, dissipation models, particle management, and efficient JLD2-based checkpointing. 
 
 ## Highlights
 
-- Lagrangian–Eulerian pipeline: spread element vorticity → curl RHS → Poisson solve → interpolate → RK time stepping.
-- Multiple kernels: Peskin-style, cosine, M4', area-weighted (configurable support radius).
-- Poisson solvers: periodic FFT + “advanced” iterative/multigrid interfaces and a hybrid fallback.
-- Remeshing: baseline edge split/flip/collapse and thesis-style flow/quality thresholds with periodic metrics.
-- Dissipation: Smagorinsky, dynamic, vortex-stretching, and mixed-scale models.
-- Vortex sheets: Lagrangian/Eulerian/Hybrid structures, curvature/reconnection utilities.
-- Checkpointing: CSV/MAT/JLD2; time-series with random-access snapshots.
-- MPI: parallel spreading/interpolation; global reductions for diagnostics.
+- **High-Performance Computing**: Lagrangian–Eulerian pipeline with MPI parallelism and optimized FFT-based Poisson solvers
+- **Multiple Interpolation Kernels**: Peskin-style, cosine, M4', area-weighted (configurable support radius)
+- **Advanced Poisson Solvers**: Spectral FFT with periodic boundary conditions, iterative/multigrid interfaces
+- **Intelligent Remeshing**: Edge split/flip/collapse with flow-adaptive and quality-based criteria using periodic metrics  
+- **Particle Management**: Automatic insertion/removal, circulation conservation, density redistribution for optimal resolution
+- **Dissipation Models**: Smagorinsky, dynamic, vortex-stretching, and mixed-scale turbulence models
+- **Vortex Sheets**: Lagrangian/Eulerian/Hybrid structures with curvature and reconnection utilities
+- **Modern I/O**: JLD2-based checkpointing with clean filenames (`chkpt_1.jld2`) and time-series with random-access snapshots
+- **MPI Parallelism**: Scalable parallel spreading/interpolation with global reductions for diagnostics
 
 ## Install
 
-```
+```julia
 julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
+
+## New Features & Improvements
+
+### 🚀 Enhanced Particle Management
+- **Adaptive Particle Control**: Automatic insertion and removal based on local vorticity and spacing criteria
+- **Circulation Conservation**: Exact preservation of total circulation during particle operations
+- **Density Redistribution**: Smart particle repositioning to maintain uniform resolution
+- **Periodic Boundary Support**: Full compatibility with periodic domains
+
+### 💾 Modern Checkpointing System  
+- **JLD2-Only Format**: Fast binary storage with built-in compression and metadata support
+- **Clean Filenames**: Simple sequential naming (`chkpt_1.jld2`, `chkpt_2.jld2`, etc.)
+- **Time-Series Support**: Efficient storage of multiple snapshots with random access
+- **Cross-Platform**: Consistent behavior across different operating systems
+
+### 🔬 Improved Poisson Solver
+- **Spectral Accuracy**: Machine-precision FFT-based solutions for smooth problems  
+- **Proper Periodic Grid**: Correct grid spacing for FFT periodicity assumptions
+- **Optimized Performance**: Removed unnecessary boundary copying operations
 
 ## Run examples (MPI)
 
