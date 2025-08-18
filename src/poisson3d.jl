@@ -72,9 +72,9 @@ end
 # FFT-based Poisson solve (periodic): ∇^2 U = RHS -> Û = -RHŜ/k^2
 function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, domain::DomainSpec; mode::Symbol=:spectral)
     nz, ny, nx = size(u_rhs)
-    dx = domain.Lx/(nx-1)
-    dy = domain.Ly/(ny-1)
-    dz = (2*domain.Lz)/(nz-1)
+    dx = domain.Lx/nx
+    dy = domain.Ly/ny
+    dz = (2*domain.Lz)/nz
 
     kx = kvec(nx, domain.Lx)
     ky = kvec(ny, domain.Ly)
@@ -126,16 +126,7 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
     uy = real(FFTW.ifft(V̂))
     uz = real(FFTW.ifft(Ŵ))
 
-    # periodic wrap to mimic python behavior
-    ux[end, :, :] .= ux[1, :, :]
-    uy[end, :, :] .= uy[1, :, :]
-    uz[end, :, :] .= uz[1, :, :]
-    ux[:, end, :] .= ux[:, 1, :]
-    uy[:, end, :] .= uy[:, 1, :]
-    uz[:, end, :] .= uz[:, 1, :]
-    ux[:, :, end] .= ux[:, :, 1]
-    uy[:, :, end] .= uy[:, :, 1]
-    uz[:, :, end] .= uz[:, :, 1]
+    # Note: Removed periodic wrapping - FFT already handles periodicity correctly
 
     return ux, uy, uz
 end
@@ -165,9 +156,9 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
     # Create FFT plans
     fft_plan = PencilFFTPlans(pen, Float64, FFT!)
     
-    dx = domain.Lx/(nx-1)
-    dy = domain.Ly/(ny-1) 
-    dz = (2*domain.Lz)/(nz-1)
+    dx = domain.Lx/nx
+    dy = domain.Ly/ny
+    dz = (2*domain.Lz)/nz
     
     kx = kvec(nx, domain.Lx)
     ky = kvec(ny, domain.Ly)
