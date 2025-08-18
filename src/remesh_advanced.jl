@@ -275,8 +275,16 @@ end
 # Flow-adaptive remeshing combining multiple criteria
 function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                               tri::Array{Int,2}, velocity_field::Function, dom::DomainSpec;
+                              # legacy weighted-score kwargs (kept for compatibility; ignored by threshold logic)
                               quality_weight::Float64=0.3, gradient_weight::Float64=0.4, 
                               curvature_weight::Float64=0.3, refinement_threshold::Float64=0.5,
+                              # hard thresholds aligned with thesis-style criteria
+                              max_aspect_ratio::Float64=4.0,
+                              max_skewness::Float64=0.8,
+                              min_angle_quality::Float64=0.3,
+                              min_jacobian_quality::Float64=0.3,
+                              grad_threshold::Float64=0.1,
+                              curvature_threshold::Float64=0.5,
                               max_elements::Int=50000)
     nt = size(tri, 1)
     refinement_scores = zeros(Float64, nt)
@@ -295,40 +303,88 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
     # Compute mesh quality scores
     qualities = compute_mesh_quality(triXC, triYC, triZC)
     
+    # Build edge-to-triangle connectivity once (for curvature)
+    edge_map = Dict{Tuple{Int,Int}, Vector{Int}}()
     @inbounds for t in 1:nt
         v1, v2, v3 = tri[t,1], tri[t,2], tri[t,3]
-        
-        # Quality score (higher is worse)
-        quality = qualities[t]
-        quality_score = (quality.aspect_ratio - 1.0) / 3.0 + quality.skewness + 
-                       (1.0 - quality.angle_quality) + (1.0 - quality.jacobian_quality)
-        
-        # Gradient score
+        for (a,b) in ((v1,v2), (v2,v3), (v3,v1))
+            e = a < b ? (a,b) : (b,a)
+            if haskey(edge_map, e)
+                push!(edge_map[e], t)
+            else
+                edge_map[e] = [t]
+            end
+        end
+    end
+
+    elements_to_refine = Int[]
+    @inbounds for t in 1:nt
+        v1, v2, v3 = tri[t,1], tri[t,2], tri[t,3]
+        q = qualities[t]
+
+        # Thesis-style quality thresholds
+        refine_quality = (q.aspect_ratio > max_aspect_ratio ||
+                          q.skewness > max_skewness ||
+                          q.angle_quality < min_angle_quality ||
+                          q.jacobian_quality < min_jacobian_quality)
+
+        # Gradient-based threshold at centroid
         cx = (nodeX[v1] + nodeX[v2] + nodeX[v3]) / 3
         cy = (nodeY[v1] + nodeY[v2] + nodeY[v3]) / 3
         cz = (nodeZ[v1] + nodeZ[v2] + nodeZ[v3]) / 3
-        
         h = 1e-6
         u_center = velocity_field(cx, cy, cz)
         u_dx = velocity_field(cx+h, cy, cz)
         u_dy = velocity_field(cx, cy+h, cz)
         u_dz = velocity_field(cx, cy, cz+h)
-        
-        gradient_score = norm([(u_dx[1]-u_center[1])/h, (u_dy[1]-u_center[1])/h, (u_dz[1]-u_center[1])/h])
-        
-        # Combined score
-        refinement_scores[t] = quality_weight * quality_score + 
-                              gradient_weight * gradient_score + 
-                              curvature_weight * 0.0  # Curvature computed separately
-        
-        if nt >= max_elements
+        grad_mag = norm([(u_dx[1]-u_center[1])/h,
+                         (u_dy[1]-u_center[1])/h,
+                         (u_dz[1]-u_center[1])/h])
+        refine_gradient = grad_mag > grad_threshold
+
+        # Curvature from neighboring face normal variation
+        p1 = (nodeX[v1], nodeY[v1], nodeZ[v1])
+        p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
+        p3 = (nodeX[v3], nodeY[v3], nodeZ[v3])
+        e1 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
+        e2 = (p3[1]-p1[1], p3[2]-p1[2], p3[3]-p1[3])
+        n  = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
+        nmag = sqrt(n[1]^2 + n[2]^2 + n[3]^2)
+        nx,ny,nz = nmag>0 ? (n[1]/nmag, n[2]/nmag, n[3]/nmag) : (0.0,0.0,1.0)
+        max_angle_diff = 0.0
+        for (a,b) in ((v1,v2), (v2,v3), (v3,v1))
+            e = a < b ? (a,b) : (b,a)
+            if haskey(edge_map, e) && length(edge_map[e]) == 2
+                tnb = edge_map[e][1] == t ? edge_map[e][2] : edge_map[e][1]
+                w1, w2, w3 = tri[tnb,1], tri[tnb,2], tri[tnb,3]
+                q1 = (nodeX[w1], nodeY[w1], nodeZ[w1])
+                q2 = (nodeX[w2], nodeY[w2], nodeZ[w2])
+                q3 = (nodeX[w3], nodeY[w3], nodeZ[w3])
+                f1 = (q2[1]-q1[1], q2[2]-q1[2], q2[3]-q1[3])
+                f2 = (q3[1]-q1[1], q3[2]-q1[2], q3[3]-q1[3])
+                nn = (f1[2]*f2[3] - f1[3]*f2[2], f1[3]*f2[1] - f1[1]*f2[3], f1[1]*f2[2] - f1[2]*f2[1])
+                nnmag = sqrt(nn[1]^2 + nn[2]^2 + nn[3]^2)
+                if nnmag > 0
+                    n2x, n2y, n2z = (nn[1]/nnmag, nn[2]/nnmag, nn[3]/nnmag)
+                    dotp = clamp(nx*n2x + ny*n2y + nz*n2z, -1.0, 1.0)
+                    angle = acos(abs(dotp))
+                    max_angle_diff = max(max_angle_diff, angle)
+                end
+            end
+        end
+        refine_curvature = max_angle_diff > curvature_threshold
+
+        if (refine_quality || refine_gradient || refine_curvature)
+            push!(elements_to_refine, t)
+        end
+
+        if length(elements_to_refine) + nt >= max_elements
             break
         end
     end
     
-    # Mark elements for refinement
-    elements_to_refine = findall(x -> x > refinement_threshold, refinement_scores)
-    sort!(elements_to_refine, rev=true)  # Refine in reverse order
+    # Sort in reverse for stability (refine high indices first)
+    sort!(elements_to_refine, rev=true)
     
     changed = false
     for ele_idx in elements_to_refine[1:min(length(elements_to_refine), max_elements - nt)]
