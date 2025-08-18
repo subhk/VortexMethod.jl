@@ -10,7 +10,7 @@ comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 nprocs = MPI.Comm_size(comm)
 
-dom = default_domain()
+domain = default_domain()
 gr = default_grid()
 
 # Parallel FFT configuration
@@ -22,7 +22,7 @@ parallel_fft = "--parallel-fft" in ARGS || "--parallel" in ARGS
 Nx = 64
 Ny = 64
 
-nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
 
 nt = size(tri,1)
 eleGma = zeros(Float64, nt, 3)
@@ -58,7 +58,7 @@ if rank == 0
 end
 
 for it in 1:nsteps
-    dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; 
+    dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt; 
                        At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd, parallel_fft=parallel_fft)
     time += dt_used
     # recompute tri coords for next step (connectivity unchanged)
@@ -69,13 +69,13 @@ for it in 1:nsteps
         triZC[t,k] = nodeZ[v]
     end
     # simple edge-length based diagnostics; thresholds from grid spacing
-    dx,dy,dz = grid_spacing(dom, gr)
+    dx,dy,dz = grid_spacing(domain, gr)
     ds_max = 0.80*max(dx,dy)
     ds_min = 0.05*max(dx,dy)
     tmax, maxedge = VortexMethod.Remesh.detect_max_edge_length(triXC, triYC, triZC, ds_max)
     tmin, minedge = VortexMethod.Remesh.detect_min_edge_length(triXC, triYC, triZC, ds_min)
     # aspect ratio diagnostic (max over all triangles)
-    function max_aspect_ratio(triXC, triYC, triZC, dom)
+    function max_aspect_ratio(triXC, triYC, triZC, domain)
         nt = size(triXC,1)
         armax = 0.0
         @inbounds for t in 1:nt
@@ -84,9 +84,9 @@ for it in 1:nsteps
             p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
             # periodic minimum-image edge lengths
             _mi(d,L) = (L<=0 ? d : (d - L*round(d/L)))
-            dx12 = _mi(p1[1]-p2[1], dom.Lx); dy12 = _mi(p1[2]-p2[2], dom.Ly); dz12 = _mi(p1[3]-p2[3], 2*dom.Lz)
-            dx23 = _mi(p2[1]-p3[1], dom.Lx); dy23 = _mi(p2[2]-p3[2], dom.Ly); dz23 = _mi(p2[3]-p3[3], 2*dom.Lz)
-            dx31 = _mi(p3[1]-p1[1], dom.Lx); dy31 = _mi(p3[2]-p1[2], dom.Ly); dz31 = _mi(p3[3]-p1[3], 2*dom.Lz)
+            dx12 = _mi(p1[1]-p2[1], domain.Lx); dy12 = _mi(p1[2]-p2[2], domain.Ly); dz12 = _mi(p1[3]-p2[3], 2*domain.Lz)
+            dx23 = _mi(p2[1]-p3[1], domain.Lx); dy23 = _mi(p2[2]-p3[2], domain.Ly); dz23 = _mi(p2[3]-p3[3], 2*domain.Lz)
+            dx31 = _mi(p3[1]-p1[1], domain.Lx); dy31 = _mi(p3[2]-p1[2], domain.Ly); dz31 = _mi(p3[3]-p1[3], 2*domain.Lz)
             l12 = sqrt(dx12^2 + dy12^2 + dz12^2)
             l23 = sqrt(dx23^2 + dy23^2 + dz23^2)
             l31 = sqrt(dx31^2 + dy31^2 + dz31^2)
@@ -98,10 +98,10 @@ for it in 1:nsteps
         end
         return armax
     end
-    ARmax = max_aspect_ratio(triXC, triYC, triZC, dom)
+    ARmax = max_aspect_ratio(triXC, triYC, triZC, domain)
     if it % remesh_every == 0
         nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-        tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; dom=dom, ar_max=ar_max)
+        tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; domain=domain, ar_max=ar_max)
         if changed
             nt = size(tri,1)
             triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
@@ -121,17 +121,17 @@ for it in 1:nsteps
         save_count = Int(floor(time / save_interval))
         KE = nothing
         if save_count % ke_stride == 0
-            KE = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:fd, parallel_fft=parallel_fft)
+            KE = gamma_ke(eleGma, triXC, triYC, triZC, domain, gr; poisson_mode=:fd, parallel_fft=parallel_fft)
         end
         if save_series
             base = save_state_timeseries!(series_file, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                                          dom=dom, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                                          domain=domain, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
                                           poisson_mode=:fd, remesh_every=remesh_every, save_interval=save_interval,
                                           ar_max=ar_max, step=it,
                                           params_extra=(; Atg=Atg, Nx=Nx, Ny=Ny, KE=KE))
         else
             base = save_state!("checkpoints", time, nodeX, nodeY, nodeZ, tri, eleGma;
-                               dom=dom, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                               domain=domain, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
                                poisson_mode=:fd, remesh_every=remesh_every, save_interval=save_interval,
                                ar_max=ar_max, step=it,
                                params_extra=(; Atg=Atg, Nx=Nx, Ny=Ny, KE=KE))
