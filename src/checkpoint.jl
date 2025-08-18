@@ -48,6 +48,7 @@ function load_latest_checkpoint(dir::AbstractString)
         eleGma= Array{Float64}(readdlm(base*"_gamma.csv", ','))
 
         return nodeX, nodeY, nodeZ, tri, eleGma
+    end
 end
 
 function save_checkpoint_jld2!(dir::AbstractString, time::Real,
@@ -77,11 +78,6 @@ function save_checkpoint_jld2!(dir::AbstractString, time::Real,
     jldsave(base; data...)
     return base
 end
-
-# Convenience aliases for cleaner API
-const save_checkpoint_jld2 = save_checkpoint_jld2!
-const load_latest_checkpoint_jld2 = load_latest_jld2
-const load_checkpoint = load_checkpoint_jld2
 
 function load_latest_jld2(dir::AbstractString)
     
@@ -114,6 +110,11 @@ function load_checkpoint_jld2(path::AbstractString)
 
     return (; nodeX, nodeY, nodeZ, tri, eleGma, time, domain, grid, params, stats)
 end
+
+# Convenience aliases for cleaner API (defined after implementations)
+const save_checkpoint_jld2 = save_checkpoint_jld2!
+const load_latest_checkpoint_jld2 = load_latest_jld2
+const load_checkpoint = load_checkpoint_jld2
 
 # -------- Convenience helpers --------
 
