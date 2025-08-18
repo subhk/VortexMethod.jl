@@ -49,8 +49,12 @@ Add quality metrics illustrations and sheet roll-up examples from the thesis PDF
 
 ![](assets/fig_3_26.png)
 
+_Figure 3.26: Remeshing and mesh-quality metrics (aspect ratio, skewness, angle and Jacobian quality) used to trigger refinement._
+
 - Figure 3.52 (curvature/flow-adaptive example; suggested filename: `fig_3_52.png`):
 
 ![](assets/fig_3_52.png)
+
+_Figure 3.52: Curvature- and flow-adaptive refinement highlighting high-dihedral-angle regions and strong velocity-gradient zones._
 
 Add brief captions describing what each figure illustrates once extracted.
