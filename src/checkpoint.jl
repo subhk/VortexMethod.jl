@@ -1,13 +1,13 @@
 module Checkpoint
 
-export save_checkpoint!, save_checkpoint_mat!, load_latest_checkpoint,
+export save_checkpoint!, load_latest_checkpoint,
        save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2,
        save_state!, mesh_stats, save_state_timeseries!,
        series_times, load_series_snapshot, load_series_nearest_time
 
 using DelimitedFiles
 using Dates
-using MAT
+# MAT dependency removed - JLD2 only
 using JLD2
 using ..DomainImpl
 
@@ -28,43 +28,18 @@ function save_checkpoint!(dir::AbstractString, step::Integer,
     return base
 end
 
-function save_checkpoint_mat!(dir::AbstractString, step::Integer,
-                              nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
-                              tri::Array{Int,2}, eleGma::AbstractMatrix)
-    mkpath(dir)
-    ts = Dates.format(now(), dateformat"yyyymmdd_HHMMSS")
-    base = joinpath(dir, @sprintf("chkpt_%06d_%s.mat", step, ts))
-    file = matopen(base, "w")
-    try
-        write(file, "nodeX", nodeX)
-        write(file, "nodeY", nodeY)
-        write(file, "nodeZ", nodeZ)
-        write(file, "tri", tri)
-        write(file, "gamma", eleGma)
-        write(file, "step", step)
-    finally
-        close(file)
-    end
-    return base
-end
+# MAT format support removed - use save_checkpoint_jld2! instead
 
 function load_latest_checkpoint(dir::AbstractString)
     isdir(dir) || error("Checkpoint directory not found: \"$dir\"")
     files = filter(f->occursin("chkpt_", f), readdir(dir))
     isempty(files) && error("No checkpoints in \"$dir\"")
-    # prefer MAT files if present
-    mats = sort(filter(f->endswith(f, ".mat"), files))
+    # prefer JLD2 files if present, fallback to CSV
+    jld2s = sort(filter(f->endswith(f, ".jld2"), files))
     csvs = sort(filter(f->endswith(f, ".csv"), files))
-    if !isempty(mats)
-        fname = joinpath(dir, mats[end])
-        file = matopen(fname)
-        try
-            nodeX = read(file, "nodeX"); nodeY = read(file, "nodeY"); nodeZ = read(file, "nodeZ")
-            tri   = read(file, "tri");    eleGma = read(file, "gamma")
-        finally
-            close(file)
-        end
-        return nodeX, nodeY, nodeZ, tri, eleGma
+    if !isempty(jld2s)
+        ck = load_checkpoint_jld2(joinpath(dir, jld2s[end]))
+        return ck.nodeX, ck.nodeY, ck.nodeZ, ck.tri, ck.eleGma
     else
         # reconstruct base from latest _tri.csv
         tri_files = sort(filter(f->endswith(f, "_tri.csv"), files))
@@ -76,7 +51,6 @@ function load_latest_checkpoint(dir::AbstractString)
         tri   = Array{Int}(readdlm(base*"_tri.csv", ','))
         eleGma= Array{Float64}(readdlm(base*"_gamma.csv", ','))
         return nodeX, nodeY, nodeZ, tri, eleGma
-    end
 end
 
 function save_checkpoint_jld2!(dir::AbstractString, time::Real,
