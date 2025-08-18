@@ -10,7 +10,7 @@ using ..DomainImpl
 export curl_rhs_centered, poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
 
 # Periodic finite-difference curl terms with central 4th-order where possible
-function curl_rhs_centered(VorX::Array{Float64,3}, VorY::Array{Float64,3}, VorZ::Array{Float64,3},
+function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{Float64,3}, VorZ::AbstractArray{Float64,3},
                            dx::Float64, dy::Float64, dz::Float64)
     nz, ny, nx = size(VorX)
     dX_dy = zeros(Float64, nz, ny, nx)
