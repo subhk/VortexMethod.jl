@@ -15,7 +15,7 @@ nprocs = MPI.Comm_size(comm)
 parallel_fft = "--parallel-fft" in ARGS || "--parallel" in ARGS
 
 # Advanced configuration
-dom = default_domain()
+domain = default_domain()
 gr = default_grid()
 
 # Solver options
@@ -31,7 +31,7 @@ poisson_solver = HybridSolver(
 Nx = 64
 Ny = 64
 
-nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
 
 nt = size(tri,1)
 eleGma = zeros(Float64, nt, 3)
@@ -95,7 +95,7 @@ end
 for it in 1:nsteps
     # Enhanced time stepping with all advanced features
     dt_used = rk2_step_with_dissipation!(
-        nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt, dissipation_model;
+        nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt, dissipation_model;
         At=Atg, adaptive=true, CFL=0.4, poisson_mode=:spectral, 
         parallel_fft=parallel_fft, kernel=kernel_type
     )
@@ -110,12 +110,12 @@ for it in 1:nsteps
     end
     
     # Build a reusable velocity sampler once per step (remeshing + sheet tracking)
-    vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+    vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr; poisson_mode=:spectral)
 
     # Advanced quality-based remeshing
     if it % remesh_every == 0
         # Compute mesh quality (periodic minimum-image)
-        qualities = compute_mesh_quality(triXC, triYC, triZC, dom)
+        qualities = compute_mesh_quality(triXC, triYC, triZC, domain)
         min_quality = minimum([q.jacobian_quality for q in qualities])
         max_aspect = maximum([q.aspect_ratio for q in qualities])
         
@@ -129,7 +129,7 @@ for it in 1:nsteps
             # Thesis-style thresholds: aspect ratio, angle/jacobian quality,
             # Frobenius norm grad threshold, and curvature (dihedral angle in radians)
             tri_new, changed = flow_adaptive_remesh!(
-                nodeX, nodeY, nodeZ, tri, velocity_field, dom;
+                nodeX, nodeY, nodeZ, tri, velocity_field, domain;
                 max_aspect_ratio=3.0,
                 max_skewness=0.8,
                 min_angle_quality=0.4,
@@ -171,7 +171,7 @@ for it in 1:nsteps
     if it % 5 == 0
         # Track sheet interface evolution using periodic quality metrics and reused grid velocity
         adaptive_sheet_tracking!(vortex_sheet, (x,y,z) -> vel(x,y,z),
-            dt_used, dom; curvature_threshold=curvature_threshold, quality_threshold=quality_threshold)
+            dt_used, domain; curvature_threshold=curvature_threshold, quality_threshold=quality_threshold)
         
         # Detect rollup regions
         rollup_regions = detect_sheet_rollup(vortex_sheet; vorticity_threshold=1.5)
@@ -194,14 +194,14 @@ for it in 1:nsteps
     # Enhanced diagnostics and saving
     if rank == 0 && time >= next_save_t
         # Compute advanced diagnostics
-        KE = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+        KE = gamma_ke(eleGma, triXC, triYC, triZC, domain, gr; poisson_mode=:spectral)
         
         # Compute effective dissipation rate
-        eddy_viscosity = compute_eddy_viscosity(dissipation_model, eleGma, triXC, triYC, triZC, dom, gr)
+        eddy_viscosity = compute_eddy_viscosity(dissipation_model, eleGma, triXC, triYC, triZC, domain, gr)
         mean_eddy_visc = mean(eddy_viscosity)
         
         # Mesh quality statistics
-        qualities = compute_mesh_quality(triXC, triYC, triZC, dom)
+        qualities = compute_mesh_quality(triXC, triYC, triZC, domain)
         quality_stats = (
             min_jacobian = minimum([q.jacobian_quality for q in qualities]),
             mean_aspect = mean([q.aspect_ratio for q in qualities]),
@@ -219,7 +219,7 @@ for it in 1:nsteps
         
         # Save comprehensive state
         save_state_timeseries!(series_file, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                              dom=dom, grid=gr, dt=dt_used, CFL=0.4, adaptive=true,
+                              domain=domain, grid=gr, dt=dt_used, CFL=0.4, adaptive=true,
                               poisson_mode=:spectral, remesh_every=remesh_every, 
                               save_interval=save_interval, ar_max=ar_max, step=it,
                               params_extra=(; 

@@ -53,12 +53,12 @@ function test_interpolation_kernels()
         println("-"^40)
     end
     
-    dom = DomainSpec(2π, 2π, π)
+    domain = DomainSpec(2π, 2π, π)
     gr = GridSpec(32, 32, 16)
     
     # Create simple test mesh
     Nx, Ny = 16, 16
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
     
     # Initial vorticity (simple Gaussian)
     nt = size(tri, 1)
@@ -76,10 +76,10 @@ function test_interpolation_kernels()
     
     errors = Float64[]
     for (i, kernel) in enumerate(kernels)
-        VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma, triXC, triYC, triZC, dom, gr, kernel)
+        VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma, triXC, triYC, triZC, domain, gr, kernel)
         
         # Compute L2 error (simplified)
-        total_vorticity = sum(VorZ) * (dom.Lx/gr.nx) * (dom.Ly/gr.ny) * (2*dom.Lz/gr.nz)
+        total_vorticity = sum(VorZ) * (domain.Lx/gr.nx) * (domain.Ly/gr.ny) * (2*domain.Lz/gr.nz)
         expected_vorticity = sum(eleGma[:, 3])
         error = abs(total_vorticity - expected_vorticity) / abs(expected_vorticity)
         push!(errors, error)
@@ -102,11 +102,11 @@ function test_advanced_remeshing()
         println("-"^40)
     end
     
-    dom = DomainSpec(2π, 2π, π)
+    domain = DomainSpec(2π, 2π, π)
     
     # Create highly distorted mesh
     Nx, Ny = 8, 8
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom, amp=0.5)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain, amp=0.5)
     
     # Apply additional distortion
     for i in 1:length(nodeX)
@@ -130,7 +130,7 @@ function test_advanced_remeshing()
     # Apply advanced remeshing
     eleGma = zeros(Float64, size(tri,1), 3)
     tri_new, changed = VortexMethod.RemeshAdvanced.quality_split_triangle!(
-        nodeX, nodeY, nodeZ, tri, 1, dom)
+        nodeX, nodeY, nodeZ, tri, 1, domain)
     
     if changed
         # Recompute triangle coordinates
@@ -165,12 +165,12 @@ function test_dissipation_models()
         println("-"^40)
     end
     
-    dom = DomainSpec(2π, 2π, π)
+    domain = DomainSpec(2π, 2π, π)
     gr = GridSpec(16, 16, 8)
     
     # Create test mesh with strong vorticity
     Nx, Ny = 8, 8
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
     
     nt = size(tri, 1)
     eleGma_original = zeros(Float64, nt, 3)
@@ -188,7 +188,7 @@ function test_dissipation_models()
     dt = 0.01
     for (i, model) in enumerate(models)
         eleGma_test = copy(eleGma_original)
-        apply_dissipation!(model, eleGma_test, triXC, triYC, triZC, dom, gr, dt)
+        apply_dissipation!(model, eleGma_test, triXC, triYC, triZC, domain, gr, dt)
         
         energy_loss = sum(eleGma_original.^2) - sum(eleGma_test.^2)
         energy_loss_percent = 100 * energy_loss / sum(eleGma_original.^2)
@@ -206,7 +206,7 @@ function test_poisson_solvers()
         println("-"^40)
     end
     
-    dom = DomainSpec(2π, 2π, π)
+    domain = DomainSpec(2π, 2π, π)
     nx, ny, nz = 16, 16, 8
     
     # Create test RHS (known solution: sin(x)sin(y)sin(z))
@@ -214,14 +214,14 @@ function test_poisson_solvers()
     v_rhs = zeros(Float64, nz, ny, nx)
     w_rhs = zeros(Float64, nz, ny, nx)
     
-    dx = dom.Lx / (nx - 1)
-    dy = dom.Ly / (ny - 1)
-    dz = 2 * dom.Lz / (nz - 1)
+    dx = domain.Lx / (nx - 1)
+    dy = domain.Ly / (ny - 1)
+    dz = 2 * domain.Lz / (nz - 1)
     
     for k in 1:nz, j in 1:ny, i in 1:nx
         x = (i-1) * dx
         y = (j-1) * dy
-        z = (k-1) * dz - dom.Lz
+        z = (k-1) * dz - domain.Lz
         
         # RHS for ∇²u = -3*sin(x)sin(y)sin(z)
         u_rhs[k,j,i] = -3 * sin(x) * sin(y) * sin(z)
@@ -234,7 +234,7 @@ function test_poisson_solvers()
         
         for (i, solver) in enumerate(solvers)
             start_time = time()
-            ux, uy, uz = solve_poisson!(solver, u_rhs, v_rhs, w_rhs, dom)
+            ux, uy, uz = solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
             solve_time = time() - start_time
             
             # Compute error against analytical solution
@@ -242,7 +242,7 @@ function test_poisson_solvers()
             for k in 1:nz, j in 1:ny, i in 1:nx
                 x = (i-1) * dx
                 y = (j-1) * dy
-                z = (k-1) * dz - dom.Lz
+                z = (k-1) * dz - domain.Lz
                 analytical = sin(x) * sin(y) * sin(z)
                 error += (ux[k,j,i] - analytical)^2
             end
@@ -260,11 +260,11 @@ function test_vortex_sheet_tracking()
         println("-"^40)
     end
     
-    dom = DomainSpec(2π, 2π, π)
+    domain = DomainSpec(2π, 2π, π)
     
     # Create simple sheet
     Nx, Ny = 8, 4
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
     
     # Initialize sheet
     eleGma = zeros(Float64, size(tri,1), 3)
@@ -282,7 +282,7 @@ function test_vortex_sheet_tracking()
     initial_center = mean(sheet.nodes, dims=1)
     
     for step in 1:n_steps
-        evolve_sheet!(sheet, VortexSheets.ClassicalEvolution(), velocity_field, dt, dom)
+        evolve_sheet!(sheet, VortexSheets.ClassicalEvolution(), velocity_field, dt, domain)
     end
     
     final_center = mean(sheet.nodes, dims=1)
@@ -303,12 +303,12 @@ function test_taylor_green_vortex()
         println("-"^40)
     end
     
-    dom = DomainSpec(2π, 2π, 2π)
+    domain = DomainSpec(2π, 2π, 2π)
     gr = GridSpec(16, 16, 16)
     
     # Create mesh
     Nx, Ny = 8, 8
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
     
     # Taylor-Green initial condition
     nt = size(tri, 1)
@@ -325,13 +325,13 @@ function test_taylor_green_vortex()
     end
     
     # Compute initial kinetic energy
-    initial_ke = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr)
+    initial_ke = gamma_ke(eleGma, triXC, triYC, triZC, domain, gr)
     
     # Evolve for one time step
     dt = 0.01
     dissipation_model = SmagorinskyModel(0.17)
     
-    rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt, dissipation_model)
+    rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt, dissipation_model)
     
     # Recompute triangle coordinates
     for k in 1:3, t in 1:size(tri,1)
@@ -341,7 +341,7 @@ function test_taylor_green_vortex()
         triZC[t,k] = nodeZ[v]
     end
     
-    final_ke = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr)
+    final_ke = gamma_ke(eleGma, triXC, triYC, triZC, domain, gr)
     energy_decay = (initial_ke - final_ke) / initial_ke
     
     if rank == 0
@@ -358,12 +358,12 @@ function test_lamb_vortex()
         println("-"^40)
     end
     
-    dom = DomainSpec(4π, 4π, π)
+    domain = DomainSpec(4π, 4π, π)
     gr = GridSpec(32, 32, 8)
     
     # Create fine mesh around vortex core
     Nx, Ny = 16, 16
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
     
     # Lamb vortex initial condition (Gaussian vorticity)
     nt = size(tri, 1)

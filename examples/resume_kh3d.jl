@@ -6,7 +6,7 @@ init_mpi!()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 
-dom = default_domain()
+domain = default_domain()
 gr = default_grid()
 
 # Load the latest checkpoint from directory
@@ -15,9 +15,9 @@ ck = load_latest_jld2(ckpt_dir)
 nodeX, nodeY, nodeZ, tri, eleGma = ck.nodeX, ck.nodeY, ck.nodeZ, ck.tri, ck.eleGma
 
 # Restore domain/grid if stored
-if ck.dom !== nothing
-    d = ck.dom
-    dom = VortexMethod.DomainSpec(d["Lx"], d["Ly"], d["Lz"])
+if ck.domain !== nothing
+    d = ck.domain
+    domain = VortexMethod.DomainSpec(d["Lx"], d["Ly"], d["Lz"])
 end
 if ck.grid !== nothing
     g = ck.grid
@@ -49,7 +49,7 @@ if rank == 0
 end
 
 for it in 1:nsteps
-    dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd)
+    dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt; At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd)
     time += dt_used
     # rebuild tris
     nt = size(tri,1)
@@ -58,12 +58,12 @@ for it in 1:nsteps
         v = tri[t,k]
         triXC[t,k] = nodeX[v]; triYC[t,k] = nodeY[v]; triZC[t,k] = nodeZ[v]
     end
-    dx,dy,dz = grid_spacing(dom, gr)
+    dx,dy,dz = grid_spacing(domain, gr)
     ds_max = 0.80*max(dx,dy)
     ds_min = 0.05*max(dx,dy)
     if it % remesh_every == 0
         nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-        tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; dom=dom, ar_max=ar_max)
+        tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; domain=domain, ar_max=ar_max)
         if changed
             nt = size(tri,1)
             triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
@@ -85,17 +85,17 @@ for it in 1:nsteps
                 v = tri[t,k]
                 triXC[t,k] = nodeX[v]; triYC[t,k] = nodeY[v]; triZC[t,k] = nodeZ[v]
             end
-            KE = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:fd)
+            KE = gamma_ke(eleGma, triXC, triYC, triZC, domain, gr; poisson_mode=:fd)
         end
         if save_series
             base = save_state_timeseries!(series_file, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                                          dom=dom, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                                          domain=domain, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
                                           poisson_mode=:fd, remesh_every=remesh_every, save_interval=save_interval,
                                           ar_max=ar_max, step=it,
                                           params_extra=(; Atg=Atg, KE=KE))
         else
             base = save_state!(ckpt_dir, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                               dom=dom, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                               domain=domain, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
                                poisson_mode=:fd, remesh_every=remesh_every, save_interval=save_interval,
                                ar_max=ar_max, step=it,
                                params_extra=(; Atg=Atg, KE=KE))

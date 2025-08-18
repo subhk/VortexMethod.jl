@@ -175,12 +175,12 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
     end
     
     # Setup domain and grid
-    dom = default_domain()
+    domain = default_domain()
     gr = default_grid()
     
     # Create mesh
     Nx, Ny = args["nx"], args["ny"]
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
     
     # Initialize vorticity with Kelvin-Helmholtz profile
     nt = size(tri, 1)
@@ -228,7 +228,7 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
         
         # Time stepping with performance monitoring
         fft_start = time()
-        dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; 
+        dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt; 
                            At=Atg, adaptive=true, CFL=0.5, 
                            poisson_mode=poisson_mode, parallel_fft=parallel_fft)
         fft_time = time() - fft_start
@@ -245,7 +245,7 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
         end
         
         # Mesh quality diagnostics
-        dx, dy, dz = grid_spacing(dom, gr)
+        dx, dy, dz = grid_spacing(domain, gr)
         ds_max = 0.80 * max(dx, dy)
         ds_min = 0.05 * max(dx, dy)
         
@@ -254,7 +254,7 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
             remesh_start = time()
             nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
             tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; 
-                                                           dom=dom, ar_max=ar_max)
+                                                           domain=domain, ar_max=ar_max)
             if changed
                 nt = size(tri, 1)
                 triXC = Array{Float64}(undef, nt, 3)
@@ -289,7 +289,7 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
             
             if save_count % ke_stride == 0
                 energy_start = time()
-                KE = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr; 
+                KE = gamma_ke(eleGma, triXC, triYC, triZC, domain, gr; 
                              poisson_mode=poisson_mode, parallel_fft=parallel_fft)
                 energy_time = time() - energy_start
                 log_timing!(monitor, :energy, energy_time)
@@ -307,7 +307,7 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
             )
             
             base = save_state_timeseries!(series_file, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                                         dom=dom, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                                         domain=domain, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
                                          poisson_mode=poisson_mode, remesh_every=remesh_every, 
                                          save_interval=save_interval, ar_max=ar_max, step=it,
                                          params_extra=params_extra)

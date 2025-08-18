@@ -431,17 +431,20 @@ function add_blob_particle_to_mesh!(tri, eleGma, node_index, circulation, domain
     return true
 end
 
+
 function insert_particles_to_fill_gaps!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_needed)
     # Insert particles in sparse regions
     # Placeholder implementation
     return n_needed
 end
 
+
 function remove_weakest_particles!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_excess)
     # Remove particles with weakest circulation
     # Placeholder implementation  
     return n_excess
 end
+
 
 # Convenience functions for common operations
 

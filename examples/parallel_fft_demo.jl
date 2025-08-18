@@ -40,11 +40,11 @@ function main()
     end
     
     # Setup domain and grid
-    dom = default_domain()
+    domain = default_domain()
     gr = GridSpec(32, 32, 63)  # Small grid for demo
     
     # Create simple test mesh - single vortex ring
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(8, 8; dom=dom)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(8, 8; domain=domain)
     
     # Create element vorticity (simple vortex ring pattern)
     nt = size(tri, 1)
@@ -68,7 +68,7 @@ function main()
     end
     
     # Compute velocities using either serial or parallel FFT
-    u, v, w = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom, gr; 
+    u, v, w = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, domain, gr; 
                              poisson_mode=:spectral, parallel_fft=parallel_fft)
     
     if rank == 0
