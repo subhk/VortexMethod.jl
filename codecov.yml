@@ -1,0 +1,17 @@
+coverage:
+  status:
+    project:
+      default:
+        # Compare to base, allow small fluctuations
+        target: auto
+        threshold: 2%
+    patch:
+      default:
+        # Require a reasonable patch coverage; tune as needed
+        target: 50%
+        threshold: 5%
+
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+
