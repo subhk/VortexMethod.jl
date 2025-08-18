@@ -137,11 +137,11 @@ function evolve_sheet!(sheet::LagrangianSheet, evolution::AdaptiveEvolution,
     
     # Apply curvature smoothing
     for node_idx in high_curvature_nodes
-        smooth_local_curvature!(sheet, node_idx, 0.1 * dt)
+        smooth_local_curvature!(sheet, node_idx, 0.1 * dt, dom)
     end
     
     # Check for reconnection events
-    check_sheet_reconnection!(sheet, evolution.reconnection_distance)
+    check_sheet_reconnection!(sheet, evolution.reconnection_distance, dom)
     
     return sheet
 end
@@ -318,21 +318,38 @@ function detect_sheet_rollup(sheet::LagrangianSheet; vorticity_threshold::Float6
 end
 
 # Smooth local curvature
-function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, smoothing_factor::Float64)
+function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, smoothing_factor::Float64, dom::DomainSpec=nothing)
     # Find neighboring nodes
     neighbors = find_node_neighbors(sheet, node_idx)
     
     if !isempty(neighbors)
-        # Average position with neighbors
+        # Average position with neighbors (periodic-aware if dom provided)
+        center = sheet.nodes[node_idx, :]
         avg_pos = zeros(3)
         for neighbor in neighbors
-            avg_pos += sheet.nodes[neighbor, :]
+            p = sheet.nodes[neighbor, :]
+            if dom === nothing
+                avg_pos += p
+            else
+                dx = p[1] - center[1]; dy = p[2] - center[2]; dz = p[3] - center[3]
+                if dom.Lx > 0; dx -= dom.Lx*round(dx/dom.Lx); end
+                if dom.Ly > 0; dy -= dom.Ly*round(dy/dom.Ly); end
+                if dom.Lz > 0; dz -= 2*dom.Lz*round(dz/(2*dom.Lz)); end
+                avg_pos[1] += center[1] + dx
+                avg_pos[2] += center[2] + dy
+                avg_pos[3] += center[3] + dz
+            end
         end
         avg_pos /= length(neighbors)
         
         # Apply smoothing
-        sheet.nodes[node_idx, :] = (1 - smoothing_factor) * sheet.nodes[node_idx, :] + 
-                                   smoothing_factor * avg_pos
+        newp = (1 - smoothing_factor) * sheet.nodes[node_idx, :] + smoothing_factor * avg_pos
+        if dom === nothing
+            sheet.nodes[node_idx, :] = newp
+        else
+            xw, yw, zw = VortexMethod.wrap_point(newp[1], newp[2], newp[3], dom)
+            sheet.nodes[node_idx, 1] = xw; sheet.nodes[node_idx, 2] = yw; sheet.nodes[node_idx, 3] = zw
+        end
     end
 end
 
@@ -357,7 +374,7 @@ function find_node_neighbors(sheet::LagrangianSheet, node_idx::Int)
 end
 
 # Check for sheet reconnection events
-function check_sheet_reconnection!(sheet::LagrangianSheet, reconnection_distance::Float64)
+function check_sheet_reconnection!(sheet::LagrangianSheet, reconnection_distance::Float64, dom::DomainSpec)
     interface_nodes = findall(sheet.interface_markers)
     
     for i in 1:length(interface_nodes)
@@ -365,21 +382,37 @@ function check_sheet_reconnection!(sheet::LagrangianSheet, reconnection_distance
             node1 = interface_nodes[i]
             node2 = interface_nodes[j]
             
-            # Check distance between interface nodes
-            dist = norm(sheet.nodes[node1, :] - sheet.nodes[node2, :])
+            # Check minimum-image distance between interface nodes
+            p1 = sheet.nodes[node1, :]; p2 = sheet.nodes[node2, :]
+            dx = p1[1] - p2[1]; dy = p1[2] - p2[2]; dz = p1[3] - p2[3]
+            if dom.Lx > 0; dx -= dom.Lx*round(dx/dom.Lx); end
+            if dom.Ly > 0; dy -= dom.Ly*round(dy/dom.Ly); end
+            if dom.Lz > 0; dz -= 2*dom.Lz*round(dz/(2*dom.Lz)); end
+            dist = sqrt(dx^2 + dy^2 + dz^2)
             
             if dist < reconnection_distance
                 # Perform reconnection
-                reconnect_sheet_nodes!(sheet, node1, node2)
+                reconnect_sheet_nodes!(sheet, node1, node2, dom)
             end
         end
     end
 end
 
 # Perform sheet reconnection
-function reconnect_sheet_nodes!(sheet::LagrangianSheet, node1::Int, node2::Int)
+function reconnect_sheet_nodes!(sheet::LagrangianSheet, node1::Int, node2::Int, dom::DomainSpec=nothing)
     # Simple reconnection: merge the two nodes
-    merge_pos = 0.5 * (sheet.nodes[node1, :] + sheet.nodes[node2, :])
+    if dom === nothing
+        merge_pos = 0.5 * (sheet.nodes[node1, :] + sheet.nodes[node2, :])
+    else
+        p1 = sheet.nodes[node1, :]; p2 = sheet.nodes[node2, :]
+        dx = p2[1] - p1[1]; dy = p2[2] - p1[2]; dz = p2[3] - p1[3]
+        if dom.Lx > 0; dx -= dom.Lx*round(dx/dom.Lx); end
+        if dom.Ly > 0; dy -= dom.Ly*round(dy/dom.Ly); end
+        if dom.Lz > 0; dz -= 2*dom.Lz*round(dz/(2*dom.Lz)); end
+        mx, my, mz = p1[1] + 0.5*dx, p1[2] + 0.5*dy, p1[3] + 0.5*dz
+        xw, yw, zw = VortexMethod.wrap_point(mx, my, mz, dom)
+        merge_pos = [xw, yw, zw]
+    end
     merge_strength = 0.5 * (sheet.strength[node1, :] + sheet.strength[node2, :])
     merge_age = 0.5 * (sheet.age[node1] + sheet.age[node2])
     

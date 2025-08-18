@@ -20,6 +20,7 @@ include("energy.jl")
 
 export DomainSpec, GridSpec,
        default_domain, default_grid,
+       wrap_point, wrap_nodes!,
        init_mpi!, finalize_mpi!,
        spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_kernel_mpi,
        poisson_velocity_fft, poisson_velocity_fft_mpi,
