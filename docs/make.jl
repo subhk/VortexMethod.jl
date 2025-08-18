@@ -12,7 +12,7 @@ makedocs(;
         assets=String[],
     ),
     # Relax CI to avoid failing on missing docs/cross-refs for now
-    strict=false,
+    warnonly=true,
     checkdocs=:none,
     pages=[
         "Home" => "index.md",
