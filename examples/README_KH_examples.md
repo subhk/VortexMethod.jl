@@ -182,5 +182,3 @@ Remeshing time:
 ## References
 
 - **PencilFFTs.jl**: https://github.com/jipolanco/PencilFFTs.jl
-- **VortexMethod.jl**: https://github.com/your-repo/VortexMethod.jl
-- **Kelvin-Helmholtz Instability**: Classical fluid dynamics instability example
