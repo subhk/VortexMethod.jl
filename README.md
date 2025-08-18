@@ -1,41 +1,100 @@
-# VortexMethod
+# VortexMethod.jl
 
-[![Build Status](https://github.com/subhk/VortexMethod.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/subhk/VortexMethod.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Build Status](https://app.travis-ci.com/subhk/VortexMethod.jl.svg?branch=main)](https://app.travis-ci.com/subhk/VortexMethod.jl)
+[![CI](https://github.com/subhk/VortexMethod.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/subhk/VortexMethod.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://subhk.github.io/VortexMethod.jl/dev/)
 [![Coverage](https://codecov.io/gh/subhk/VortexMethod.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/subhk/VortexMethod.jl)
 
-3D vortex method utilities with MPI-enabled spreading and interpolation, inspired by the Python reference in `python/` and the accompanying thesis. This initial implementation supports:
+A 3D Lagrangian vortex method with MPI parallelism, periodic domains, multiple interpolation kernels, advanced remeshing, dissipation models, and vortex-sheet utilities. The implementation mirrors a well-tested Python reference (see `python/`) and a corresponding thesis, with additional engineering for performance and reproducibility.
 
-- Spreading triangular element vorticity to a periodic 3D grid (MPI parallel over grid points)
-- FFT-based Poisson solve for velocity from vorticity’s curl RHS
-- Interpolation of grid velocity back to Lagrangian nodes (MPI parallel over nodes)
+## Highlights
 
-The API is minimal and meant to be composed with your meshing and time-stepping code.
+- Lagrangian–Eulerian pipeline: spread element vorticity → curl RHS → Poisson solve → interpolate → RK time stepping.
+- Multiple kernels: Peskin-style, cosine, M4', area-weighted (configurable support radius).
+- Poisson solvers: periodic FFT + “advanced” iterative/multigrid interfaces and a hybrid fallback.
+- Remeshing: baseline edge split/flip/collapse and thesis-style flow/quality thresholds with periodic metrics.
+- Dissipation: Smagorinsky, dynamic, vortex-stretching, and mixed-scale models.
+- Vortex sheets: Lagrangian/Eulerian/Hybrid structures, curvature/reconnection utilities.
+- Checkpointing: CSV/MAT/JLD2; time-series with random-access snapshots.
+- MPI: parallel spreading/interpolation; global reductions for diagnostics.
 
-## Quick Start
-
-- Instantiate and run with MPI (e.g., 4 ranks):
+## Install
 
 ```
 julia --project -e 'using Pkg; Pkg.instantiate()'
-mpirun -n 4 julia --project examples/simple3d.jl
-mpirun -n 4 julia --project examples/kh3d.jl
 ```
 
-## API
+## Run examples (MPI)
 
-- `DomainSpec(Lx,Ly,Lz)`, `GridSpec(nx,ny,nz)`, `default_domain()`, `default_grid()`
-- `init_mpi!()`, `finalize_mpi!()`
-- `spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, grid)` → `(VorX,VorY,VorZ)` as `(nz,ny,nx)` arrays
-- `curl_rhs_centered(VorX,VorY,VorZ, dx,dy,dz)` → `(u_rhs, v_rhs, w_rhs)`
-- `poisson_velocity_fft(u_rhs,v_rhs,w_rhs, dom)` → `(Ux,Uy,Uz)`
-- `poisson_velocity_fft_mpi(u_rhs,v_rhs,w_rhs, dom)` → `(Ux,Uy,Uz)` (rank-0 solve + broadcast)
-- `interpolate_node_velocity_mpi(Ux,Uy,Uz, nodeX,nodeY,nodeZ, dom, grid)` → `(u,v,w)`
+```
+mpirun -n 4 julia --project examples/simple3d.jl
+mpirun -n 4 julia --project examples/kh3d.jl
+mpirun -n 4 julia --project examples/advanced_kh3d.jl
+```
 
-Element vorticity `eleGma` is an `nt×3` matrix of vortex strength vectors per triangle. Triangle coordinates are `nt×3` matrices for `x`, `y`, `z` (vertex columns 1:3).
+## Minimal usage
+
+```julia
+using VortexMethod
+
+dom = default_domain(); gr = default_grid()
+
+# Build a structured sheet and an initial element vorticity
+Nx, Ny = 64, 64
+nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+eleGma = zeros(Float64, size(tri,1), 3); eleGma[:,2] .= 1.0
+
+# Single RK2 step (adaptive dt and periodic BCs handled internally)
+dt = 1e-3
+rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; adaptive=true, CFL=0.5, poisson_mode=:fd)
+
+# Advanced remeshing with cached velocity sampler
+vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr)
+tri, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
+    nodeX, nodeY, nodeZ, tri, vel, dom;
+    max_aspect_ratio=3.0, min_angle_quality=0.4, min_jacobian_quality=0.4,
+    max_skewness=0.8, grad_threshold=0.2, curvature_threshold=0.6,
+)
+
+# Always keep particles periodic after manual edits
+wrap_nodes!(nodeX, nodeY, nodeZ, dom)
+```
+
+## Documentation
+
+- Dev docs: https://subhk.github.io/VortexMethod.jl/dev/ (or build locally):
+
+```
+julia --project=docs -e 'using Pkg; Pkg.instantiate(); include("docs/make.jl")'
+```
+
+Docs include: theory, remeshing criteria, parallelization model, usage recipes, and a full API reference.
+
+## Validation
+
+- Generate a KH time series: `mpirun -n 4 julia --project examples/advanced_kh3d.jl`
+- Plot KE into docs assets:
+
+```
+SERIES_FILE=checkpoints/advanced_series.jld2 \
+OUTPUT_PNG=docs/src/assets/ke_series.png \
+julia --project examples/plot_series_ke.jl
+```
+
+- Snapshot of |γ|:
+
+```
+SERIES_FILE=checkpoints/advanced_series.jld2 \
+SNAP_INDEX=10 \
+OUTPUT_PNG=docs/src/assets/snapshot_gamma.png \
+julia --project examples/plot_snapshot_gamma.jl
+```
 
 ## Notes
 
-- Periodic BCs in all directions. The FFT Poisson solver uses standard spectral inversion, and the spread/interpolation applies a 3D Peskin kernel with 4-way triangle subdivision (mirrors the Python code’s `delr=4`).
-- MPI parallelization uses simple strided work distribution and `Allreduce` to combine results; no external MPI FFTs are required. The FFT solve currently runs on a single rank; results are replicated to all ranks after reductions.
-- For realistic problems, integrate your meshing/remeshing and time stepping based on the existing Python scripts as reference.
+- Periodic BCs in all directions. Spreading/interpolation use compact kernels over sub-triangle quadrature; FFT Poisson uses full 3D transforms with k=0 handling.
+- MPI: strided distribution (grid/nodes) + `Allreduce`; FFT currently on rank 0 with broadcast. Advanced solvers available for large cases.
+- See `python/` for the original reference implementation.
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE`.
