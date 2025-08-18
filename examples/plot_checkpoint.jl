@@ -1,5 +1,4 @@
 using VortexMethod
-using MAT
 using Plots
 
 # Load latest checkpoint and plot nodes colored by |gamma| averaged per node
