@@ -30,15 +30,14 @@ end
 println(@sprintf("Extracting snapshot #%d at t=%.6f", idx, snap.time))
 
 # Save standalone JLD2
-dom = default_domain(); gr = default_grid()
-if snap.dom !== nothing
-    d = snap.dom; dom = VortexMethod.DomainSpec(d["Lx"], d["Ly"], d["Lz"])
+domain = default_domain(); gr = default_grid()
+if snap.domain !== nothing
+    d = snap.domain; domain = VortexMethod.DomainSpec(d["Lx"], d["Ly"], d["Lz"])
 end
 if snap.grid !== nothing
     g = snap.grid; gr = VortexMethod.GridSpec(g["nx"], g["ny"], g["nz"])
 end
 
 base = save_state!(out_dir, snap.time, snap.nodeX, snap.nodeY, snap.nodeZ, snap.tri, snap.eleGma;
-                   dom=dom, grid=gr, step=idx, params_extra=(; extracted_from=series_file))
+                   domain=domain, grid=gr, step=idx, params_extra=(; extracted_from=series_file))
 println("Wrote: ", base)
-

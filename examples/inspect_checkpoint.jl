@@ -8,8 +8,8 @@ println("Loaded checkpoint from ", ckpt_dir)
 println("time: ", ck.time)
 println("nodes: ", length(ck.nodeX), "  triangles: ", size(ck.tri,1))
 
-if ck.dom !== nothing
-    d = ck.dom
+if ck.domain !== nothing
+    d = ck.domain
     @printf("domain: Lx=%.3f Ly=%.3f Lz=%.3f\n", d["Lx"], d["Ly"], d["Lz"])
 end
 if ck.grid !== nothing
@@ -29,4 +29,3 @@ if ck.stats !== nothing
         println("  ", k, ": ", v)
     end
 end
-

@@ -27,14 +27,14 @@ for i in 1:count
             triXC[t,k] = snap.nodeX[v]; triYC[t,k] = snap.nodeY[v]; triZC[t,k] = snap.nodeZ[v]
         end
         # restore domain/grid if present, else defaults
-        dom = default_domain(); gr = default_grid()
-        if snap.dom !== nothing
-            d = snap.dom; dom = VortexMethod.DomainSpec(d["Lx"], d["Ly"], d["Lz"])
+        domain = default_domain(); gr = default_grid()
+        if snap.domain !== nothing
+            d = snap.domain; domain = VortexMethod.DomainSpec(d["Lx"], d["Ly"], d["Lz"])
         end
         if snap.grid !== nothing
             g = snap.grid; gr = VortexMethod.GridSpec(g["nx"], g["ny"], g["nz"])
         end
-        ke_val = gamma_ke(snap.eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:fd)
+        ke_val = gamma_ke(snap.eleGma, triXC, triYC, triZC, domain, gr; poisson_mode=:fd)
     end
     KEs[i] = ke_val
 end
