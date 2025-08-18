@@ -17,7 +17,7 @@ using VortexMethod
 @testset "Particle Management Tests" begin
     
     # Test domain and basic mesh
-    dom = DomainSpec(2.0, 2.0, 1.0)  # Lx=2, Ly=2, Lz=1
+    domain = DomainSpec(2.0, 2.0, 1.0)  # Lx=2, Ly=2, Lz=1
     
     # Simple test mesh (small triangle)
     nodeX = [0.1, 0.9, 0.5]
@@ -28,12 +28,12 @@ using VortexMethod
     
     @testset "Periodic boundary wrapping" begin
         # Test wrap_point function
-        x, y, z = wrap_point(2.5, 3.0, 1.5, dom)
+        x, y, z = wrap_point(2.5, 3.0, 1.5, domain)
         @test x ≈ 0.5  # 2.5 - 2.0 = 0.5
         @test y ≈ 1.0  # 3.0 - 2.0 = 1.0  
         @test z ≈ -0.5 # wrapped to [-1, 1] range
         
-        x, y, z = wrap_point(-0.3, -0.5, -1.2, dom)
+        x, y, z = wrap_point(-0.3, -0.5, -1.2, domain)
         @test x ≈ 1.7  # -0.3 + 2.0 = 1.7
         @test y ≈ 1.5  # -0.5 + 2.0 = 1.5
         @test z ≈ 0.8  # -1.2 + 2*1.0 = 0.8
@@ -96,7 +96,7 @@ using VortexMethod
         )
         
         n_inserted = insert_particles_periodic!(nodeX_test, nodeY_test, nodeZ_test,
-                                               tri_test, eleGma_test, dom, criteria)
+                                               tri_test, eleGma_test, domain, criteria)
         
         @test n_inserted ≥ 0  # Should insert some particles or none
         @test length(nodeX_test) == length(nodeY_test) == length(nodeZ_test)
@@ -104,9 +104,9 @@ using VortexMethod
         
         # Verify all nodes are within periodic domain
         for i in eachindex(nodeX_test)
-            @test 0 ≤ nodeX_test[i] < dom.Lx
-            @test 0 ≤ nodeY_test[i] < dom.Ly
-            @test -dom.Lz ≤ nodeZ_test[i] ≤ dom.Lz
+            @test 0 ≤ nodeX_test[i] < domain.Lx
+            @test 0 ≤ nodeY_test[i] < domain.Ly
+            @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
         println("✓ Basic particle insertion works correctly")
@@ -127,16 +127,16 @@ using VortexMethod
         )
         
         n_removed = remove_particles_periodic!(nodeX_test, nodeY_test, nodeZ_test,
-                                              tri_test, eleGma_test, dom, criteria)
+                                              tri_test, eleGma_test, domain, criteria)
         
         @test n_removed ≥ 0  # Should remove some particles or none
         @test length(nodeX_test) == length(nodeY_test) == length(nodeZ_test)
         
         # Verify all remaining nodes are within periodic domain  
         for i in eachindex(nodeX_test)
-            @test 0 ≤ nodeX_test[i] < dom.Lx
-            @test 0 ≤ nodeY_test[i] < dom.Ly
-            @test -dom.Lz ≤ nodeZ_test[i] ≤ dom.Lz
+            @test 0 ≤ nodeX_test[i] < domain.Lx
+            @test 0 ≤ nodeY_test[i] < domain.Ly
+            @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
         println("✓ Basic particle removal works correctly")
@@ -159,7 +159,7 @@ using VortexMethod
         n_particles = 5
         
         n_inserted = insert_vortex_blob_periodic!(nodeX_test, nodeY_test, nodeZ_test,
-                                                 tri_test, eleGma_test, dom,
+                                                 tri_test, eleGma_test, domain,
                                                  center, strength, radius, n_particles)
         
         @test n_inserted ≥ 0  # Should insert some particles
@@ -167,9 +167,9 @@ using VortexMethod
         
         # Verify periodicity maintained
         for i in eachindex(nodeX_test)
-            @test 0 ≤ nodeX_test[i] < dom.Lx
-            @test 0 ≤ nodeY_test[i] < dom.Ly
-            @test -dom.Lz ≤ nodeZ_test[i] ≤ dom.Lz
+            @test 0 ≤ nodeX_test[i] < domain.Lx
+            @test 0 ≤ nodeY_test[i] < domain.Ly
+            @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
         println("✓ Vortex blob insertion works correctly")
@@ -187,7 +187,7 @@ using VortexMethod
         tolerance = 0.2
         
         result = maintain_particle_count!(nodeX_test, nodeY_test, nodeZ_test,
-                                        tri_test, eleGma_test, dom, 
+                                        tri_test, eleGma_test, domain, 
                                         target_count, tolerance)
         
         final_count = length(nodeX_test)
@@ -198,9 +198,9 @@ using VortexMethod
         
         # Verify periodicity maintained
         for i in eachindex(nodeX_test)
-            @test 0 ≤ nodeX_test[i] < dom.Lx
-            @test 0 ≤ nodeY_test[i] < dom.Ly
-            @test -dom.Lz ≤ nodeZ_test[i] ≤ dom.Lz
+            @test 0 ≤ nodeX_test[i] < domain.Lx
+            @test 0 ≤ nodeY_test[i] < domain.Ly
+            @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
         println("✓ Particle count maintenance works correctly")
@@ -218,15 +218,15 @@ using VortexMethod
         threshold = 1e-10
         
         n_removed = remove_weak_vortices!(nodeX_test, nodeY_test, nodeZ_test,
-                                        tri_test, eleGma_test, dom, threshold)
+                                        tri_test, eleGma_test, domain, threshold)
         
         @test n_removed ≥ 0
         
         # Verify periodicity maintained
         for i in eachindex(nodeX_test)
-            @test 0 ≤ nodeX_test[i] < dom.Lx
-            @test 0 ≤ nodeY_test[i] < dom.Ly
-            @test -dom.Lz ≤ nodeZ_test[i] ≤ dom.Lz
+            @test 0 ≤ nodeX_test[i] < domain.Lx
+            @test 0 ≤ nodeY_test[i] < domain.Ly
+            @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
         println("✓ Weak vortex removal works correctly")
@@ -243,16 +243,16 @@ using VortexMethod
         initial_count = length(nodeX_test)
         
         final_count = redistribute_particles_periodic!(nodeX_test, nodeY_test, nodeZ_test,
-                                                     tri_test, eleGma_test, dom)
+                                                     tri_test, eleGma_test, domain)
         
         @test final_count == initial_count  # Should preserve count
         @test final_count == length(nodeX_test)
         
         # Verify periodicity maintained
         for i in eachindex(nodeX_test)
-            @test 0 ≤ nodeX_test[i] < dom.Lx
-            @test 0 ≤ nodeY_test[i] < dom.Ly
-            @test -dom.Lz ≤ nodeZ_test[i] ≤ dom.Lz
+            @test 0 ≤ nodeX_test[i] < domain.Lx
+            @test 0 ≤ nodeY_test[i] < domain.Ly
+            @test -domain.Lz ≤ nodeZ_test[i] ≤ domain.Lz
         end
         
         println("✓ Particle redistribution works correctly")

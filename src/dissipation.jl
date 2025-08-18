@@ -56,6 +56,7 @@ end
 function strain_rate_magnitude(dudx::Float64, dudy::Float64, dudz::Float64,
                               dvdx::Float64, dvdy::Float64, dvdz::Float64,
                               dwdx::Float64, dwdy::Float64, dwdz::Float64)
+                              
     # Strain rate tensor S_ij = 0.5 * (∂u_i/∂x_j + ∂u_j/∂x_i)
     S11 = dudx
     S22 = dvdy  
@@ -72,6 +73,7 @@ end
 function vorticity_magnitude(dudx::Float64, dudy::Float64, dudz::Float64,
                            dvdx::Float64, dvdy::Float64, dvdz::Float64,
                            dwdx::Float64, dwdy::Float64, dwdz::Float64)
+
     # Vorticity ω = ∇ × u
     omega_x = dwdy - dvdz
     omega_y = dudz - dwdx  
@@ -104,8 +106,10 @@ function apply_dissipation!(model::SmagorinskyModel, eleGma::AbstractMatrix,
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+
         e1 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
         e2 = (p3[1]-p1[1], p3[2]-p1[2], p3[3]-p1[3])
+
         cross = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
         area = 0.5 * sqrt(cross[1]^2 + cross[2]^2 + cross[3]^2)
         
@@ -148,8 +152,10 @@ function apply_dissipation!(model::DynamicSmagorinsky, eleGma::AbstractMatrix,
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+
         e1 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
         e2 = (p3[1]-p1[1], p3[2]-p1[2], p3[3]-p1[3])
+
         cross = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
         area = 0.5 * sqrt(cross[1]^2 + cross[2]^2 + cross[3]^2)
         
@@ -166,6 +172,7 @@ function apply_dissipation!(model::DynamicSmagorinsky, eleGma::AbstractMatrix,
     
     # Apply dissipation with dynamic coefficient
     smagorinsky_model = SmagorinskyModel(Cs_dynamic)
+
     return apply_dissipation!(smagorinsky_model, eleGma, triXC, triYC, triZC, domain, gr, dt)
 end
 
@@ -181,8 +188,10 @@ function apply_dissipation!(model::VortexStretchingDissipation, eleGma::Abstract
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+
         e1 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
         e2 = (p3[1]-p1[1], p3[2]-p1[2], p3[3]-p1[3])
+
         cross = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
         area = 0.5 * sqrt(cross[1]^2 + cross[2]^2 + cross[3]^2)
         
@@ -243,8 +252,10 @@ function compute_eddy_viscosity(model::SmagorinskyModel, eleGma::AbstractMatrix,
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+
         e1 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
         e2 = (p3[1]-p1[1], p3[2]-p1[2], p3[3]-p1[3])
+        
         cross = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
         area = 0.5 * sqrt(cross[1]^2 + cross[2]^2 + cross[3]^2)
         
