@@ -335,6 +335,7 @@ function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, smoothin
                 if domain.Lx > 0; dx -= domain.Lx*round(dx/domain.Lx); end
                 if domain.Ly > 0; dy -= domain.Ly*round(dy/domain.Ly); end
                 if domain.Lz > 0; dz -= 2*domain.Lz*round(dz/(2*domain.Lz)); end
+                
                 avg_pos[1] += center[1] + dx
                 avg_pos[2] += center[2] + dy
                 avg_pos[3] += center[3] + dz
