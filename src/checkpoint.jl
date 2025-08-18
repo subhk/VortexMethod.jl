@@ -2,6 +2,7 @@ module Checkpoint
 
 export save_checkpoint!, load_latest_checkpoint,
        save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2,
+       save_checkpoint_jld2, load_latest_checkpoint_jld2, load_checkpoint,
        save_state!, mesh_stats, save_state_timeseries!,
        series_times, load_series_snapshot, load_series_nearest_time
 
@@ -68,6 +69,11 @@ function save_checkpoint_jld2!(dir::AbstractString, time::Real,
     jldsave(base; data...)
     return base
 end
+
+# Convenience aliases for cleaner API
+const save_checkpoint_jld2 = save_checkpoint_jld2!
+const load_latest_checkpoint_jld2 = load_latest_jld2
+const load_checkpoint = load_checkpoint_jld2
 
 function load_latest_jld2(dir::AbstractString)
     isdir(dir) || error("Checkpoint directory not found: \"$dir\"")
