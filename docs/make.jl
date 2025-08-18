@@ -24,12 +24,5 @@ makedocs(;
         "API" => "api.md",
     ],
 )
-# Deploy using Documenter's GitHubActions provider (pushes to gh-pages).
-# Skip deploy on pull_request events to avoid permission issues.
-if get(ENV, "GITHUB_EVENT_NAME", "") != "pull_request"
-    deploydocs(
-        repo="github.com/subhk/VortexMethod.jl",
-        devbranch="main",
-        provider=Documenter.GitHubActions(),
-    )
-end
+# Deployment is handled by the GitHub Pages steps in the CI workflow.
+# We do not call deploydocs() here to avoid provider/version mismatches.
