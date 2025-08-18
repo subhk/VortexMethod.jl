@@ -17,6 +17,7 @@ include("vortex_sheets.jl")
 include("circulation.jl")
 include("checkpoint.jl")
 include("energy.jl")
+include("particle_management.jl")
 
 export DomainSpec, GridSpec,
        default_domain, default_grid,
@@ -45,6 +46,11 @@ export DomainSpec, GridSpec,
        solve_poisson_adaptive!, solve_poisson_advanced_mpi!,
        VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet,
        HybridSheet, evolve_sheet!, track_sheet_interface!,
-       compute_sheet_curvature, detect_sheet_rollup, adaptive_sheet_tracking!
+       compute_sheet_curvature, detect_sheet_rollup, adaptive_sheet_tracking!,
+       insert_particles_periodic!, remove_particles_periodic!, 
+       compact_mesh!, adaptive_particle_control!,
+       ParticleInsertionCriteria, ParticleRemovalCriteria,
+       insert_vortex_blob_periodic!, remove_weak_vortices!,
+       maintain_particle_count!, redistribute_particles_periodic!
 
 end
