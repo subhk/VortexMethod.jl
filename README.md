@@ -4,7 +4,7 @@
 [![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://subhk.github.io/VortexMethod.jl/dev/)
 [![Coverage](https://codecov.io/gh/subhk/VortexMethod.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/subhk/VortexMethod.jl)
 
-A 3D Lagrangian vortex method with MPI parallelism, periodic domains, multiple interpolation kernels, advanced remeshing, dissipation models, and vortex-sheet utilities. The implementation mirrors a well-tested Python reference (see `python/`) and a corresponding thesis, with additional engineering for performance and reproducibility.
+A 3D Lagrangian vortex method with MPI parallelism, periodic domains, multiple interpolation kernels, advanced remeshing, dissipation models, and vortex-sheet utilities. 
 
 ## Highlights
 
