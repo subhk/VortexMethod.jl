@@ -40,5 +40,13 @@ for i in 1:count
 end
 
 plt = plot(times, KEs; xlabel="time", ylabel="KE", lw=2, marker=:circle, title="Kinetic Energy vs Time")
-display(plt)
 
+# Optional: save plot if OUTPUT_PNG is set
+outpath = get(ENV, "OUTPUT_PNG", "")
+if !isempty(outpath)
+    mkpath(dirname(outpath))
+    png(plt, outpath)
+    @info "KE plot saved" outpath
+else
+    display(plt)
+end

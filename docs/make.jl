@@ -16,7 +16,13 @@ makedocs(;
         "Theory" => "theory.md",
         "Remeshing" => "remeshing.md",
         "Parallelization" => "parallelization.md",
+        "Validation" => "validation.md",
         "Usage" => "usage.md",
         "API" => "api.md",
     ],
+)
+
+deploydocs(
+    repo="github.com/subhk/VortexMethod.jl",
+    devbranch="main",
 )
