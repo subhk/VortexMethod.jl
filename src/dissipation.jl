@@ -82,7 +82,7 @@ end
 # Apply no dissipation
 function apply_dissipation!(::NoDissipation, eleGma::AbstractMatrix, 
                           triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                          dom::DomainSpec, gr::GridSpec, dt::Float64)
+                          domain::DomainSpec, gr::GridSpec, dt::Float64)
     # No modification to vorticity
     return eleGma
 end
@@ -90,9 +90,9 @@ end
 # Apply Smagorinsky dissipation
 function apply_dissipation!(model::SmagorinskyModel, eleGma::AbstractMatrix,
                           triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                          dom::DomainSpec, gr::GridSpec, dt::Float64)
+                          domain::DomainSpec, gr::GridSpec, dt::Float64)
     nt = size(eleGma, 1)
-    dx, dy, dz = grid_spacing(dom, gr)
+    dx, dy, dz = grid_spacing(domain, gr)
     
     @inbounds for t in 1:nt
         # Element centroid
@@ -135,9 +135,9 @@ end
 # Apply dynamic Smagorinsky dissipation
 function apply_dissipation!(model::DynamicSmagorinsky, eleGma::AbstractMatrix,
                           triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                          dom::DomainSpec, gr::GridSpec, dt::Float64)
+                          domain::DomainSpec, gr::GridSpec, dt::Float64)
     nt = size(eleGma, 1)
-    dx, dy, dz = grid_spacing(dom, gr)
+    dx, dy, dz = grid_spacing(domain, gr)
     
     # Compute dynamic Smagorinsky coefficient
     total_strain = 0.0
@@ -166,15 +166,15 @@ function apply_dissipation!(model::DynamicSmagorinsky, eleGma::AbstractMatrix,
     
     # Apply dissipation with dynamic coefficient
     smagorinsky_model = SmagorinskyModel(Cs_dynamic)
-    return apply_dissipation!(smagorinsky_model, eleGma, triXC, triYC, triZC, dom, gr, dt)
+    return apply_dissipation!(smagorinsky_model, eleGma, triXC, triYC, triZC, domain, gr, dt)
 end
 
 # Apply vortex stretching based dissipation
 function apply_dissipation!(model::VortexStretchingDissipation, eleGma::AbstractMatrix,
                           triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                          dom::DomainSpec, gr::GridSpec, dt::Float64)
+                          domain::DomainSpec, gr::GridSpec, dt::Float64)
     nt = size(eleGma, 1)
-    dx, dy, dz = grid_spacing(dom, gr)
+    dx, dy, dz = grid_spacing(domain, gr)
     
     @inbounds for t in 1:nt
         # Element geometry and area
@@ -210,14 +210,14 @@ end
 # Apply mixed-scale dissipation model
 function apply_dissipation!(model::MixedScaleModel, eleGma::AbstractMatrix,
                           triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                          dom::DomainSpec, gr::GridSpec, dt::Float64)
+                          domain::DomainSpec, gr::GridSpec, dt::Float64)
     # Create copies for each model
     eleGma_smag = copy(eleGma)
     eleGma_stretch = copy(eleGma)
     
     # Apply each model separately
-    apply_dissipation!(model.smagorinsky, eleGma_smag, triXC, triYC, triZC, dom, gr, dt)
-    apply_dissipation!(model.vortex_stretch, eleGma_stretch, triXC, triYC, triZC, dom, gr, dt)
+    apply_dissipation!(model.smagorinsky, eleGma_smag, triXC, triYC, triZC, domain, gr, dt)
+    apply_dissipation!(model.vortex_stretch, eleGma_stretch, triXC, triYC, triZC, domain, gr, dt)
     
     # Blend the results
     α = model.blend_factor
@@ -233,10 +233,10 @@ end
 # Compute effective eddy viscosity field
 function compute_eddy_viscosity(model::SmagorinskyModel, eleGma::AbstractMatrix,
                                triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                               dom::DomainSpec, gr::GridSpec)
+                               domain::DomainSpec, gr::GridSpec)
     nt = size(eleGma, 1)
     nu_sgs = zeros(Float64, nt)
-    dx, dy, dz = grid_spacing(dom, gr)
+    dx, dy, dz = grid_spacing(domain, gr)
     
     @inbounds for t in 1:nt
         # Element area
