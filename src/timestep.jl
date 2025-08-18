@@ -9,7 +9,7 @@ using ..Dissipation
 export node_velocities, rk2_step!, rk2_step_with_dissipation!, grid_velocity, make_velocity_sampler
 
 """
-grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral, parallel_fft=false)
+grid_velocity(eleGma, triXC, triYC, triZC, domain, gr; poisson_mode=:spectral, parallel_fft=false)
 
 Computes the grid velocity fields (Ux,Uy,Uz) from element vorticity without interpolating to nodes.
 Performs spreading to grid, curl RHS, and Poisson solve.
@@ -240,16 +240,16 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::Do
     eleGma_mid = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
     
     # Apply dissipation at mid-step
-    eleGma_mid = apply_dissipation!(dissipation_model, eleGma_mid, triXC, triYC, triZC, dom, gr, 0.5*dt)
+    eleGma_mid = apply_dissipation!(dissipation_model, eleGma_mid, triXC, triYC, triZC, domain, gr, 0.5*dt)
     
     if kernel != PeskinStandard()
-        VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma_mid, triXC, triYC, triZC, dom, gr, kernel)
-        dx,dy,dz = grid_spacing(dom, gr)
+        VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma_mid, triXC, triYC, triZC, domain, gr, kernel)
+        dx,dy,dz = grid_spacing(domain, gr)
         u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
         if parallel_fft
-            Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+            Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
         else
-            Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+            Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
         end
         u2, v2, w2 = interpolate_node_velocity_kernel_mpi(Ux, Uy, Uz, xh, yh, zh, domain, gr, kernel)
     else
