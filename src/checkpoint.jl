@@ -9,6 +9,7 @@ using DelimitedFiles
 using Dates
 using MAT
 using JLD2
+using ..DomainImpl
 
 function save_checkpoint!(dir::AbstractString, step::Integer,
                           nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
@@ -149,6 +150,35 @@ function mesh_stats(nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::Abstrac
 end
 
 """
+Periodic mesh stats using minimum-image edge lengths.
+"""
+function mesh_stats(nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
+                    tri::Array{Int,2}, dom::DomainSpec)
+    nv = length(nodeX)
+    nt = size(tri,1)
+    xmin = minimum(nodeX); xmax = maximum(nodeX)
+    ymin = minimum(nodeY); ymax = maximum(nodeY)
+    zmin = minimum(nodeZ); zmax = maximum(nodeZ)
+    Lx, Ly, Lz2 = dom.Lx, dom.Ly, 2*dom.Lz
+    _mi(d,L) = (L<=0 ? d : (d - L*round(d/L)))
+    armax = 0.0
+    @inbounds for t in 1:nt
+        v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
+        dx12 = _mi(nodeX[v1]-nodeX[v2], Lx); dy12 = _mi(nodeY[v1]-nodeY[v2], Ly); dz12 = _mi(nodeZ[v1]-nodeZ[v2], Lz2)
+        dx23 = _mi(nodeX[v2]-nodeX[v3], Lx); dy23 = _mi(nodeY[v2]-nodeY[v3], Ly); dz23 = _mi(nodeZ[v2]-nodeZ[v3], Lz2)
+        dx31 = _mi(nodeX[v3]-nodeX[v1], Lx); dy31 = _mi(nodeY[v3]-nodeY[v1], Ly); dz31 = _mi(nodeZ[v3]-nodeZ[v1], Lz2)
+        l12 = sqrt(dx12^2 + dy12^2 + dz12^2)
+        l23 = sqrt(dx23^2 + dy23^2 + dz23^2)
+        l31 = sqrt(dx31^2 + dy31^2 + dz31^2)
+        lmin = min(l12, min(l23, l31)); lmax = max(l12, max(l23, l31))
+        if lmin > 0
+            armax = max(armax, lmax/lmin)
+        end
+    end
+    return (; n_nodes=nv, n_tris=nt, xmin, xmax, ymin, ymax, zmin, zmax, ARmax=armax)
+end
+
+"""
 save_state!(dir, time, nodeX,nodeY,nodeZ, tri, eleGma; dom, grid, dt, CFL, adaptive,
             poisson_mode, remesh_every, save_interval, ar_max, step, params_extra)
 
@@ -171,7 +201,7 @@ function save_state!(dir::AbstractString, time::Real,
     if ar_max !== nothing;        params = merge(params, (; ar_max=ar_max)); end
     params = merge(params, params_extra)
 
-    stats = mesh_stats(nodeX, nodeY, nodeZ, tri)
+    stats = dom === nothing ? mesh_stats(nodeX, nodeY, nodeZ, tri) : mesh_stats(nodeX, nodeY, nodeZ, tri, dom)
     base = save_checkpoint_jld2!(dir, time, nodeX, nodeY, nodeZ, tri, eleGma;
                                  dom=dom, grid=grid, params=params, stats=stats, step=step)
     return base
@@ -205,7 +235,7 @@ function save_state_timeseries!(file::AbstractString, time::Real,
     if ar_max !== nothing;        params = merge(params, (; ar_max=ar_max)); end
     params = merge(params, params_extra)
 
-    stats = mesh_stats(nodeX, nodeY, nodeZ, tri)
+    stats = dom === nothing ? mesh_stats(nodeX, nodeY, nodeZ, tri) : mesh_stats(nodeX, nodeY, nodeZ, tri, dom)
 
     JLD2.jldopen(file, "a+") do f
         # determine next snapshot id

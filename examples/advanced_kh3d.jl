@@ -96,8 +96,8 @@ for it in 1:nsteps
         triZC[t,k] = nodeZ[v]
     end
     
-    # Build grid velocity once per step for reuse (remeshing + sheet tracking)
-    Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+    # Build a reusable velocity sampler once per step (remeshing + sheet tracking)
+    vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
 
     # Advanced quality-based remeshing
     if it % remesh_every == 0
@@ -111,10 +111,7 @@ for it in 1:nsteps
             nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
 
             # Define velocity sampling function using interpolation on the precomputed grid
-            velocity_field(x, y, z) = begin
-                u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, [x], [y], [z], dom, gr)
-                return (u[1], v[1], w[1])
-            end
+            velocity_field(x, y, z) = vel(x,y,z)
             
             # Thesis-style thresholds: aspect ratio, angle/jacobian quality,
             # Frobenius norm grad threshold, and curvature (dihedral angle in radians)
@@ -160,11 +157,7 @@ for it in 1:nsteps
     # Vortex sheet tracking and analysis
     if it % 5 == 0
         # Track sheet interface evolution using periodic quality metrics and reused grid velocity
-        adaptive_sheet_tracking!(vortex_sheet,
-            (x,y,z) -> begin
-                u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, [x], [y], [z], dom, gr)
-                (u[1], v[1], w[1])
-            end,
+        adaptive_sheet_tracking!(vortex_sheet, (x,y,z) -> vel(x,y,z),
             dt_used, dom; curvature_threshold=curvature_threshold, quality_threshold=quality_threshold)
         
         # Detect rollup regions

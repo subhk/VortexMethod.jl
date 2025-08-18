@@ -6,7 +6,7 @@ using ..Peskin3D
 using ..Circulation
 using ..Dissipation
 
-export node_velocities, rk2_step!, rk2_step_with_dissipation!, grid_velocity
+export node_velocities, rk2_step!, rk2_step_with_dissipation!, grid_velocity, make_velocity_sampler
 
 """
 grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
@@ -19,6 +19,21 @@ function grid_velocity(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpe
     dx,dy,dz = grid_spacing(dom, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
     return poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+end
+
+"""
+make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+
+Returns a closure (x,y,z) -> (u,v,w) that interpolates velocity from a precomputed grid
+velocity field built from the provided element vorticity and geometry. Useful to avoid
+recomputing spread/Poisson repeatedly within a timestep.
+"""
+function make_velocity_sampler(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
+    Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=poisson_mode)
+    return (x::Float64, y::Float64, z::Float64) -> begin
+        u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, (Float64[x]), (Float64[y]), (Float64[z]), dom, gr)
+        (u[1], v[1], w[1])
+    end
 end
 
 function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
