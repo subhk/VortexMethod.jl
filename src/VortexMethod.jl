@@ -12,6 +12,8 @@ include("timestep.jl")
 include("remesh.jl")
 include("remesh_advanced.jl")
 include("dissipation.jl")
+include("poisson_advanced.jl")
+include("vortex_sheets.jl")
 include("circulation.jl")
 include("checkpoint.jl")
 include("energy.jl")
@@ -34,6 +36,12 @@ export DomainSpec, GridSpec,
        curvature_based_remesh!, flow_adaptive_remesh!,
        DissipationModel, NoDissipation, SmagorinskyModel, DynamicSmagorinsky,
        VortexStretchingDissipation, MixedScaleModel,
-       apply_dissipation!, compute_eddy_viscosity, filter_width
+       apply_dissipation!, compute_eddy_viscosity, filter_width,
+       PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver, 
+       HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
+       solve_poisson_adaptive!, solve_poisson_advanced_mpi!,
+       VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet, 
+       HybridSheet, evolve_sheet!, track_sheet_interface!, 
+       compute_sheet_curvature, detect_sheet_rollup, adaptive_sheet_tracking!
 
 end
