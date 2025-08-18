@@ -251,18 +251,20 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::Do
         else
             Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
         end
-        u2, v2, w2 = interpolate_node_velocity_kernel_mpi(Ux, Uy, Uz, xh, yh, zh, dom, gr, kernel)
+        u2, v2, w2 = interpolate_node_velocity_kernel_mpi(Ux, Uy, Uz, xh, yh, zh, domain, gr, kernel)
     else
-        u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, dom, gr; poisson_mode=poisson_mode, parallel_fft=parallel_fft)
+        u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, 
+                                    domain, gr; poisson_mode=poisson_mode, 
+                                    parallel_fft=parallel_fft)
     end
 
     # full-step update
     nodeX .+= dt .* u2
     nodeY .+= dt .* v2
     nodeZ .+= dt .* w2
-    nodeX .= mod.(nodeX, dom.Lx)
-    nodeY .= mod.(nodeY, dom.Ly)
-    nodeZ .= mod.(nodeZ .+ dom.Lz, 2*dom.Lz) .- dom.Lz
+    nodeX .= mod.(nodeX, domain.Lx)
+    nodeY .= mod.(nodeY, domain.Ly)
+    nodeZ .= mod.(nodeZ .+ domain.Lz, 2*domain.Lz) .- domain.Lz
 
     # rebuild triangle coords at t^{n+1}
     triXC_new = similar(triXC); triYC_new = similar(triYC); triZC_new = similar(triZC)
