@@ -12,6 +12,11 @@ on:
       - main
       - master
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Also deploy (true/false)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -72,7 +77,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Deploy to gh-pages branch
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))
+        if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/'))) || (github.event_name == 'workflow_dispatch' && github.event.inputs.deploy == 'true')
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
