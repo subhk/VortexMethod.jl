@@ -9,10 +9,14 @@ using ..Dissipation
 export node_velocities, rk2_step!, rk2_step_with_dissipation!, grid_velocity, make_velocity_sampler
 
 """
-grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral, parallel_fft=false)
 
 Computes the grid velocity fields (Ux,Uy,Uz) from element vorticity without interpolating to nodes.
 Performs spreading to grid, curl RHS, and Poisson solve.
+
+# Arguments
+- `poisson_mode::Symbol=:spectral`: FFT mode (`:spectral` or `:fd`)
+- `parallel_fft::Bool=false`: Use PencilFFTs for distributed parallel FFT instead of rank-0 broadcast
 """
 function grid_velocity(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
@@ -26,11 +30,15 @@ function grid_velocity(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpe
 end
 
 """
-make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral, parallel_fft=false)
 
 Returns a closure (x,y,z) -> (u,v,w) that interpolates velocity from a precomputed grid
 velocity field built from the provided element vorticity and geometry. Useful to avoid
 recomputing spread/Poisson repeatedly within a timestep.
+
+# Arguments
+- `poisson_mode::Symbol=:spectral`: FFT mode (`:spectral` or `:fd`)  
+- `parallel_fft::Bool=false`: Use PencilFFTs for distributed parallel FFT instead of rank-0 broadcast
 """
 function make_velocity_sampler(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
     Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=poisson_mode, parallel_fft=parallel_fft)

@@ -140,7 +140,20 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
     return ux, uy, uz
 end
 
-# Parallel FFT-based Poisson solve using PencilFFTs for true MPI parallelism
+"""
+poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, dom; mode=:spectral)
+
+Parallel FFT-based Poisson solve using PencilFFTs for true MPI parallelism.
+Distributes FFT computation across all MPI ranks using pencil decomposition.
+
+# Arguments
+- `u_rhs, v_rhs, w_rhs::Array{Float64,3}`: Right-hand side curl terms
+- `dom::DomainSpec`: Domain specification
+- `mode::Symbol=:spectral`: FFT mode (`:spectral` or `:fd`)
+
+# Returns
+- `(ux, uy, uz)`: Velocity field arrays with periodic boundary conditions applied
+"""
 function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, dom::DomainSpec; mode::Symbol=:spectral)
     comm = MPI.COMM_WORLD
     nz, ny, nx = size(u_rhs)
