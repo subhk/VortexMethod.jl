@@ -180,7 +180,7 @@ using VortexMethod
         nodeX_test = collect(range(0.1, 1.9, length=20))
         nodeY_test = collect(range(0.1, 1.9, length=20))
         nodeZ_test = zeros(20)
-        tri_test = reshape(1:18, 6, 3)  # Simple triangulation
+        tri_test = reshape(collect(1:18), 6, 3)  # Simple triangulation
         eleGma_test = 0.01 * randn(6, 3)  # Random small circulations
         
         target_count = 25
@@ -237,7 +237,7 @@ using VortexMethod
         nodeX_test = [0.1, 0.12, 0.11, 1.5, 1.8]
         nodeY_test = [0.1, 0.11, 0.13, 1.2, 1.8]
         nodeZ_test = [0.0, 0.01, -0.01, 0.2, -0.1]
-        tri_test = reshape(1:15, 5, 3)  # Simple triangulation
+        tri_test = reshape(collect(1:15), 5, 3)  # Simple triangulation
         eleGma_test = 0.05 * ones(5, 3)  # Uniform circulation
         
         initial_count = length(nodeX_test)

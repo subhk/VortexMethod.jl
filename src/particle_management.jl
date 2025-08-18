@@ -558,8 +558,8 @@ function remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, node_index
         end
         
         # Update the original arrays
-        tri[:, :] = 0
-        eleGma[:, :] = 0.0
+        tri[:, :] .= 0
+        eleGma[:, :] .= 0.0
         if size(tri, 1) >= size(new_tri, 1)
             tri[1:size(new_tri, 1), :] = new_tri
             eleGma[1:size(new_eleGma, 1), :] = new_eleGma
@@ -608,8 +608,8 @@ function compact_mesh!(nodeX, nodeY, nodeZ, tri, eleGma)
             end
             
             # Update arrays in place
-            tri[:, :] = 0
-            eleGma[:, :] = 0.0
+            tri[:, :] .= 0
+            eleGma[:, :] .= 0.0
             if size(tri, 1) >= size(new_tri, 1)
                 tri[1:size(new_tri, 1), :] = new_tri
                 eleGma[1:size(new_eleGma, 1), :] = new_eleGma
@@ -641,9 +641,9 @@ function compact_mesh!(nodeX, nodeY, nodeZ, tri, eleGma)
     resize!(nodeX, length(new_nodeX))
     resize!(nodeY, length(new_nodeY)) 
     resize!(nodeZ, length(new_nodeZ))
-    nodeX[:] = new_nodeX
-    nodeY[:] = new_nodeY
-    nodeZ[:] = new_nodeZ
+    nodeX[:] .= new_nodeX
+    nodeY[:] .= new_nodeY
+    nodeZ[:] .= new_nodeZ
     
     # Update triangle connectivity and compact triangles
     new_tri = zeros(Int, length(valid_triangles), 3)
@@ -657,8 +657,8 @@ function compact_mesh!(nodeX, nodeY, nodeZ, tri, eleGma)
     end
     
     # Update triangle arrays in place
-    tri[:, :] = 0
-    eleGma[:, :] = 0.0
+    tri[:, :] .= 0
+    eleGma[:, :] .= 0.0
     if size(tri, 1) >= size(new_tri, 1)
         tri[1:size(new_tri, 1), :] = new_tri
         eleGma[1:size(new_eleGma, 1), :] = new_eleGma
@@ -676,7 +676,9 @@ function compute_node_circulations(tri, eleGma)
     for t in 1:size(tri, 1)
         for k in 1:3
             node = tri[t, k]
-            node_circulations[node] .+= eleGma[t, :]
+            for i in 1:3
+                node_circulations[node][i] += eleGma[t, i]
+            end
             node_counts[node] += 1
         end
     end
@@ -684,7 +686,9 @@ function compute_node_circulations(tri, eleGma)
     # Average
     for i in 1:node_count
         if node_counts[i] > 0
-            node_circulations[i] ./= node_counts[i]
+            for j in 1:3
+                node_circulations[i][j] /= node_counts[i]
+            end
         end
     end
     
@@ -996,7 +1000,7 @@ function redistribute_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{
             
             # Check if target cell is no longer underpopulated
             # Update grid counts
-            target_cell_count = count(p -> particle_assignments[p] == target_cell for p in 1:length(nodeX))
+            target_cell_count = count(p -> particle_assignments[p] == target_cell, 1:length(nodeX))
             if target_cell_count >= target_density * (1 - density_tolerance)
                 filter!(c -> c != target_cell, underpopulated_cells)
             end
