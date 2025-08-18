@@ -463,12 +463,12 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
     
     changed = false
     for ele_idx in elements_to_refine[1:min(length(elements_to_refine), max_elements - nt)]
-        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, dom)
+        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, domain)
         changed = true
         nt = size(tri, 1)
     end
     
-    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, dom)
+    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     return tri, changed
 end
 

@@ -36,27 +36,27 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 ```julia
 using VortexMethod
 
-dom = default_domain(); gr = default_grid()
+domain = default_domain(); gr = default_grid()
 
 # Build a structured sheet and an initial element vorticity
 Nx, Ny = 64, 64
-nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; dom=dom)
+nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
 eleGma = zeros(Float64, size(tri,1), 3); eleGma[:,2] .= 1.0
 
 # Single RK2 step (adaptive dt and periodic BCs handled internally)
 dt = 1e-3
-rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; adaptive=true, CFL=0.5, poisson_mode=:fd)
+rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt; adaptive=true, CFL=0.5, poisson_mode=:fd)
 
 # Advanced remeshing with cached velocity sampler
-vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr)
+vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr)
 tri, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
-    nodeX, nodeY, nodeZ, tri, vel, dom;
+    nodeX, nodeY, nodeZ, tri, vel, domain;
     max_aspect_ratio=3.0, min_angle_quality=0.4, min_jacobian_quality=0.4,
     max_skewness=0.8, grad_threshold=0.2, curvature_threshold=0.6,
 )
 
 # Always keep particles periodic after manual edits
-wrap_nodes!(nodeX, nodeY, nodeZ, dom)
+wrap_nodes!(nodeX, nodeY, nodeZ, domain)
 ```
 
 ## Documentation

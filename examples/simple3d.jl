@@ -4,7 +4,7 @@ using VortexMethod
 using MPI
 using Printf
 
-dom = default_domain()
+domain = default_domain()
 gr = default_grid()
 
 init_mpi!()
@@ -23,17 +23,17 @@ nt = size(triXC,1)
 eleGma = zeros(Float64, nt, 3)
 eleGma[:,2] .= 1.0 # vorticity aligned with y like python init
 
-VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
+VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
 
-dx,dy,dz = grid_spacing(dom, gr)
+dx,dy,dz = grid_spacing(domain, gr)
 u_rhs, v_rhs, w_rhs = VortexMethod.curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
-Ux, Uy, Uz = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, dom)
+Ux, Uy, Uz = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, domain)
 
 # interpolate on the triangle nodes (6 nodes for two triangles; we just pick vertices used above)
 nodesX = vec(unique([triXC...]))[1:6]
 nodesY = vec(unique([triYC...]))[1:6]
 nodesZ = zeros(Float64, length(nodesX))
-u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, nodesX, nodesY, nodesZ, dom, gr)
+u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, nodesX, nodesY, nodesZ, domain, gr)
 
 if rank == 0
     println("Computed node velocities (first 3):")

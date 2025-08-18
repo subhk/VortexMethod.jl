@@ -259,9 +259,9 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
         collapsed = false
         for (e, tlst) in emap
             a,b = e
-            if periodic_edge_length(nodeX,nodeY,nodeZ,a,b, dom) < ds_min
+                if periodic_edge_length(nodeX,nodeY,nodeZ,a,b, domain) < ds_min
                 # midpoint and new node
-                mx,my,mz = midpoint_periodic(nodeX[a],nodeY[a],nodeZ[a], nodeX[b],nodeY[b],nodeZ[b], dom)
+                mx,my,mz = midpoint_periodic(nodeX[a],nodeY[a],nodeZ[a], nodeX[b],nodeY[b],nodeZ[b], domain)
                 push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
                 m = length(nodeX)
                 # replace all occurrences of a or b with m

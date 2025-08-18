@@ -98,7 +98,7 @@ end
 
 # Evolve vortex sheet using classical method
 function evolve_sheet!(sheet::LagrangianSheet, evolution::ClassicalEvolution, 
-                      velocity_field::Function, dt::Float64, dom::DomainSpec)
+                      velocity_field::Function, dt::Float64, domain::DomainSpec)
     n_nodes = size(sheet.nodes, 1)
     
     # Simple Euler step for node positions
@@ -112,9 +112,9 @@ function evolve_sheet!(sheet::LagrangianSheet, evolution::ClassicalEvolution,
         sheet.nodes[i, 3] += dt * w
         
         # Apply periodic boundary conditions
-        sheet.nodes[i, 1] = mod(sheet.nodes[i, 1], dom.Lx)
-        sheet.nodes[i, 2] = mod(sheet.nodes[i, 2], dom.Ly)
-        sheet.nodes[i, 3] = mod(sheet.nodes[i, 3] + dom.Lz, 2*dom.Lz) - dom.Lz
+        sheet.nodes[i, 1] = mod(sheet.nodes[i, 1], domain.Lx)
+        sheet.nodes[i, 2] = mod(sheet.nodes[i, 2], domain.Ly)
+        sheet.nodes[i, 3] = mod(sheet.nodes[i, 3] + domain.Lz, 2*domain.Lz) - domain.Lz
         
         # Update age
         sheet.age[i] += dt
@@ -125,9 +125,9 @@ end
 
 # Advanced adaptive evolution
 function evolve_sheet!(sheet::LagrangianSheet, evolution::AdaptiveEvolution,
-                      velocity_field::Function, dt::Float64, dom::DomainSpec)
+                      velocity_field::Function, dt::Float64, domain::DomainSpec)
     # First, evolve using classical method
-    evolve_sheet!(sheet, ClassicalEvolution(), velocity_field, dt, dom)
+    evolve_sheet!(sheet, ClassicalEvolution(), velocity_field, dt, domain)
     
     # Then apply adaptive corrections
     curvatures = compute_sheet_curvature(sheet)
@@ -137,34 +137,34 @@ function evolve_sheet!(sheet::LagrangianSheet, evolution::AdaptiveEvolution,
     
     # Apply curvature smoothing
     for node_idx in high_curvature_nodes
-        smooth_local_curvature!(sheet, node_idx, 0.1 * dt, dom)
+        smooth_local_curvature!(sheet, node_idx, 0.1 * dt, domain)
     end
     
     # Check for reconnection events
-    check_sheet_reconnection!(sheet, evolution.reconnection_distance, dom)
+    check_sheet_reconnection!(sheet, evolution.reconnection_distance, domain)
     
     return sheet
 end
 
 # High-order Runge-Kutta evolution
 function evolve_sheet!(sheet::LagrangianSheet, evolution::HighOrderEvolution,
-                      velocity_field::Function, dt::Float64, dom::DomainSpec)
+                      velocity_field::Function, dt::Float64, domain::DomainSpec)
     if evolution.order == 2
         # RK2 evolution
-        evolve_sheet_rk2!(sheet, velocity_field, dt, dom)
+        evolve_sheet_rk2!(sheet, velocity_field, dt, domain)
     elseif evolution.order == 4
         # RK4 evolution
-        evolve_sheet_rk4!(sheet, velocity_field, dt, dom)
+        evolve_sheet_rk4!(sheet, velocity_field, dt, domain)
     else
         # Fall back to Euler
-        evolve_sheet!(sheet, ClassicalEvolution(), velocity_field, dt, dom)
+        evolve_sheet!(sheet, ClassicalEvolution(), velocity_field, dt, domain)
     end
     
     return sheet
 end
 
 # RK2 evolution for sheet
-function evolve_sheet_rk2!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, dom::DomainSpec)
+function evolve_sheet_rk2!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, domain::DomainSpec)
     n_nodes = size(sheet.nodes, 1)
     nodes_backup = copy(sheet.nodes)
     
@@ -188,16 +188,16 @@ function evolve_sheet_rk2!(sheet::LagrangianSheet, velocity_field::Function, dt:
         sheet.nodes[i, 3] = nodes_backup[i, 3] + dt * w
         
         # Apply periodic BC
-        sheet.nodes[i, 1] = mod(sheet.nodes[i, 1], dom.Lx)
-        sheet.nodes[i, 2] = mod(sheet.nodes[i, 2], dom.Ly)
-        sheet.nodes[i, 3] = mod(sheet.nodes[i, 3] + dom.Lz, 2*dom.Lz) - dom.Lz
+        sheet.nodes[i, 1] = mod(sheet.nodes[i, 1], domain.Lx)
+        sheet.nodes[i, 2] = mod(sheet.nodes[i, 2], domain.Ly)
+        sheet.nodes[i, 3] = mod(sheet.nodes[i, 3] + domain.Lz, 2*domain.Lz) - domain.Lz
         
         sheet.age[i] += dt
     end
 end
 
 # RK4 evolution for sheet
-function evolve_sheet_rk4!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, dom::DomainSpec)
+function evolve_sheet_rk4!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, domain::DomainSpec)
     n_nodes = size(sheet.nodes, 1)
     nodes_orig = copy(sheet.nodes)
     
@@ -243,9 +243,9 @@ function evolve_sheet_rk4!(sheet::LagrangianSheet, velocity_field::Function, dt:
     
     # Apply periodic BC and update ages
     for i in 1:n_nodes
-        sheet.nodes[i, 1] = mod(sheet.nodes[i, 1], dom.Lx)
-        sheet.nodes[i, 2] = mod(sheet.nodes[i, 2], dom.Ly)
-        sheet.nodes[i, 3] = mod(sheet.nodes[i, 3] + dom.Lz, 2*dom.Lz) - dom.Lz
+        sheet.nodes[i, 1] = mod(sheet.nodes[i, 1], domain.Lx)
+        sheet.nodes[i, 2] = mod(sheet.nodes[i, 2], domain.Ly)
+        sheet.nodes[i, 3] = mod(sheet.nodes[i, 3] + domain.Lz, 2*domain.Lz) - domain.Lz
         sheet.age[i] += dt
     end
 end
@@ -318,23 +318,23 @@ function detect_sheet_rollup(sheet::LagrangianSheet; vorticity_threshold::Float6
 end
 
 # Smooth local curvature
-function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, smoothing_factor::Float64, dom::DomainSpec=nothing)
+function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, smoothing_factor::Float64, domain::DomainSpec=nothing)
     # Find neighboring nodes
     neighbors = find_node_neighbors(sheet, node_idx)
     
     if !isempty(neighbors)
-        # Average position with neighbors (periodic-aware if dom provided)
+        # Average position with neighbors (periodic-aware if domain provided)
         center = sheet.nodes[node_idx, :]
         avg_pos = zeros(3)
         for neighbor in neighbors
             p = sheet.nodes[neighbor, :]
-            if dom === nothing
+            if domain === nothing
                 avg_pos += p
             else
                 dx = p[1] - center[1]; dy = p[2] - center[2]; dz = p[3] - center[3]
-                if dom.Lx > 0; dx -= dom.Lx*round(dx/dom.Lx); end
-                if dom.Ly > 0; dy -= dom.Ly*round(dy/dom.Ly); end
-                if dom.Lz > 0; dz -= 2*dom.Lz*round(dz/(2*dom.Lz)); end
+                if domain.Lx > 0; dx -= domain.Lx*round(dx/domain.Lx); end
+                if domain.Ly > 0; dy -= domain.Ly*round(dy/domain.Ly); end
+                if domain.Lz > 0; dz -= 2*domain.Lz*round(dz/(2*domain.Lz)); end
                 avg_pos[1] += center[1] + dx
                 avg_pos[2] += center[2] + dy
                 avg_pos[3] += center[3] + dz
@@ -344,10 +344,10 @@ function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, smoothin
         
         # Apply smoothing
         newp = (1 - smoothing_factor) * sheet.nodes[node_idx, :] + smoothing_factor * avg_pos
-        if dom === nothing
+        if domain === nothing
             sheet.nodes[node_idx, :] = newp
         else
-            xw, yw, zw = VortexMethod.wrap_point(newp[1], newp[2], newp[3], dom)
+            xw, yw, zw = VortexMethod.wrap_point(newp[1], newp[2], newp[3], domain)
             sheet.nodes[node_idx, 1] = xw; sheet.nodes[node_idx, 2] = yw; sheet.nodes[node_idx, 3] = zw
         end
     end
@@ -374,7 +374,7 @@ function find_node_neighbors(sheet::LagrangianSheet, node_idx::Int)
 end
 
 # Check for sheet reconnection events
-function check_sheet_reconnection!(sheet::LagrangianSheet, reconnection_distance::Float64, dom::DomainSpec)
+function check_sheet_reconnection!(sheet::LagrangianSheet, reconnection_distance::Float64, domain::DomainSpec)
     interface_nodes = findall(sheet.interface_markers)
     
     for i in 1:length(interface_nodes)
@@ -385,32 +385,32 @@ function check_sheet_reconnection!(sheet::LagrangianSheet, reconnection_distance
             # Check minimum-image distance between interface nodes
             p1 = sheet.nodes[node1, :]; p2 = sheet.nodes[node2, :]
             dx = p1[1] - p2[1]; dy = p1[2] - p2[2]; dz = p1[3] - p2[3]
-            if dom.Lx > 0; dx -= dom.Lx*round(dx/dom.Lx); end
-            if dom.Ly > 0; dy -= dom.Ly*round(dy/dom.Ly); end
-            if dom.Lz > 0; dz -= 2*dom.Lz*round(dz/(2*dom.Lz)); end
+            if domain.Lx > 0; dx -= domain.Lx*round(dx/domain.Lx); end
+            if domain.Ly > 0; dy -= domain.Ly*round(dy/domain.Ly); end
+            if domain.Lz > 0; dz -= 2*domain.Lz*round(dz/(2*domain.Lz)); end
             dist = sqrt(dx^2 + dy^2 + dz^2)
             
             if dist < reconnection_distance
                 # Perform reconnection
-                reconnect_sheet_nodes!(sheet, node1, node2, dom)
+                reconnect_sheet_nodes!(sheet, node1, node2, domain)
             end
         end
     end
 end
 
 # Perform sheet reconnection
-function reconnect_sheet_nodes!(sheet::LagrangianSheet, node1::Int, node2::Int, dom::DomainSpec=nothing)
+function reconnect_sheet_nodes!(sheet::LagrangianSheet, node1::Int, node2::Int, domain::DomainSpec=nothing)
     # Simple reconnection: merge the two nodes
-    if dom === nothing
+    if domain === nothing
         merge_pos = 0.5 * (sheet.nodes[node1, :] + sheet.nodes[node2, :])
     else
         p1 = sheet.nodes[node1, :]; p2 = sheet.nodes[node2, :]
         dx = p2[1] - p1[1]; dy = p2[2] - p1[2]; dz = p2[3] - p1[3]
-        if dom.Lx > 0; dx -= dom.Lx*round(dx/dom.Lx); end
-        if dom.Ly > 0; dy -= dom.Ly*round(dy/dom.Ly); end
-        if dom.Lz > 0; dz -= 2*dom.Lz*round(dz/(2*dom.Lz)); end
+        if domain.Lx > 0; dx -= domain.Lx*round(dx/domain.Lx); end
+        if domain.Ly > 0; dy -= domain.Ly*round(dy/domain.Ly); end
+        if domain.Lz > 0; dz -= 2*domain.Lz*round(dz/(2*domain.Lz)); end
         mx, my, mz = p1[1] + 0.5*dx, p1[2] + 0.5*dy, p1[3] + 0.5*dz
-        xw, yw, zw = VortexMethod.wrap_point(mx, my, mz, dom)
+        xw, yw, zw = VortexMethod.wrap_point(mx, my, mz, domain)
         merge_pos = [xw, yw, zw]
     end
     merge_strength = 0.5 * (sheet.strength[node1, :] + sheet.strength[node2, :])
@@ -471,10 +471,10 @@ function track_sheet_interface!(sheet::EulerianSheet, velocity_field::Function, 
 end
 
 # Adaptive sheet tracking combining multiple methods
-function adaptive_sheet_tracking!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, dom::DomainSpec;
+function adaptive_sheet_tracking!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, domain::DomainSpec;
                                  curvature_threshold::Float64=1.0, quality_threshold::Float64=0.3)
     # Compute mesh quality metrics
-    qualities = compute_mesh_quality_sheet(sheet, dom)
+    qualities = compute_mesh_quality_sheet(sheet, domain)
     
     # Determine evolution method based on local conditions
     if maximum(qualities) < quality_threshold
@@ -486,13 +486,13 @@ function adaptive_sheet_tracking!(sheet::LagrangianSheet, velocity_field::Functi
     end
     
     # Evolve sheet
-    evolve_sheet!(sheet, evolution, velocity_field, dt, dom)
+    evolve_sheet!(sheet, evolution, velocity_field, dt, domain)
     
     return sheet
 end
 
 # Compute mesh quality for sheet triangles
-function compute_mesh_quality_sheet(sheet::LagrangianSheet, dom::DomainSpec)
+function compute_mesh_quality_sheet(sheet::LagrangianSheet, domain::DomainSpec)
     n_triangles = size(sheet.connectivity, 1)
     qualities = zeros(Float64, n_triangles)
     
@@ -503,7 +503,7 @@ function compute_mesh_quality_sheet(sheet::LagrangianSheet, dom::DomainSpec)
         p3 = tuple(sheet.nodes[v3, :]...)
         
         # Use periodic minimum-image quality metrics from RemeshAdvanced module
-        quality = VortexMethod.RemeshAdvanced.element_quality_metrics_periodic(p1, p2, p3, dom)
+        quality = VortexMethod.RemeshAdvanced.element_quality_metrics_periodic(p1, p2, p3, domain)
         qualities[t] = quality.jacobian_quality
     end
     

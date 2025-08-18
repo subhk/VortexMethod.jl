@@ -12,6 +12,7 @@ export insert_particles_periodic!, remove_particles_periodic!,
        insert_vortex_blob_periodic!, remove_weak_vortices!,
        maintain_particle_count!, redistribute_particles_periodic!
 
+
 """
 Criteria for particle insertion in periodic domains
 """
@@ -28,7 +29,12 @@ struct ParticleInsertionCriteria
         circulation_threshold=1e-8, 
         boundary_buffer=0.05,
         max_particles=100000
-    ) = new(min_vorticity_threshold, max_particle_spacing, circulation_threshold, boundary_buffer, max_particles)
+    ) = new(min_vorticity_threshold, 
+        max_particle_spacing, 
+        circulation_threshold, 
+        boundary_buffer, 
+        max_particles
+    )
 end
 
 """
@@ -45,7 +51,10 @@ struct ParticleRemovalCriteria
         min_particle_spacing=0.01,
         boundary_removal_zone=0.02,
         age_threshold=1000
-    ) = new(weak_circulation_threshold, min_particle_spacing, boundary_removal_zone, age_threshold)
+    ) = new(weak_circulation_threshold, 
+        min_particle_spacing, 
+        boundary_removal_zone, 
+        age_threshold)
 end
 
 """
@@ -131,7 +140,9 @@ Remove particles based on criteria while maintaining domain periodicity and circ
 - `n_removed::Int`: Number of particles removed
 """
 function remove_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                   tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
+                                   tri::Matrix{Int}, 
+                                   eleGma::Matrix{Float64}, 
+                                   domain::DomainSpec,
                                    criteria::ParticleRemovalCriteria)
     
     n_removed = 0
@@ -231,8 +242,11 @@ maintain_particle_count!(nodeX, nodeY, nodeZ, tri, eleGma, domain, target_count,
 Automatically maintain particle count within target range using insertion/removal.
 """
 function maintain_particle_count!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                 tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
-                                 target_count::Int, tolerance::Float64=0.1)
+                                tri::Matrix{Int}, 
+                                eleGma::Matrix{Float64}, 
+                                domain::DomainSpec,
+                                target_count::Int, 
+                                tolerance::Float64=0.1)
     
     current_count = length(nodeX)
     min_count = Int(round(target_count * (1 - tolerance)))

@@ -10,14 +10,17 @@ function structured_mesh(Nx::Int, Ny::Int; domain::DomainSpec=default_domain(),
     x = range(0.0, domain.Lx; length=Nx) |> collect
     y = range(0.0, domain.Ly; length=Ny) |> collect
     # perturb x slightly like python (_xgrid = x + 0.01*sin(2πx))
+
     X = Array{Float64}(undef, Ny, Nx)
     Y = Array{Float64}(undef, Ny, Nx)
     Z = Array{Float64}(undef, Ny, Nx)
+    
     @inbounds for j in 1:Ny, i in 1:Nx
         X[j,i] = x[i] + 0.01*sin(2pi*x[i])
         Y[j,i] = y[j]
         Z[j,i] = 0.01*sin(2pi*x[i]) + 0.01*sin(4pi*y[j])
     end
+    
     # nodes flattened row-major (j fast or i fast? Use j major consistent with python meshgrid)
     nodeX = vec(permutedims(X, (2,1)))
     nodeY = vec(permutedims(Y, (2,1)))
@@ -40,9 +43,11 @@ function structured_mesh(Nx::Int, Ny::Int; domain::DomainSpec=default_domain(),
     end
     # build triangle coordinate matrices
     nt = size(tri,1)
+    
     triXC = Array{Float64}(undef, nt, 3)
     triYC = Array{Float64}(undef, nt, 3)
     triZC = Array{Float64}(undef, nt, 3)
+
     @inbounds for k in 1:3, t in 1:nt
         v = tri[t,k]
         triXC[t,k] = nodeX[v]
@@ -50,6 +55,7 @@ function structured_mesh(Nx::Int, Ny::Int; domain::DomainSpec=default_domain(),
         triZC[t,k] = nodeZ[v]
     end
     return nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC
+    
 end
 
 end # module
