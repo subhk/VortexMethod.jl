@@ -8,6 +8,7 @@ export save_checkpoint!, load_latest_checkpoint,
 
 using DelimitedFiles
 using Dates
+using Printf
 # MAT dependency removed - JLD2 only
 using JLD2
 using ..DomainImpl

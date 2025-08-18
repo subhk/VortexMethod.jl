@@ -4,9 +4,10 @@ module Poisson3D
 
 using FFTW
 using MPI
+using PencilFFTs
 using ..DomainImpl
 
-export curl_rhs_centered, poisson_velocity_fft, poisson_velocity_fft_mpi
+export curl_rhs_centered, poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
 
 # Periodic finite-difference curl terms with central 4th-order where possible
 function curl_rhs_centered(VorX::Array{Float64,3}, VorY::Array{Float64,3}, VorZ::Array{Float64,3},
