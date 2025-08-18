@@ -39,11 +39,14 @@ function load_latest_checkpoint(dir::AbstractString)
         tri_files = sort(filter(f->endswith(f, "_tri.csv"), files))
         fname = replace(tri_files[end], "_tri.csv"=>"")
         base = joinpath(dir, fname)
+
         nodeX = vec(readdlm(base*"_nodes_x.csv", ','))
         nodeY = vec(readdlm(base*"_nodes_y.csv", ','))
         nodeZ = vec(readdlm(base*"_nodes_z.csv", ','))
         tri   = Array{Int}(readdlm(base*"_tri.csv", ','))
+
         eleGma= Array{Float64}(readdlm(base*"_gamma.csv", ','))
+
         return nodeX, nodeY, nodeZ, tri, eleGma
 end
 
@@ -53,9 +56,11 @@ function save_checkpoint_jld2!(dir::AbstractString, time::Real,
                                domain=nothing, grid=nothing, params=nothing, attrs...)
     mkpath(dir)
     ts = Dates.format(now(), dateformat"yyyymmdd_HHMMSS")
+
     base = joinpath(dir, @sprintf("chkpt_t%010.6f_%s.jld2", float(time), ts))
     data = Dict{String,Any}("nodeX"=>nodeX, "nodeY"=>nodeY, "nodeZ"=>nodeZ,
                             "tri"=>tri, "gamma"=>eleGma, "time"=>float(time))
+
     if domain !== nothing
         data["domain"] = Dict("Lx"=>domain.Lx, "Ly"=>domain.Ly, "Lz"=>domain.Lz)
     end
@@ -79,9 +84,13 @@ const load_latest_checkpoint_jld2 = load_latest_jld2
 const load_checkpoint = load_checkpoint_jld2
 
 function load_latest_jld2(dir::AbstractString)
+    
     isdir(dir) || error("Checkpoint directory not found: \"$dir\"")
+    
     files = sort(filter(f->endswith(f, ".jld2"), readdir(dir)))
+
     isempty(files) && error("No JLD2 checkpoints in \"$dir\"")
+
     return load_checkpoint_jld2(joinpath(dir, files[end]))
 end
 
@@ -89,13 +98,20 @@ function load_checkpoint_jld2(path::AbstractString)
     data = JLD2.jldopen(path, "r") do f
         Dict{String,Any}(name=>read(f,name) for name in keys(f))
     end
-    nodeX = data["nodeX"]; nodeY = data["nodeY"]; nodeZ = data["nodeZ"]
-    tri   = data["tri"];   eleGma = data["gamma"]
+    
+    nodeX = data["nodeX"]; 
+    nodeY = data["nodeY"]; 
+    nodeZ = data["nodeZ"];
+
+    tri   = data["tri"];   
+    eleGma = data["gamma"]
     time  = get(data, "time", 0.0)
+
     domain   = get(data, "domain", nothing)
     grid  = get(data, "grid", nothing)
     params= get(data, "params", nothing)
     stats = get(data, "stats", nothing)
+
     return (; nodeX, nodeY, nodeZ, tri, eleGma, time, domain, grid, params, stats)
 end
 
