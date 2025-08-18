@@ -18,6 +18,8 @@ function gamma_ke(eleGma::AbstractMatrix,
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
     dx,dy,dz = grid_spacing(dom, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+    # For now, use the original FFT implementation in energy calculation
+    # Can be updated to support parallel_fft parameter if needed
     Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
     return grid_ke(Ux,Uy,Uz, dom, gr)
 end
