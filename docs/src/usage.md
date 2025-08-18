@@ -17,7 +17,7 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 ## Core API
 
 - Domain/grid: `DomainSpec(Lx,Ly,Lz)`, `GridSpec(nx,ny,nz)`, `default_domain()`, `default_grid()`
-- Periodic helpers: `wrap_point(x,y,z, dom)`, `wrap_nodes!(nodeX,nodeY,nodeZ, dom)`
+- Periodic helpers: `wrap_point(x,y,z, domain)`, `wrap_nodes!(nodeX,nodeY,nodeZ, domain)`
 - Spreading/interpolation (MPI): `spread_vorticity_to_grid_mpi`, `interpolate_node_velocity_mpi`
 - Poisson: `poisson_velocity_fft` / `_mpi` (periodic), or see `PoissonAdvanced` for alternatives
 - Time stepping: `rk2_step!`, `rk2_step_with_dissipation!`; helper `node_velocities`
@@ -36,10 +36,10 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 ## Advanced remeshing recipe
 
 ```
-Ux,Uy,Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr)
-vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, dom, gr)
+Ux,Uy,Uz = grid_velocity(eleGma, triXC, triYC, triZC, domain, gr)
+vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr)
 tri_new, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
-    nodeX, nodeY, nodeZ, tri, vel, dom;
+    nodeX, nodeY, nodeZ, tri, vel, domain;
     max_aspect_ratio=3.0, min_angle_quality=0.4, min_jacobian_quality=0.4,
     max_skewness=0.8, grad_threshold=0.2, curvature_threshold=0.6,
 )
@@ -53,4 +53,3 @@ tri_new, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
 ## Figures from the thesis
 
 You can place figures into `docs/src/assets/` and reference them in Markdown with `![](assets/...)`. If you provide figure numbers/pages, we can add captions and cross-references.
-
