@@ -38,7 +38,7 @@ using Test
         empty!(ARGS)
         append!(ARGS, old_args)
         
-        println("✓ Command-line argument parsing works correctly")
+        println("Command-line argument parsing works correctly")
     end
     
     @testset "kh3d_parallel.jl argument parsing" begin
@@ -82,7 +82,7 @@ using Test
         @test args["dt"] == 5e-4
         @test args["poisson_mode"] == :spectral
         
-        println("✓ Enhanced argument parsing works correctly")
+        println("Enhanced argument parsing works correctly")
     end
     
     @testset "Directory creation" begin
@@ -99,7 +99,7 @@ using Test
         # Clean up
         rm(test_dir, recursive=true)
         
-        println("✓ Directory creation works correctly")
+        println("Directory creation works correctly")
     end
     
     @testset "File existence" begin
@@ -115,7 +115,7 @@ using Test
             @test isfile(example)
         end
         
-        println("✓ All example files exist")
+        println("All example files exist")
     end
     
     @testset "Documentation completeness" begin
@@ -136,7 +136,7 @@ using Test
             @test occursin(section, readme_content)
         end
         
-        println("✓ Documentation is complete")
+        println("Documentation is complete")
     end
 end
 
