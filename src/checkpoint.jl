@@ -585,4 +585,5 @@ using .Checkpoint: save_checkpoint!, load_latest_checkpoint,
                    save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2,
                    save_checkpoint_jld2, load_latest_checkpoint_jld2, load_checkpoint,
                    save_state!, mesh_stats, save_state_timeseries!,
-                   series_times, load_series_snapshot, load_series_nearest_time
+                   series_times, load_series_snapshot, load_series_nearest_time,
+                   find_series_files, get_series_info
