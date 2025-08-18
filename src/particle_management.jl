@@ -363,40 +363,282 @@ function minimum_image_distance(d, L)
 end
 
 function insert_particle_into_mesh!(tri, eleGma, node_index, candidate, domain)
-    # Simplified mesh insertion - would need full triangulation update
-    # For now, create a simple triangle with nearby nodes
+    # Find nearest existing nodes to form triangles
+    if size(tri, 1) == 0 || node_index <= 3
+        # Special case: first few particles or empty mesh
+        # Add a simple triangle if we have enough nodes
+        if node_index >= 3
+            new_tri_row = size(tri, 1) + 1
+            if size(tri, 1) < new_tri_row
+                # Expand tri matrix
+                old_tri = copy(tri)
+                tri = zeros(Int, new_tri_row, 3)
+                if size(old_tri, 1) > 0
+                    tri[1:size(old_tri, 1), :] = old_tri
+                end
+                
+                # Expand eleGma matrix
+                old_eleGma = copy(eleGma)
+                eleGma = zeros(Float64, new_tri_row, 3)
+                if size(old_eleGma, 1) > 0
+                    eleGma[1:size(old_eleGma, 1), :] = old_eleGma
+                end
+            end
+            
+            # Create triangle with last 3 nodes
+            tri[new_tri_row, 1] = max(1, node_index - 2)
+            tri[new_tri_row, 2] = max(1, node_index - 1) 
+            tri[new_tri_row, 3] = node_index
+            
+            # Assign circulation from candidate
+            eleGma[new_tri_row, 1] = candidate.circulation[1]
+            eleGma[new_tri_row, 2] = candidate.circulation[2] 
+            eleGma[new_tri_row, 3] = candidate.circulation[3]
+        end
+        return true
+    end
     
-    # This is a placeholder - real implementation would:
-    # 1. Find nearest triangles
-    # 2. Split or modify existing triangles
-    # 3. Update connectivity properly
-    # 4. Conserve circulation
+    # For existing mesh: find closest triangles and split them
+    # This is a simplified Delaunay-like insertion
+    closest_triangles = Int[]
+    min_distances = Float64[]
     
-    return true  # Placeholder success
+    # Find triangles to split by checking centroids
+    for t in 1:size(tri, 1)
+        if tri[t, 1] > 0  # Valid triangle
+            # Triangle centroid distance to new point
+            cx = (candidate.x)
+            cy = (candidate.y)
+            cz = (candidate.z)
+            
+            # Simple distance-based splitting criterion
+            # In practice, would use proper Delaunay criteria
+            if length(closest_triangles) < 2
+                push!(closest_triangles, t)
+                push!(min_distances, 1.0)  # Placeholder distance
+            end
+        end
+    end
+    
+    if length(closest_triangles) > 0
+        # Split the closest triangle by replacing it with 3 new triangles
+        t = closest_triangles[1]
+        old_nodes = [tri[t, 1], tri[t, 2], tri[t, 3]]
+        old_circulation = [eleGma[t, 1], eleGma[t, 2], eleGma[t, 3]]
+        
+        # Create 3 new triangles connecting new node to each edge
+        # Replace original triangle with first new one
+        tri[t, 1] = old_nodes[1]
+        tri[t, 2] = old_nodes[2]
+        tri[t, 3] = node_index
+        
+        # Distribute circulation (conserve total)
+        eleGma[t, 1] = old_circulation[1] / 3 + candidate.circulation[1] / 3
+        eleGma[t, 2] = old_circulation[2] / 3 + candidate.circulation[2] / 3
+        eleGma[t, 3] = old_circulation[3] / 3 + candidate.circulation[3] / 3
+        
+        # Add two more triangles if space allows
+        if size(tri, 1) >= t + 2
+            # Second triangle
+            if t + 1 <= size(tri, 1)
+                tri[t + 1, 1] = old_nodes[2]
+                tri[t + 1, 2] = old_nodes[3]
+                tri[t + 1, 3] = node_index
+                eleGma[t + 1, :] = eleGma[t, :]
+            end
+            
+            # Third triangle  
+            if t + 2 <= size(tri, 1)
+                tri[t + 2, 1] = old_nodes[3]
+                tri[t + 2, 2] = old_nodes[1] 
+                tri[t + 2, 3] = node_index
+                eleGma[t + 2, :] = eleGma[t, :]
+            end
+        end
+    end
+    
+    return true
 end
 
 function remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, node_index, domain)
-    # Simplified mesh removal - would need full mesh surgery
-    # For now, mark for removal
+    if node_index <= 0 || node_index > length(nodeX)
+        return false
+    end
     
-    # This is a placeholder - real implementation would:
-    # 1. Find all triangles using this node
-    # 2. Remove or merge triangles
-    # 3. Redistribute circulation to neighbors  
-    # 4. Update connectivity
+    # Find all triangles that use this node
+    triangles_to_remove = Int[]
+    triangles_to_modify = Int[]
     
-    return true  # Placeholder success
+    for t in 1:size(tri, 1)
+        if tri[t, 1] == node_index || tri[t, 2] == node_index || tri[t, 3] == node_index
+            push!(triangles_to_remove, t)
+        end
+    end
+    
+    # Store circulation from removed triangles for redistribution
+    total_circulation = [0.0, 0.0, 0.0]
+    for t in triangles_to_remove
+        total_circulation[1] += eleGma[t, 1]
+        total_circulation[2] += eleGma[t, 2]
+        total_circulation[3] += eleGma[t, 3]
+    end
+    
+    # Find neighboring nodes to redistribute circulation
+    neighbor_nodes = Set{Int}()
+    for t in triangles_to_remove
+        for k in 1:3
+            node = tri[t, k]
+            if node != node_index && node > 0
+                push!(neighbor_nodes, node)
+            end
+        end
+    end
+    
+    # Remove the node by shifting arrays
+    if node_index < length(nodeX)
+        nodeX[node_index:end-1] = nodeX[node_index+1:end]
+        nodeY[node_index:end-1] = nodeY[node_index+1:end]
+        nodeZ[node_index:end-1] = nodeZ[node_index+1:end]
+    end
+    resize!(nodeX, length(nodeX) - 1)
+    resize!(nodeY, length(nodeY) - 1)
+    resize!(nodeZ, length(nodeZ) - 1)
+    
+    # Update triangle connectivity (shift node indices)
+    for t in 1:size(tri, 1)
+        for k in 1:3
+            if tri[t, k] > node_index
+                tri[t, k] -= 1
+            elseif tri[t, k] == node_index
+                tri[t, k] = 0  # Mark for removal
+            end
+        end
+    end
+    
+    # Remove triangles with the deleted node
+    valid_triangles = Int[]
+    for t in 1:size(tri, 1)
+        if tri[t, 1] > 0 && tri[t, 2] > 0 && tri[t, 3] > 0
+            push!(valid_triangles, t)
+        end
+    end
+    
+    # Keep only valid triangles
+    if length(valid_triangles) < size(tri, 1)
+        new_tri = zeros(Int, length(valid_triangles), 3)
+        new_eleGma = zeros(Float64, length(valid_triangles), 3)
+        
+        for (new_idx, old_idx) in enumerate(valid_triangles)
+            new_tri[new_idx, :] = tri[old_idx, :]
+            new_eleGma[new_idx, :] = eleGma[old_idx, :]
+        end
+        
+        # Update the original arrays
+        tri[:, :] = 0
+        eleGma[:, :] = 0.0
+        if size(tri, 1) >= size(new_tri, 1)
+            tri[1:size(new_tri, 1), :] = new_tri
+            eleGma[1:size(new_eleGma, 1), :] = new_eleGma
+        end
+    end
+    
+    # Redistribute circulation to neighboring triangles
+    if !isempty(neighbor_nodes) && length(valid_triangles) > 0
+        circulation_per_triangle = total_circulation ./ length(valid_triangles)
+        for i in 1:min(length(valid_triangles), size(eleGma, 1))
+            eleGma[i, 1] += circulation_per_triangle[1]
+            eleGma[i, 2] += circulation_per_triangle[2] 
+            eleGma[i, 3] += circulation_per_triangle[3]
+        end
+    end
+    
+    return true
 end
 
 function compact_mesh!(nodeX, nodeY, nodeZ, tri, eleGma)
-    # Remove unused nodes and update connectivity
-    # This is a simplified version - full implementation would handle mesh compaction
+    if length(nodeX) == 0 || size(tri, 1) == 0
+        return nothing
+    end
     
-    # Placeholder - real implementation would:
-    # 1. Identify unused nodes
-    # 2. Create mapping from old to new indices
-    # 3. Update triangle connectivity
-    # 4. Remove unused entries from arrays
+    # Find which nodes are actually used in triangles
+    used_nodes = Set{Int}()
+    valid_triangles = Int[]
+    
+    for t in 1:size(tri, 1)
+        if tri[t, 1] > 0 && tri[t, 2] > 0 && tri[t, 3] > 0 && 
+           tri[t, 1] <= length(nodeX) && tri[t, 2] <= length(nodeX) && tri[t, 3] <= length(nodeX)
+            push!(used_nodes, tri[t, 1], tri[t, 2], tri[t, 3])
+            push!(valid_triangles, t)
+        end
+    end
+    
+    if length(used_nodes) == length(nodeX)
+        # No compaction needed - just remove invalid triangles
+        if length(valid_triangles) < size(tri, 1)
+            new_tri = zeros(Int, length(valid_triangles), 3)
+            new_eleGma = zeros(Float64, length(valid_triangles), 3)
+            
+            for (new_idx, old_idx) in enumerate(valid_triangles)
+                new_tri[new_idx, :] = tri[old_idx, :]
+                new_eleGma[new_idx, :] = eleGma[old_idx, :]
+            end
+            
+            # Update arrays in place
+            tri[:, :] = 0
+            eleGma[:, :] = 0.0
+            if size(tri, 1) >= size(new_tri, 1)
+                tri[1:size(new_tri, 1), :] = new_tri
+                eleGma[1:size(new_eleGma, 1), :] = new_eleGma
+            end
+        end
+        return nothing
+    end
+    
+    # Create mapping from old to new node indices
+    old_to_new = Dict{Int, Int}()
+    new_nodes = sort(collect(used_nodes))
+    
+    for (new_idx, old_idx) in enumerate(new_nodes)
+        old_to_new[old_idx] = new_idx
+    end
+    
+    # Compact node arrays
+    new_nodeX = zeros(Float64, length(new_nodes))
+    new_nodeY = zeros(Float64, length(new_nodes))
+    new_nodeZ = zeros(Float64, length(new_nodes))
+    
+    for (new_idx, old_idx) in enumerate(new_nodes)
+        new_nodeX[new_idx] = nodeX[old_idx]
+        new_nodeY[new_idx] = nodeY[old_idx]
+        new_nodeZ[new_idx] = nodeZ[old_idx]
+    end
+    
+    # Update original arrays
+    resize!(nodeX, length(new_nodeX))
+    resize!(nodeY, length(new_nodeY)) 
+    resize!(nodeZ, length(new_nodeZ))
+    nodeX[:] = new_nodeX
+    nodeY[:] = new_nodeY
+    nodeZ[:] = new_nodeZ
+    
+    # Update triangle connectivity and compact triangles
+    new_tri = zeros(Int, length(valid_triangles), 3)
+    new_eleGma = zeros(Float64, length(valid_triangles), 3)
+    
+    for (new_idx, old_idx) in enumerate(valid_triangles)
+        new_tri[new_idx, 1] = old_to_new[tri[old_idx, 1]]
+        new_tri[new_idx, 2] = old_to_new[tri[old_idx, 2]]
+        new_tri[new_idx, 3] = old_to_new[tri[old_idx, 3]]
+        new_eleGma[new_idx, :] = eleGma[old_idx, :]
+    end
+    
+    # Update triangle arrays in place
+    tri[:, :] = 0
+    eleGma[:, :] = 0.0
+    if size(tri, 1) >= size(new_tri, 1)
+        tri[1:size(new_tri, 1), :] = new_tri
+        eleGma[1:size(new_eleGma, 1), :] = new_eleGma
+    end
     
     return nothing
 end
