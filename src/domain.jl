@@ -3,7 +3,8 @@
 module DomainImpl
 
 export DomainSpec, GridSpec, default_domain, default_grid,
-       grid_vectors, grid_spacing, grid_mesh, kvec
+       grid_vectors, grid_spacing, grid_mesh, kvec,
+       wrap_point, wrap_nodes!
 
 struct DomainSpec
     Lx::Float64
@@ -65,7 +66,23 @@ function kvec(n::Int, L::Float64)
     return k
 end
 
+# Wrap a point into periodic domain ranges
+function wrap_point(x::Float64, y::Float64, z::Float64, dom::DomainSpec)
+    xw = (x % dom.Lx)
+    yw = (y % dom.Ly)
+    zw = ((z + dom.Lz) % (2*dom.Lz)) - dom.Lz
+    return xw, yw, zw
+end
+
+# In-place wrapping of node arrays
+function wrap_nodes!(nodeX::AbstractVector{<:Real}, nodeY::AbstractVector{<:Real}, nodeZ::AbstractVector{<:Real}, dom::DomainSpec)
+    @inbounds for i in eachindex(nodeX)
+        xw, yw, zw = wrap_point(Float64(nodeX[i]), Float64(nodeY[i]), Float64(nodeZ[i]), dom)
+        nodeX[i] = xw; nodeY[i] = yw; nodeZ[i] = zw
+    end
+    return nothing
+end
+
 end # module
 
-using .DomainImpl: DomainSpec, GridSpec, default_domain, default_grid, grid_vectors, grid_spacing, grid_mesh, kvec
-
+using .DomainImpl: DomainSpec, GridSpec, default_domain, default_grid, grid_vectors, grid_spacing, grid_mesh, kvec, wrap_point, wrap_nodes!
