@@ -74,6 +74,62 @@ function element_quality_metrics(p1::NTuple{3,Float64}, p2::NTuple{3,Float64}, p
                       edge_length_ratio, jacobian_quality)
 end
 
+# Periodic minimum-image quality metrics (uses domain lengths)
+@inline _minimg(d::Float64, L::Float64) = (L <= 0 ? d : (d - L * round(d/L)))
+function element_quality_metrics_periodic(p1::NTuple{3,Float64}, p2::NTuple{3,Float64}, p3::NTuple{3,Float64}, dom::DomainSpec)
+    # Edge vectors with minimum image
+    dx12 = _minimg(p2[1]-p1[1], dom.Lx); dy12 = _minimg(p2[2]-p1[2], dom.Ly); dz12 = _minimg(p2[3]-p1[3], 2*dom.Lz)
+    dx23 = _minimg(p3[1]-p2[1], dom.Lx); dy23 = _minimg(p3[2]-p2[2], dom.Ly); dz23 = _minimg(p3[3]-p2[3], 2*dom.Lz)
+    dx31 = _minimg(p1[1]-p3[1], dom.Lx); dy31 = _minimg(p1[2]-p3[2], dom.Ly); dz31 = _minimg(p1[3]-p3[3], 2*dom.Lz)
+
+    e1 = (dx12, dy12, dz12)
+    e2 = (dx23, dy23, dz23)
+    e3 = (dx31, dy31, dz31)
+
+    # Edge lengths
+    l1 = sqrt(e1[1]^2 + e1[2]^2 + e1[3]^2)
+    l2 = sqrt(e2[1]^2 + e2[2]^2 + e2[3]^2)
+    l3 = sqrt(e3[1]^2 + e3[2]^2 + e3[3]^2)
+
+    # Triangle area using cross product
+    cross = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
+    area = 0.5 * sqrt(cross[1]^2 + cross[2]^2 + cross[3]^2)
+
+    # Aspect ratio (longest/shortest edge)
+    lmax = max(l1, l2, l3)
+    lmin = min(l1, l2, l3)
+    aspect_ratio = lmax / max(lmin, eps())
+
+    # Skewness (deviation from equilateral)
+    perimeter = l1 + l2 + l3
+    equilateral_area = perimeter^2 / (12 * sqrt(3))
+    skewness = abs(area - equilateral_area) / max(equilateral_area, eps())
+
+    # Area ratio (compared to circumradius-based ideal)
+    circumradius = (l1 * l2 * l3) / (4 * area + eps())
+    ideal_area = 3 * sqrt(3) / 4 * (perimeter/3)^2
+    area_ratio = area / max(ideal_area, eps())
+
+    # Angle quality (minimum angle / 60°)
+    cos_a = (l2^2 + l3^2 - l1^2) / (2 * l2 * l3 + eps())
+    cos_b = (l1^2 + l3^2 - l2^2) / (2 * l1 * l3 + eps())
+    cos_c = (l1^2 + l2^2 - l3^2) / (2 * l1 * l2 + eps())
+    angle_a = acos(clamp(cos_a, -1.0, 1.0))
+    angle_b = acos(clamp(cos_b, -1.0, 1.0))
+    angle_c = acos(clamp(cos_c, -1.0, 1.0))
+    min_angle = min(angle_a, angle_b, angle_c)
+    angle_quality = min_angle / (π/3)
+
+    # Edge length ratio uniformity
+    edge_length_ratio = lmin / lmax
+
+    # Jacobian quality (shape regularity)
+    jacobian_quality = 4 * sqrt(3) * area / (l1^2 + l2^2 + l3^2 + eps())
+
+    return MeshQuality(aspect_ratio, skewness, area_ratio, angle_quality,
+                       edge_length_ratio, jacobian_quality)
+end
+
 # Compute quality metrics for entire mesh
 function compute_mesh_quality(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
     nt = size(triXC, 1)
@@ -86,6 +142,19 @@ function compute_mesh_quality(triXC::AbstractMatrix, triYC::AbstractMatrix, triZ
         qualities[t] = element_quality_metrics(p1, p2, p3)
     end
     
+    return qualities
+end
+
+# Periodic variant
+function compute_mesh_quality(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix, dom::DomainSpec)
+    nt = size(triXC, 1)
+    qualities = Vector{MeshQuality}(undef, nt)
+    @inbounds for t in 1:nt
+        p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
+        p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
+        p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+        qualities[t] = element_quality_metrics_periodic(p1, p2, p3, dom)
+    end
     return qualities
 end
 
@@ -279,12 +348,12 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
                               quality_weight::Float64=0.3, gradient_weight::Float64=0.4, 
                               curvature_weight::Float64=0.3, refinement_threshold::Float64=0.5,
                               # hard thresholds aligned with thesis-style criteria
-                              max_aspect_ratio::Float64=4.0,
+                              max_aspect_ratio::Float64=3.0,
                               max_skewness::Float64=0.8,
-                              min_angle_quality::Float64=0.3,
-                              min_jacobian_quality::Float64=0.3,
-                              grad_threshold::Float64=0.1,
-                              curvature_threshold::Float64=0.5,
+                              min_angle_quality::Float64=0.4,
+                              min_jacobian_quality::Float64=0.4,
+                              grad_threshold::Float64=0.2,
+                              curvature_threshold::Float64=0.6,
                               max_elements::Int=50000)
     nt = size(tri, 1)
     refinement_scores = zeros(Float64, nt)
@@ -300,8 +369,8 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         triZC[t,k] = nodeZ[v]
     end
     
-    # Compute mesh quality scores
-    qualities = compute_mesh_quality(triXC, triYC, triZC)
+    # Compute mesh quality scores (periodic minimum-image)
+    qualities = compute_mesh_quality(triXC, triYC, triZC, dom)
     
     # Build edge-to-triangle connectivity once (for curvature)
     edge_map = Dict{Tuple{Int,Int}, Vector{Int}}()
@@ -337,17 +406,20 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         u_dx = velocity_field(cx+h, cy, cz)
         u_dy = velocity_field(cx, cy+h, cz)
         u_dz = velocity_field(cx, cy, cz+h)
-        grad_mag = norm([(u_dx[1]-u_center[1])/h,
-                         (u_dy[1]-u_center[1])/h,
-                         (u_dz[1]-u_center[1])/h])
+        # Full velocity gradient Frobenius norm ||∇U||_F
+        ux = (u_dx[1]-u_center[1])/h; vx = (u_dx[2]-u_center[2])/h; wx = (u_dx[3]-u_center[3])/h
+        uy = (u_dy[1]-u_center[1])/h; vy = (u_dy[2]-u_center[2])/h; wy = (u_dy[3]-u_center[3])/h
+        uz = (u_dz[1]-u_center[1])/h; vz = (u_dz[2]-u_center[2])/h; wz = (u_dz[3]-u_center[3])/h
+        grad_mag = sqrt(ux^2 + vx^2 + wx^2 + uy^2 + vy^2 + wy^2 + uz^2 + vz^2 + wz^2)
         refine_gradient = grad_mag > grad_threshold
 
         # Curvature from neighboring face normal variation
         p1 = (nodeX[v1], nodeY[v1], nodeZ[v1])
         p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
         p3 = (nodeX[v3], nodeY[v3], nodeZ[v3])
-        e1 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
-        e2 = (p3[1]-p1[1], p3[2]-p1[2], p3[3]-p1[3])
+        # Minimum-image edge vectors for curvature (periodic)
+        e1 = (_minimg(p2[1]-p1[1], dom.Lx), _minimg(p2[2]-p1[2], dom.Ly), _minimg(p2[3]-p1[3], 2*dom.Lz))
+        e2 = (_minimg(p3[1]-p1[1], dom.Lx), _minimg(p3[2]-p1[2], dom.Ly), _minimg(p3[3]-p1[3], 2*dom.Lz))
         n  = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
         nmag = sqrt(n[1]^2 + n[2]^2 + n[3]^2)
         nx,ny,nz = nmag>0 ? (n[1]/nmag, n[2]/nmag, n[3]/nmag) : (0.0,0.0,1.0)
@@ -360,8 +432,8 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
                 q1 = (nodeX[w1], nodeY[w1], nodeZ[w1])
                 q2 = (nodeX[w2], nodeY[w2], nodeZ[w2])
                 q3 = (nodeX[w3], nodeY[w3], nodeZ[w3])
-                f1 = (q2[1]-q1[1], q2[2]-q1[2], q2[3]-q1[3])
-                f2 = (q3[1]-q1[1], q3[2]-q1[2], q3[3]-q1[3])
+                f1 = (_minimg(q2[1]-q1[1], dom.Lx), _minimg(q2[2]-q1[2], dom.Ly), _minimg(q2[3]-q1[3], 2*dom.Lz))
+                f2 = (_minimg(q3[1]-q1[1], dom.Lx), _minimg(q3[2]-q1[2], dom.Ly), _minimg(q3[3]-q1[3], 2*dom.Lz))
                 nn = (f1[2]*f2[3] - f1[3]*f2[2], f1[3]*f2[1] - f1[1]*f2[3], f1[1]*f2[2] - f1[2]*f2[1])
                 nnmag = sqrt(nn[1]^2 + nn[2]^2 + nn[3]^2)
                 if nnmag > 0
