@@ -41,14 +41,17 @@ function grid_mesh(domain::DomainSpec, gr::GridSpec)
     x3d = Array{Float64}(undef, gr.ny, gr.nz, gr.nx)
     y3d = Array{Float64}(undef, gr.ny, gr.nz, gr.nx)
     z3d = Array{Float64}(undef, gr.ny, gr.nz, gr.nx)
+
     @inbounds for j in 1:gr.ny, k in 1:gr.nz, i in 1:gr.nx
         x3d[j,k,i] = x[i]
         y3d[j,k,i] = y[j]
         z3d[j,k,i] = z[k]
     end
+    
     return vec(permutedims(x3d, (3,1,2))),
            vec(permutedims(y3d, (3,1,2))),
            vec(permutedims(z3d, (3,1,2)))
+       )
 end
 
 # Spectral wavenumber vector for periodic FFT Poisson solve
@@ -84,7 +87,7 @@ function wrap_nodes!(nodeX::AbstractVector{<:Real},
         xw, yw, zw = wrap_point(Float64(nodeX[i]), Float64(nodeY[i]), Float64(nodeZ[i]), domain)
         nodeX[i] = xw; nodeY[i] = yw; nodeZ[i] = zw
     end
-    
+
     return nothing
 end
 
