@@ -5,6 +5,7 @@ using ..Poisson3D
 using ..Peskin3D
 using ..Circulation
 using ..Dissipation
+using ..Kernels
 
 export node_velocities, rk2_step!, rk2_step_with_dissipation!, grid_velocity, make_velocity_sampler
 

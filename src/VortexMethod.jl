@@ -8,13 +8,16 @@ include("kernels.jl")
 include("peskin3d.jl")
 include("poisson3d.jl")
 include("mesh.jl")
+# Dependencies needed by TimeStepper
+include("circulation.jl")
+include("dissipation.jl")
+# Time integration routines
 include("timestep.jl")
+# Remeshing and advanced solvers
 include("remesh.jl")
 include("remesh_advanced.jl")
-include("dissipation.jl")
 include("poisson_advanced.jl")
 include("vortex_sheets.jl")
-include("circulation.jl")
 include("checkpoint.jl")
 include("energy.jl")
 include("particle_management.jl")

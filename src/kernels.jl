@@ -34,9 +34,9 @@ end
 
 # Kernel support radius
 kernel_support_radius(k::PeskinStandard) = k.delr
-kernel_support_radius(k::PeskinCosine) = k.delr
-kernel_support_radius(k::M4Prime) = k.delr
-kernel_support_radius(k::AreaWeighting) = k.delr
+kernel_support_radius(k::PeskinCosine)   = k.delr
+kernel_support_radius(k::M4Prime)        = k.delr
+kernel_support_radius(k::AreaWeighting)  = k.delr
 
 # 1D kernel functions
 function kernel_1d(::PeskinStandard, r::Float64, h::Float64)
