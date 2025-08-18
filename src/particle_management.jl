@@ -669,22 +669,179 @@ end
 
 function add_blob_particle_to_mesh!(tri, eleGma, node_index, circulation, domain)
     # Add a particle from vortex blob to the mesh
-    # Placeholder implementation
-    return true
+    if node_index <= 0
+        return false
+    end
+    
+    # Create a simple triangle with the new node and two previous nodes if available
+    current_triangles = 0
+    for t in 1:size(tri, 1)
+        if tri[t, 1] > 0
+            current_triangles += 1
+        end
+    end
+    
+    if node_index >= 3
+        # Find first available triangle slot
+        triangle_slot = -1
+        for t in 1:size(tri, 1)
+            if tri[t, 1] == 0 || tri[t, 2] == 0 || tri[t, 3] == 0
+                triangle_slot = t
+                break
+            end
+        end
+        
+        if triangle_slot == -1
+            # Need to expand triangle array (simplified - in practice would resize)
+            return false
+        end
+        
+        # Create triangle connecting new node with two previous nodes
+        tri[triangle_slot, 1] = max(1, node_index - 2)
+        tri[triangle_slot, 2] = max(1, node_index - 1)
+        tri[triangle_slot, 3] = node_index
+        
+        # Assign circulation to this triangle
+        eleGma[triangle_slot, 1] = circulation[1]
+        eleGma[triangle_slot, 2] = circulation[2]
+        eleGma[triangle_slot, 3] = circulation[3]
+        
+        return true
+    elseif node_index == 1
+        # First node - can't create triangle yet
+        return true
+    elseif node_index == 2
+        # Second node - still can't create triangle
+        return true
+    end
+    
+    return false
 end
 
 
 function insert_particles_to_fill_gaps!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_needed)
-    # Insert particles in sparse regions
-    # Placeholder implementation
-    return n_needed
+    if n_needed <= 0
+        return 0
+    end
+    
+    n_inserted = 0
+    
+    # Generate candidate positions in sparse regions
+    # Use a simple grid-based approach to find gaps
+    grid_resolution = 10
+    dx = domain.Lx / grid_resolution
+    dy = domain.Ly / grid_resolution 
+    dz = 2 * domain.Lz / grid_resolution
+    
+    candidates = Tuple{Float64, Float64, Float64, Float64}[]  # x, y, z, priority
+    
+    # Sample grid points and check sparsity
+    for i in 1:grid_resolution, j in 1:grid_resolution, k in 1:grid_resolution
+        x = (i - 0.5) * dx
+        y = (j - 0.5) * dy
+        z = (k - 0.5) * dz - domain.Lz
+        
+        # Find minimum distance to existing particles
+        min_dist = Inf
+        for p in 1:length(nodeX)
+            # Periodic distance
+            dx_p = minimum_image_distance(x - nodeX[p], domain.Lx)
+            dy_p = minimum_image_distance(y - nodeY[p], domain.Ly)
+            dz_p = minimum_image_distance(z - nodeZ[p], 2 * domain.Lz)
+            dist = sqrt(dx_p^2 + dy_p^2 + dz_p^2)
+            min_dist = min(min_dist, dist)
+        end
+        
+        # If region is sparse, add as candidate
+        target_spacing = min(dx, dy, dz) * 2  # Target minimum spacing
+        if min_dist > target_spacing
+            priority = min_dist  # Higher distance = higher priority
+            push!(candidates, (x, y, z, priority))
+        end
+    end
+    
+    # Sort by priority (most sparse regions first)
+    sort!(candidates, by=x->x[4], rev=true)
+    
+    # Insert particles up to the needed count
+    for candidate in candidates
+        if n_inserted >= n_needed
+            break
+        end
+        
+        x, y, z, _ = candidate
+        
+        # Wrap to domain
+        x, y, z = wrap_point(x, y, z, domain)
+        
+        # Add particle
+        push!(nodeX, x)
+        push!(nodeY, y)
+        push!(nodeZ, z)
+        
+        # Create insertion candidate for mesh update
+        insertion_candidate = InsertionCandidate(
+            x, y, z, 1.0, (1e-8, 1e-8, 1e-8)  # Small default circulation
+        )
+        
+        # Try to add to mesh
+        success = insert_particle_into_mesh!(tri, eleGma, length(nodeX), insertion_candidate, domain)
+        
+        if success
+            n_inserted += 1
+        else
+            # Remove the node if mesh insertion failed
+            pop!(nodeX)
+            pop!(nodeY)
+            pop!(nodeZ)
+        end
+    end
+    
+    return n_inserted
 end
 
 
 function remove_weakest_particles!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_excess)
-    # Remove particles with weakest circulation
-    # Placeholder implementation  
-    return n_excess
+    if n_excess <= 0 || length(nodeX) == 0
+        return 0
+    end
+    
+    # Compute circulation magnitude for each node
+    node_circulations = compute_node_circulations(tri, eleGma)
+    
+    # Create list of (node_index, circulation_magnitude) pairs
+    node_strengths = Tuple{Int, Float64}[]
+    for (i, circ) in enumerate(node_circulations)
+        circ_mag = sqrt(circ[1]^2 + circ[2]^2 + circ[3]^2)
+        push!(node_strengths, (i, circ_mag))
+    end
+    
+    # Sort by circulation magnitude (weakest first)
+    sort!(node_strengths, by=x->x[2])
+    
+    n_removed = 0
+    removed_indices = Int[]
+    
+    # Remove weakest particles
+    for (node_idx, _) in node_strengths
+        if n_removed >= n_excess
+            break
+        end
+        
+        if node_idx <= length(nodeX) && !(node_idx in removed_indices)
+            # Try to remove this particle
+            success = remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, node_idx, domain)
+            if success
+                push!(removed_indices, node_idx)
+                n_removed += 1
+                
+                # Adjust indices for remaining particles (since removal shifts indices)
+                # Note: remove_particle_from_mesh! already handles index shifting
+            end
+        end
+    end
+    
+    return n_removed
 end
 
 
