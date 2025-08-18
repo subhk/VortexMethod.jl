@@ -151,12 +151,3 @@ OUTPUT_PNG=docs/src/assets/snapshot_gamma.png \
 julia --project examples/plot_snapshot_gamma.jl
 ```
 
-## Notes
-
-- Periodic BCs in all directions. Spreading/interpolation use compact kernels over sub-triangle quadrature; FFT Poisson uses full 3D transforms with k=0 handling.
-- MPI: strided distribution (grid/nodes) + `Allreduce`; FFT currently on rank 0 with broadcast. Advanced solvers available for large cases.
-- See `python/` for the original reference implementation.
-
-## License
-
-This project is licensed under the MIT License. See `LICENSE`.
