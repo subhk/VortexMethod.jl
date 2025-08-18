@@ -339,7 +339,7 @@ function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::
 
     # local node buffers
     N = length(nodeX)
-    local = zeros(Float64, N, 3)
+    local_buf = zeros(Float64, N, 3)
 
     function nearby_grid(xc,yc,zc)
         maskx = abs.(getindex.(coords,1) .- xc) .<= epsx
@@ -368,7 +368,7 @@ function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::
                 sz += flatUz[idxg]*w
             end
         end
-        local[i,1]=sx; local[i,2]=sy; local[i,3]=sz
+        local_buf[i,1]=sx; local_buf[i,2]=sy; local_buf[i,3]=sz
     end
 
     global_buf = similar(local_buf)
@@ -407,7 +407,7 @@ function interpolate_node_velocity_mpi(gridUx::Array{Float64,3}, gridUy::Array{F
 
     # local node buffers
     N = length(nodeX)
-    local = zeros(Float64, N, 3)
+    local_buf = zeros(Float64, N, 3)
 
     function nearby_grid(xc,yc,zc)
         maskx = abs.(getindex.(coords,1) .- xc) .<= epsx
@@ -437,7 +437,7 @@ function interpolate_node_velocity_mpi(gridUx::Array{Float64,3}, gridUy::Array{F
                 sz += flatUz[idxg]*w
             end
         end
-        local[i,1]=sx; local[i,2]=sy; local[i,3]=sz
+        local_buf[i,1]=sx; local_buf[i,2]=sy; local_buf[i,3]=sz
     end
 
     global_buf = similar(local_buf)
