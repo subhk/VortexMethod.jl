@@ -878,6 +878,32 @@ function remove_weak_vortices!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
     return remove_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
 end
 
+"""
+adaptive_particle_control!(nodeX, nodeY, nodeZ, tri, eleGma, domain; target_count, tolerance, insert_criteria, removal_criteria)
+
+Adaptive particle management helper:
+- If `target_count` is provided, maintains particle count within `±tolerance` via maintain_particle_count!.
+- Otherwise, performs an insertion pass followed by a removal pass using provided criteria.
+
+Returns the net change in particle count (insertions minus removals).
+"""
+function adaptive_particle_control!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                    tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec;
+                                    target_count::Union{Nothing,Int}=nothing,
+                                    tolerance::Float64=0.1,
+                                    insert_criteria::ParticleInsertionCriteria=ParticleInsertionCriteria(),
+                                    removal_criteria::ParticleRemovalCriteria=ParticleRemovalCriteria())
+    if target_count !== nothing
+        return maintain_particle_count!(nodeX, nodeY, nodeZ, tri, eleGma, domain, target_count, tolerance)
+    else
+        before = length(nodeX)
+        _ = insert_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, insert_criteria)
+        _ = remove_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, removal_criteria)
+        after = length(nodeX)
+        return after - before
+    end
+end
+
 end # module
 
 using .ParticleManagement: insert_particles_periodic!, remove_particles_periodic!, 

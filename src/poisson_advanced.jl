@@ -426,6 +426,9 @@ function solve_poisson_adaptive!(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3
     return solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
 end
 
+# Back-compatibility alias: provide the expected name
+const solve_poisson_advanced! = solve_poisson_adaptive!
+
 # MPI-parallel version of advanced solver
 function solve_poisson_advanced_mpi!(solver::PoissonSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
                                     domain::DomainSpec)
