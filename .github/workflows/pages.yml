@@ -1,14 +1,10 @@
 name: pages
 on:
-  push:
-    branches: [ main ]
-    tags:   ['v*']          # builds on tags, but deploy is guarded
+  # Disable automatic runs to avoid conflict with Documenter deploy.
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
