@@ -83,9 +83,9 @@ function main()
         println("Max velocities: u=$u_max, v=$v_max, w=$w_max")
         
         if parallel_fft
-            println("✓ Used PencilFFTs for distributed parallel FFT")
+            println("Used PencilFFTs for distributed parallel FFT")
         else
-            println("✓ Used FFTW with rank-0 computation and broadcast")
+            println("Used FFTW with rank-0 computation and broadcast")
         end
     end
     

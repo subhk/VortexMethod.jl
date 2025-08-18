@@ -17,19 +17,19 @@ using Test
         @test_nowarn using FFTW
         @test_nowarn using MPI  
         @test_nowarn using PencilFFTs
-        println("✓ All required packages import successfully")
+        println("All required packages import successfully")
     end
     
     @testset "VortexMethod integration" begin
         # Test that we can include the module structure without full compilation
         # This tests the syntax and basic structure
         include("../src/domain.jl")
-        println("✓ Domain module syntax correct")
+        println("Domain module syntax correct")
         
         # Test poisson3d syntax by checking if it parses
         try
             include("../src/poisson3d.jl")
-            println("✓ Poisson3D module syntax correct")
+            println("Poisson3D module syntax correct")
         catch e
             @test false "Poisson3D module has syntax errors: $e"
         end
@@ -43,7 +43,7 @@ using Test
         @test hasmethod(VortexMethod.Poisson3D.poisson_velocity_pencil_fft, 
                        (Array{Float64,3}, Array{Float64,3}, Array{Float64,3}, Any))
         
-        println("✓ poisson_velocity_pencil_fft function exists with correct signature")
+        println("poisson_velocity_pencil_fft function exists with correct signature")
     end
     
     @testset "Configuration options" begin
@@ -63,7 +63,7 @@ using Test
         for func_name in functions_with_parallel_fft
             # Test that the function exists (basic syntax check)
             @test isdefined(VortexMethod.TimeStepper, func_name)
-            println("✓ $func_name exists with parallel_fft support")
+            println("$func_name exists with parallel_fft support")
         end
     end
 end
