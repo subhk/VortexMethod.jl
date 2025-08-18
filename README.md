@@ -121,16 +121,6 @@ println("Files: $(info.files)")
 println("Snapshots per file: $(info.file_counts)")
 ```
 
-## Documentation
-
-- Dev docs: https://subhk.github.io/VortexMethod.jl/dev/ (or build locally):
-
-```
-julia --project=docs -e 'using Pkg; Pkg.instantiate(); include("docs/make.jl")'
-```
-
-Docs include: theory, remeshing criteria, parallelization model, usage recipes, and a full API reference.
-
 ## Validation
 
 - Generate a KH time series: `mpirun -n 4 julia --project examples/advanced_kh3d.jl`
