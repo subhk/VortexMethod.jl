@@ -16,7 +16,37 @@ jobs:
       - name: Instantiate
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate()'
-      - name: Run tests
+      - name: Run tests with coverage
         run: |
-          julia --project -e 'using Pkg; Pkg.test()'
+          julia --project -e 'using Pkg; Pkg.test(coverage=true)'
+      - name: Process coverage
+        uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: src
+          lcov: true
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: lcov.info
+          flags: unittests
+          fail_ci_if_error: false
 
+  mpi-test:
+    runs-on: ubuntu-latest
+    env:
+      JULIA_MPI_BINARY: system
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - name: Install OpenMPI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopenmpi-dev openmpi-bin
+      - name: Instantiate
+        run: |
+          julia --project -e 'using Pkg; Pkg.instantiate()'
+      - name: Run MPI sanity test (2 ranks)
+        run: |
+          mpirun -n 2 julia --project test/mpi_sanity.jl
