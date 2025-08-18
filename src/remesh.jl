@@ -13,9 +13,11 @@ function detect_max_edge_length(triXC, triYC, triZC, ds_max::Float64)
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+
         e12 = sqrt((p1[1]-p2[1])^2 + (p1[2]-p2[2])^2 + (p1[3]-p2[3])^2)
         e23 = sqrt((p2[1]-p3[1])^2 + (p2[2]-p3[2])^2 + (p2[3]-p3[3])^2)
         e31 = sqrt((p3[1]-p1[1])^2 + (p3[2]-p1[2])^2 + (p3[3]-p1[3])^2)
+
         el = max(e12, e23, e31)
         if el > maxlen
             maxlen = el; maxidx = t
@@ -36,9 +38,11 @@ function detect_min_edge_length(triXC, triYC, triZC, ds_min::Float64)
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+
         e12 = sqrt((p1[1]-p2[1])^2 + (p1[2]-p2[2])^2 + (p1[3]-p2[3])^2)
         e23 = sqrt((p2[1]-p3[1])^2 + (p2[2]-p3[2])^2 + (p2[3]-p3[3])^2)
         e31 = sqrt((p3[1]-p1[1])^2 + (p3[2]-p1[2])^2 + (p3[3]-p1[3])^2)
+
         el = min(e12, min(e23, e31))
         if el < minlen
             minlen = el; minidx = t
@@ -57,13 +61,27 @@ function element_splitting!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, node
     p1 = (nodeX[v1], nodeY[v1], nodeZ[v1])
     p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
     p3 = (nodeX[v3], nodeY[v3], nodeZ[v3])
+
     mx,my,mz = midpoint_periodic(p1[1],p1[2],p1[3], p2[1],p2[2],p2[3], domain)
-    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz); m12 = length(nodeX)
+    push!(nodeX, mx); 
+    push!(nodeY, my); 
+    push!(nodeZ, mz); 
+    m12 = length(nodeX)
+
     mx,my,mz = midpoint_periodic(p2[1],p2[2],p2[3], p3[1],p3[2],p3[3], domain)
-    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz); m23 = length(nodeX)
+    push!(nodeX, mx); 
+    push!(nodeY, my); 
+    push!(nodeZ, mz); 
+    m23 = length(nodeX)
+
     mx,my,mz = midpoint_periodic(p3[1],p3[2],p3[3], p1[1],p1[2],p1[3], domain)
-    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz); m31 = length(nodeX)
+    push!(nodeX, mx); 
+    push!(nodeY, my); 
+    push!(nodeZ, mz); 
+    m31 = length(nodeX)
+
     tri[ele_idx, :] .= (v1, m12, m31)
+    
     tri_new = Array{Int}(undef, 3, 3)
     tri_new[1,:] = (m12, v2, m23)
     tri_new[2,:] = (m31, m23, v3)
@@ -71,6 +89,7 @@ function element_splitting!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, node
     tri = vcat(tri, tri_new)
     # enforce periodic wrap (safety)
     wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+    
     return nodeX, nodeY, nodeZ, tri
 end
 
@@ -145,15 +164,19 @@ function midpoint_periodic(x1,y1,z1, x2,y2,z2, domain::DomainSpec)
     dx = min_image(x2 - x1, Lx)
     dy = min_image(y2 - y1, Ly)
     dz = min_image(z2 - z1, Lz2)
+
     xm = x1 + 0.5*dx
     ym = y1 + 0.5*dy
     zm = z1 + 0.5*dz
+    
     # wrap back to domain ranges: x in [0,Lx), y in [0,Ly), z in [-Lz,+Lz]
     xm = (xm % Lx)
     ym = (ym % Ly)
+    
     zshift = zm + domain.Lz
     zshift = (zshift % (2*domain.Lz))
     zm = zshift - domain.Lz
+    
     return xm, ym, zm
 end
 
@@ -163,17 +186,20 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
                       max_splits::Int=1000, max_flips::Int=1000, max_merges::Int=1000,
                       domain::DomainSpec=default_domain(), compact::Bool=true,
                       ar_max::Float64=Inf)
+
     changed = false
     # 1) Long-edge refinement: mark all edges of any tri with any edge > ds_max
     emap = edge_map(tri)
     long_edges = Set{Tuple{Int,Int}}()
     tris_to_split = Set{Int}()
+
     @inbounds for t in 1:size(tri,1)
         v1,v2,v3 = tri[t,1], tri[t,2], tri[t,3]
         # edge lengths
         l12 = periodic_edge_length(nodeX,nodeY,nodeZ,v1,v2, domain)
         l23 = periodic_edge_length(nodeX,nodeY,nodeZ,v2,v3, domain)
         l31 = periodic_edge_length(nodeX,nodeY,nodeZ,v3,v1, domain)
+
         # aspect ratio as longest/shortest
         ar = maximum((l12,l23,l31)) / max(eps(), minimum((l12,l23,l31)))
         if (l12 > ds_max || l23 > ds_max || l31 > ds_max) || (ar > ar_max)
@@ -189,6 +215,7 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
                 end
             end
         end
+
     end
     if !isempty(tris_to_split)
         changed = true
@@ -197,7 +224,9 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
         for e in long_edges
             a,b = e
             mx,my,mz = midpoint_periodic(nodeX[a],nodeY[a],nodeZ[a], nodeX[b],nodeY[b],nodeZ[b], domain)
-            push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
+            push!(nodeX, mx); 
+            push!(nodeY, my); 
+            push!(nodeZ, mz)
             midpoint[e] = length(nodeX)
         end
         # rebuild triangle list with splits
@@ -210,18 +239,27 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
                 e31 = (min(v3,v1), max(v3,v1)); m31 = get(midpoint, e31, 0)
                 # ensure midpoints for all three edges (if edge not marked long, still create consistent midpoint)
                 if m12==0
-                    mx,my,mz = midpoint_periodic(nodeX[v1],nodeY[v1],nodeZ[v1], nodeX[v2],nodeY[v2],nodeZ[v2], domain)
-                    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
+                    mx, my, mz = midpoint_periodic(nodeX[v1], nodeY[v1], nodeZ[v1], 
+                                                nodeX[v2], nodeY[v2], nodeZ[v2], domain)
+                    push!(nodeX, mx); 
+                    push!(nodeY, my); 
+                    push!(nodeZ, mz)
                     m12 = length(nodeX)
                 end
                 if m23==0
-                    mx,my,mz = midpoint_periodic(nodeX[v2],nodeY[v2],nodeZ[v2], nodeX[v3],nodeY[v3],nodeZ[v3], domain)
-                    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
+                    mx, my, mz = midpoint_periodic(nodeX[v2], nodeY[v2], nodeZ[v2], 
+                                                nodeX[v3], nodeY[v3], nodeZ[v3], domain)
+                    push!(nodeX, mx); 
+                    push!(nodeY, my); 
+                    push!(nodeZ, mz)
                     m23 = length(nodeX)
                 end
                 if m31==0
-                    mx,my,mz = midpoint_periodic(nodeX[v3],nodeY[v3],nodeZ[v3], nodeX[v1],nodeY[v1],nodeZ[v1], domain)
-                    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
+                    mx, my, mz = midpoint_periodic(nodeX[v3], nodeY[v3], nodeZ[v3], 
+                                                nodeX[v1], nodeY[v1], nodeZ[v1], domain)
+                    push!(nodeX, mx); 
+                    push!(nodeY, my); 
+                    push!(nodeZ, mz)
                     m31 = length(nodeX)
                 end
                 push!(newtris, (v1, m12, m31))
