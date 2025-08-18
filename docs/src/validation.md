@@ -45,9 +45,14 @@ or rasterize specific pages to PNGs (e.g., pages 10–12):
 pdftoppm -png -f 10 -l 12 mstock_dissertation.pdf docs/src/assets/page
 ```
 
-After saving, include figures in the appropriate pages (Theory/Remeshing/Parallelization), e.g.:
+After saving, include figures in the appropriate pages (Theory/Remeshing/Parallelization). For the following thesis figure numbers, save with these suggested filenames:
 
-![](assets/fig-0001.png)
+- 1.23 → docs/src/assets/fig_1_23.png (Theory)
+- 3.19 → docs/src/assets/fig_3_19.png (Theory/Parallelization)
+- 3.26 → docs/src/assets/fig_3_26.png (Remeshing)
+- 3.52 → docs/src/assets/fig_3_52.png (Remeshing)
+
+![](assets/fig_1_23.png)
 
 ## Notes
 
