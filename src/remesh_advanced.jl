@@ -76,11 +76,11 @@ end
 
 # Periodic minimum-image quality metrics (uses domain lengths)
 @inline _minimg(d::Float64, L::Float64) = (L <= 0 ? d : (d - L * round(d/L)))
-function element_quality_metrics_periodic(p1::NTuple{3,Float64}, p2::NTuple{3,Float64}, p3::NTuple{3,Float64}, dom::DomainSpec)
+function element_quality_metrics_periodic(p1::NTuple{3,Float64}, p2::NTuple{3,Float64}, p3::NTuple{3,Float64}, domain::DomainSpec)
     # Edge vectors with minimum image
-    dx12 = _minimg(p2[1]-p1[1], dom.Lx); dy12 = _minimg(p2[2]-p1[2], dom.Ly); dz12 = _minimg(p2[3]-p1[3], 2*dom.Lz)
-    dx23 = _minimg(p3[1]-p2[1], dom.Lx); dy23 = _minimg(p3[2]-p2[2], dom.Ly); dz23 = _minimg(p3[3]-p2[3], 2*dom.Lz)
-    dx31 = _minimg(p1[1]-p3[1], dom.Lx); dy31 = _minimg(p1[2]-p3[2], dom.Ly); dz31 = _minimg(p1[3]-p3[3], 2*dom.Lz)
+    dx12 = _minimg(p2[1]-p1[1], domain.Lx); dy12 = _minimg(p2[2]-p1[2], domain.Ly); dz12 = _minimg(p2[3]-p1[3], 2*domain.Lz)
+    dx23 = _minimg(p3[1]-p2[1], domain.Lx); dy23 = _minimg(p3[2]-p2[2], domain.Ly); dz23 = _minimg(p3[3]-p2[3], 2*domain.Lz)
+    dx31 = _minimg(p1[1]-p3[1], domain.Lx); dy31 = _minimg(p1[2]-p3[2], domain.Ly); dz31 = _minimg(p1[3]-p3[3], 2*domain.Lz)
 
     e1 = (dx12, dy12, dz12)
     e2 = (dx23, dy23, dz23)
@@ -146,14 +146,14 @@ function compute_mesh_quality(triXC::AbstractMatrix, triYC::AbstractMatrix, triZ
 end
 
 # Periodic variant
-function compute_mesh_quality(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix, dom::DomainSpec)
+function compute_mesh_quality(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix, domain::DomainSpec)
     nt = size(triXC, 1)
     qualities = Vector{MeshQuality}(undef, nt)
     @inbounds for t in 1:nt
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
-        qualities[t] = element_quality_metrics_periodic(p1, p2, p3, dom)
+        qualities[t] = element_quality_metrics_periodic(p1, p2, p3, domain)
     end
     return qualities
 end
@@ -172,7 +172,7 @@ end
 
 # Enhanced 1-to-4 splitting with quality preservation
 function quality_split_triangle!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                tri::Array{Int,2}, ele_idx::Int, dom::DomainSpec)
+                                tri::Array{Int,2}, ele_idx::Int, domain::DomainSpec)
     v1, v2, v3 = tri[ele_idx,1], tri[ele_idx,2], tri[ele_idx,3]
     p1 = (nodeX[v1], nodeY[v1], nodeZ[v1])
     p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
@@ -186,9 +186,9 @@ function quality_split_triangle!(nodeX::Vector{Float64}, nodeY::Vector{Float64},
         dz = pa[3] - pb[3]
         
         # Apply minimum image
-        if dom.Lx > 0; dx = dx - dom.Lx * round(dx/dom.Lx); end
-        if dom.Ly > 0; dy = dy - dom.Ly * round(dy/dom.Ly); end
-        if dom.Lz > 0; dz = dz - 2*dom.Lz * round(dz/(2*dom.Lz)); end
+        if domain.Lx > 0; dx = dx - domain.Lx * round(dx/domain.Lx); end
+        if domain.Ly > 0; dy = dy - domain.Ly * round(dy/domain.Ly); end
+        if domain.Lz > 0; dz = dz - 2*domain.Lz * round(dz/(2*domain.Lz)); end
         
         # Midpoint in minimum image space
         mx = pa[1] - 0.5 * dx
@@ -196,9 +196,9 @@ function quality_split_triangle!(nodeX::Vector{Float64}, nodeY::Vector{Float64},
         mz = pa[3] - 0.5 * dz
         
         # Wrap back to domain
-        mx = mod(mx, dom.Lx)
-        my = mod(my, dom.Ly)
-        mz = mod(mz + dom.Lz, 2*dom.Lz) - dom.Lz
+        mx = mod(mx, domain.Lx)
+        my = mod(my, domain.Ly)
+        mz = mod(mz + domain.Lz, 2*domain.Lz) - domain.Lz
         
         return (mx, my, mz)
     end
@@ -225,7 +225,7 @@ end
 
 # Anisotropic remeshing based on flow gradients
 function anisotropic_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                           tri::Array{Int,2}, velocity_field::Function, dom::DomainSpec;
+                           tri::Array{Int,2}, velocity_field::Function, domain::DomainSpec;
                            refinement_threshold::Float64=0.1, max_elements::Int=50000)
     nt = size(tri, 1)
     elements_to_refine = Int[]
@@ -255,19 +255,19 @@ function anisotropic_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nod
     # Refine marked elements
     changed = false
     for ele_idx in reverse(elements_to_refine)  # Reverse to maintain indices
-        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, dom)
+        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, domain)
         changed = true
         nt = size(tri, 1)
     end
     
     # enforce periodic wrap for safety
-    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, dom)
+    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     return tri, changed
 end
 
 # Curvature-based refinement for vortex sheet tracking
 function curvature_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                tri::Array{Int,2}, dom::DomainSpec;
+                                tri::Array{Int,2}, domain::DomainSpec;
                                 curvature_threshold::Float64=1.0, max_elements::Int=50000)
     nt = size(tri, 1)
     elements_to_refine = Int[]
@@ -335,18 +335,18 @@ function curvature_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64},
     # Refine marked elements
     changed = false
     for ele_idx in reverse(elements_to_refine)
-        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, dom)
+        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, domain)
         changed = true
         nt = size(tri, 1)
     end
     
-    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, dom)
+    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     return tri, changed
 end
 
 # Flow-adaptive remeshing combining multiple criteria
 function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                              tri::Array{Int,2}, velocity_field::Function, dom::DomainSpec;
+                              tri::Array{Int,2}, velocity_field::Function, domain::DomainSpec;
                               # legacy weighted-score kwargs (kept for compatibility; ignored by threshold logic)
                               quality_weight::Float64=0.3, gradient_weight::Float64=0.4, 
                               curvature_weight::Float64=0.3, refinement_threshold::Float64=0.5,
@@ -373,7 +373,7 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
     end
     
     # Compute mesh quality scores (periodic minimum-image)
-    qualities = compute_mesh_quality(triXC, triYC, triZC, dom)
+    qualities = compute_mesh_quality(triXC, triYC, triZC, domain)
     
     # Build edge-to-triangle connectivity once (for curvature)
     edge_map = Dict{Tuple{Int,Int}, Vector{Int}}()
@@ -421,8 +421,8 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
         p3 = (nodeX[v3], nodeY[v3], nodeZ[v3])
         # Minimum-image edge vectors for curvature (periodic)
-        e1 = (_minimg(p2[1]-p1[1], dom.Lx), _minimg(p2[2]-p1[2], dom.Ly), _minimg(p2[3]-p1[3], 2*dom.Lz))
-        e2 = (_minimg(p3[1]-p1[1], dom.Lx), _minimg(p3[2]-p1[2], dom.Ly), _minimg(p3[3]-p1[3], 2*dom.Lz))
+        e1 = (_minimg(p2[1]-p1[1], domain.Lx), _minimg(p2[2]-p1[2], domain.Ly), _minimg(p2[3]-p1[3], 2*domain.Lz))
+        e2 = (_minimg(p3[1]-p1[1], domain.Lx), _minimg(p3[2]-p1[2], domain.Ly), _minimg(p3[3]-p1[3], 2*domain.Lz))
         n  = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
         nmag = sqrt(n[1]^2 + n[2]^2 + n[3]^2)
         nx,ny,nz = nmag>0 ? (n[1]/nmag, n[2]/nmag, n[3]/nmag) : (0.0,0.0,1.0)
@@ -435,8 +435,8 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
                 q1 = (nodeX[w1], nodeY[w1], nodeZ[w1])
                 q2 = (nodeX[w2], nodeY[w2], nodeZ[w2])
                 q3 = (nodeX[w3], nodeY[w3], nodeZ[w3])
-                f1 = (_minimg(q2[1]-q1[1], dom.Lx), _minimg(q2[2]-q1[2], dom.Ly), _minimg(q2[3]-q1[3], 2*dom.Lz))
-                f2 = (_minimg(q3[1]-q1[1], dom.Lx), _minimg(q3[2]-q1[2], dom.Ly), _minimg(q3[3]-q1[3], 2*dom.Lz))
+                f1 = (_minimg(q2[1]-q1[1], domain.Lx), _minimg(q2[2]-q1[2], domain.Ly), _minimg(q2[3]-q1[3], 2*domain.Lz))
+                f2 = (_minimg(q3[1]-q1[1], domain.Lx), _minimg(q3[2]-q1[2], domain.Ly), _minimg(q3[3]-q1[3], 2*domain.Lz))
                 nn = (f1[2]*f2[3] - f1[3]*f2[2], f1[3]*f2[1] - f1[1]*f2[3], f1[1]*f2[2] - f1[2]*f2[1])
                 nnmag = sqrt(nn[1]^2 + nn[2]^2 + nn[3]^2)
                 if nnmag > 0

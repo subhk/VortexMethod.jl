@@ -218,7 +218,7 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     # strided work splitting
     @inbounds for idx in (rank+1):nprocs:length(coords)
         c = coords[idx]
-        sx,sy,sz = peskin_grid_sum_kernel(eleGma, triC, subC, c, (dx,dy,dz), areas, kernel; dom=dom)
+        sx,sy,sz = peskin_grid_sum_kernel(eleGma, triC, subC, c, (dx,dy,dz), areas, kernel; domain=domain)
         # divide by cell volume
         local_buf[idx,1] = sx/(dx*dy*dz)
         local_buf[idx,2] = sy/(dx*dy*dz)
@@ -251,7 +251,7 @@ end
 # MPI-parallel: spread element vorticity to grid (original function)
 function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
                                       triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                                      dom::DomainSpec, gr::GridSpec)
+                                      domain::DomainSpec, gr::GridSpec)
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
@@ -262,8 +262,8 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     subC = build_all_subcentroids(triXC, triYC, triZC)
     areas = triangle_areas(triXC, triYC, triZC)
 
-    x, y, z = grid_vectors(dom, gr)
-    (dx,dy,dz) = grid_spacing(dom, gr)
+    x, y, z = grid_vectors(domain, gr)
+    (dx,dy,dz) = grid_spacing(domain, gr)
     # Flatten grid in order (nz,ny,nx) as in python final reshape
     nx,ny,nz = gr.nx, gr.ny, gr.nz
     # Build flattened coordinates in same order used later: we’ll use (k,j,i)
@@ -278,7 +278,7 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     # strided work splitting (round-robin like python)
     @inbounds for idx in (rank+1):nprocs:length(coords)
         c = coords[idx]
-        sx,sy,sz = peskin_grid_sum(eleGma, triC, subC, c, (dx,dy,dz), areas; dom=dom)
+        sx,sy,sz = peskin_grid_sum(eleGma, triC, subC, c, (dx,dy,dz), areas; domain=domain)
         # divide by cell volume like python
         local_buf[idx,1] = sx/(dx*dy*dz)
         local_buf[idx,2] = sy/(dx*dy*dz)
@@ -311,16 +311,16 @@ end
 # Enhanced interpolation with kernel selection
 function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::Array{Float64,3}, gridUz::Array{Float64,3},
                                               nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
-                                              dom::DomainSpec, gr::GridSpec, kernel::KernelType=PeskinStandard())
+                                              domain::DomainSpec, gr::GridSpec, kernel::KernelType=PeskinStandard())
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     nprocs = MPI.Comm_size(comm)
 
     nx,ny,nz = gr.nx, gr.ny, gr.nz
-    (dx,dy,dz) = grid_spacing(dom, gr)
+    (dx,dy,dz) = grid_spacing(domain, gr)
     # Build flattened grid arrays and coordinates
-    x,y,z = grid_vectors(dom, gr)
+    x,y,z = grid_vectors(domain, gr)
     coords = Vector{NTuple{3,Float64}}(undef, nx*ny*nz)
     flatUx = Vector{Float64}(undef, nx*ny*nz)
     flatUy = similar(flatUx)
@@ -352,8 +352,8 @@ function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::
         xc,yc,zc = nodeX[i], nodeY[i], nodeZ[i]
         sx=0.0; sy=0.0; sz=0.0
         # 9 tiles
-        tiles = ((0.0,0.0),(+dom.Lx,0.0),(-dom.Lx,0.0),(0.0,+dom.Ly),(0.0,-dom.Ly),
-                 (+dom.Lx,+dom.Ly),(+dom.Lx,-dom.Ly),(-dom.Lx,+dom.Ly),(-dom.Lx,-dom.Ly))
+        tiles = ((0.0,0.0),(+domain.Lx,0.0),(-domain.Lx,0.0),(0.0,+domain.Ly),(0.0,-domain.Ly),
+                 (+domain.Lx,+domain.Ly),(+domain.Lx,-domain.Ly),(-domain.Lx,+domain.Ly),(-domain.Lx,-domain.Ly))
         for (dxL,dyL) in tiles
             xq = xc - dxL; yq = yc - dyL
             inds = nearby_grid(xq, yq, zc)
@@ -379,16 +379,16 @@ end
 # Interpolate node velocities from grid (MPI parallel over nodes) - original function
 function interpolate_node_velocity_mpi(gridUx::Array{Float64,3}, gridUy::Array{Float64,3}, gridUz::Array{Float64,3},
                                        nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
-                                       dom::DomainSpec, gr::GridSpec)
+                                       domain::DomainSpec, gr::GridSpec)
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     nprocs = MPI.Comm_size(comm)
 
     nx,ny,nz = gr.nx, gr.ny, gr.nz
-    (dx,dy,dz) = grid_spacing(dom, gr)
+    (dx,dy,dz) = grid_spacing(domain, gr)
     # Build flattened grid arrays and coordinates in the same order used by spread (k,j,i)
-    x,y,z = grid_vectors(dom, gr)
+    x,y,z = grid_vectors(domain, gr)
     coords = Vector{NTuple{3,Float64}}(undef, nx*ny*nz)
     flatUx = Vector{Float64}(undef, nx*ny*nz)
     flatUy = similar(flatUx)
@@ -420,8 +420,8 @@ function interpolate_node_velocity_mpi(gridUx::Array{Float64,3}, gridUy::Array{F
         xc,yc,zc = nodeX[i], nodeY[i], nodeZ[i]
         sx=0.0; sy=0.0; sz=0.0
         # 9 tiles like python
-        tiles = ((0.0,0.0),(+dom.Lx,0.0),(-dom.Lx,0.0),(0.0,+dom.Ly),(0.0,-dom.Ly),
-                 (+dom.Lx,+dom.Ly),(+dom.Lx,-dom.Ly),(-dom.Lx,+dom.Ly),(-dom.Lx,-dom.Ly))
+        tiles = ((0.0,0.0),(+domain.Lx,0.0),(-domain.Lx,0.0),(0.0,+domain.Ly),(0.0,-domain.Ly),
+                 (+domain.Lx,+domain.Ly),(+domain.Lx,-domain.Ly),(-domain.Lx,+domain.Ly),(-domain.Lx,-domain.Ly))
         for (dxL,dyL) in tiles
             # find neighbors relative to shifted tile by querying around (xc-dxL, yc-dyL, zc)
             xq = xc - dxL; yq = yc - dyL

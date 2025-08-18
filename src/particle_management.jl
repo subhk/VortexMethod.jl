@@ -49,7 +49,7 @@ struct ParticleRemovalCriteria
 end
 
 """
-insert_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, dom, criteria; vorticity_field=nothing)
+insert_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria; vorticity_field=nothing)
 
 Insert new particles in high-vorticity regions while maintaining domain periodicity.
 Automatically handles periodic boundary conditions and circulation conservation.
@@ -58,7 +58,7 @@ Automatically handles periodic boundary conditions and circulation conservation.
 - `nodeX, nodeY, nodeZ`: Node position arrays (modified in-place)
 - `tri`: Triangle connectivity (modified in-place) 
 - `eleGma`: Element circulation (modified in-place)
-- `dom::DomainSpec`: Domain specification with periodic boundaries
+- `domain::DomainSpec`: Domain specification with periodic boundaries
 - `criteria::ParticleInsertionCriteria`: Insertion criteria
 - `vorticity_field`: Optional 3D vorticity field for insertion guidance
 
@@ -66,7 +66,7 @@ Automatically handles periodic boundary conditions and circulation conservation.
 - `n_inserted::Int`: Number of particles inserted
 """
 function insert_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                   tri::Matrix{Int}, eleGma::Matrix{Float64}, dom::DomainSpec,
+                                   tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
                                    criteria::ParticleInsertionCriteria; vorticity_field=nothing)
     
     if length(nodeX) >= criteria.max_particles
@@ -77,7 +77,7 @@ function insert_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float6
     original_node_count = length(nodeX)
     
     # Find regions needing particle insertion
-    insertion_candidates = find_insertion_regions_periodic(nodeX, nodeY, nodeZ, tri, eleGma, dom, criteria, vorticity_field)
+    insertion_candidates = find_insertion_regions_periodic(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria, vorticity_field)
     
     # Sort by priority (highest vorticity first)
     sort!(insertion_candidates, by=x->x.priority, rev=true)
@@ -89,7 +89,7 @@ function insert_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float6
         end
         
         # Insert particle with periodic wrapping
-        new_x, new_y, new_z = wrap_point(candidate.x, candidate.y, candidate.z, dom)
+        new_x, new_y, new_z = wrap_point(candidate.x, candidate.y, candidate.z, domain)
         
         # Add new node
         push!(nodeX, new_x)
@@ -97,7 +97,7 @@ function insert_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float6
         push!(nodeZ, new_z)
         
         # Update mesh connectivity and circulation
-        success = insert_particle_into_mesh!(tri, eleGma, length(nodeX), candidate, dom)
+        success = insert_particle_into_mesh!(tri, eleGma, length(nodeX), candidate, domain)
         
         if success
             n_inserted += 1
@@ -110,13 +110,13 @@ function insert_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float6
     end
     
     # Ensure all nodes remain in periodic domain
-    wrap_nodes!(nodeX, nodeY, nodeZ, dom)
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     
     return n_inserted
 end
 
 """
-remove_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, dom, criteria)
+remove_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
 
 Remove particles based on criteria while maintaining domain periodicity and circulation conservation.
 
@@ -124,27 +124,27 @@ Remove particles based on criteria while maintaining domain periodicity and circ
 - `nodeX, nodeY, nodeZ`: Node position arrays (modified in-place)
 - `tri`: Triangle connectivity (modified in-place)
 - `eleGma`: Element circulation (modified in-place) 
-- `dom::DomainSpec`: Domain specification
+- `domain::DomainSpec`: Domain specification
 - `criteria::ParticleRemovalCriteria`: Removal criteria
 
 # Returns
 - `n_removed::Int`: Number of particles removed
 """
 function remove_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                   tri::Matrix{Int}, eleGma::Matrix{Float64}, dom::DomainSpec,
+                                   tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
                                    criteria::ParticleRemovalCriteria)
     
     n_removed = 0
     
     # Find particles to remove
-    removal_candidates = find_removal_candidates_periodic(nodeX, nodeY, nodeZ, tri, eleGma, dom, criteria)
+    removal_candidates = find_removal_candidates_periodic(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
     
     # Sort by removal priority (weakest circulation first)
     sort!(removal_candidates, by=x->x.circulation_magnitude)
     
     # Remove particles and update mesh
     for candidate in removal_candidates
-        success = remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, candidate.node_index, dom)
+        success = remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, candidate.node_index, domain)
         if success
             n_removed += 1
         end
@@ -154,14 +154,14 @@ function remove_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float6
     if n_removed > 0
         compact_mesh!(nodeX, nodeY, nodeZ, tri, eleGma)
         # Ensure periodicity after compaction
-        wrap_nodes!(nodeX, nodeY, nodeZ, dom)
+        wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     end
     
     return n_removed
 end
 
 """
-insert_vortex_blob_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, dom, center, strength, radius, n_particles)
+insert_vortex_blob_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, center, strength, radius, n_particles)
 
 Insert a vortex blob at specified location with automatic periodic boundary handling.
 
@@ -172,13 +172,13 @@ Insert a vortex blob at specified location with automatic periodic boundary hand
 - `n_particles::Int`: Number of particles to create for the blob
 """
 function insert_vortex_blob_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                     tri::Matrix{Int}, eleGma::Matrix{Float64}, dom::DomainSpec,
+                                     tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
                                      center::Tuple{Float64,Float64,Float64}, 
                                      strength::Tuple{Float64,Float64,Float64},
                                      radius::Float64, n_particles::Int)
     
     # Wrap center to domain
-    cx, cy, cz = wrap_point(center[1], center[2], center[3], dom)
+    cx, cy, cz = wrap_point(center[1], center[2], center[3], domain)
     
     n_inserted = 0
     
@@ -195,7 +195,7 @@ function insert_vortex_blob_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Floa
         dz = radius * (2*φ/π - 1) * 0.5   # ±radius/2 in z
         
         # Absolute position with periodic wrapping
-        x, y, z = wrap_point(cx + dx, cy + dy, cz + dz, dom)
+        x, y, z = wrap_point(cx + dx, cy + dy, cz + dz, domain)
         
         # Add node
         push!(nodeX, x)
@@ -210,7 +210,7 @@ function insert_vortex_blob_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Floa
         )
         
         # Create local triangle or update existing mesh
-        success = add_blob_particle_to_mesh!(tri, eleGma, length(nodeX), blob_circulation, dom)
+        success = add_blob_particle_to_mesh!(tri, eleGma, length(nodeX), blob_circulation, domain)
         
         if success
             n_inserted += 1
@@ -226,12 +226,12 @@ function insert_vortex_blob_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Floa
 end
 
 """
-maintain_particle_count!(nodeX, nodeY, nodeZ, tri, eleGma, dom, target_count, tolerance)
+maintain_particle_count!(nodeX, nodeY, nodeZ, tri, eleGma, domain, target_count, tolerance)
 
 Automatically maintain particle count within target range using insertion/removal.
 """
 function maintain_particle_count!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                 tri::Matrix{Int}, eleGma::Matrix{Float64}, dom::DomainSpec,
+                                 tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
                                  target_count::Int, tolerance::Float64=0.1)
     
     current_count = length(nodeX)
@@ -244,7 +244,7 @@ function maintain_particle_count!(nodeX::Vector{Float64}, nodeY::Vector{Float64}
         n_needed = min_count - current_count
         
         # Insert particles in low-density regions
-        return insert_particles_to_fill_gaps!(nodeX, nodeY, nodeZ, tri, eleGma, dom, n_needed)
+        return insert_particles_to_fill_gaps!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_needed)
         
     elseif current_count > max_count
         # Need to remove particles
@@ -252,7 +252,7 @@ function maintain_particle_count!(nodeX::Vector{Float64}, nodeY::Vector{Float64}
         n_excess = current_count - max_count
         
         # Remove weakest particles first
-        return -remove_weakest_particles!(nodeX, nodeY, nodeZ, tri, eleGma, dom, n_excess)
+        return -remove_weakest_particles!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_excess)
     end
     
     return 0  # No change needed
@@ -274,7 +274,7 @@ struct RemovalCandidate
     priority::Float64  # Higher = more important to remove
 end
 
-function find_insertion_regions_periodic(nodeX, nodeY, nodeZ, tri, eleGma, dom, criteria, vorticity_field)
+function find_insertion_regions_periodic(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria, vorticity_field)
     candidates = InsertionCandidate[]
     
     # Simple approach: look for regions with high vorticity but sparse particles
@@ -282,15 +282,15 @@ function find_insertion_regions_periodic(nodeX, nodeY, nodeZ, tri, eleGma, dom, 
     
     # Grid-based analysis for insertion
     nx, ny, nz = 20, 20, 20  # Analysis grid
-    dx, dy, dz = dom.Lx/nx, dom.Ly/ny, 2*dom.Lz/nz
+    dx, dy, dz = domain.Lx/nx, domain.Ly/ny, 2*domain.Lz/nz
     
     for i in 1:nx, j in 1:ny, k in 1:nz
         x = (i-0.5) * dx
         y = (j-0.5) * dy  
-        z = (k-0.5) * dz - dom.Lz
+        z = (k-0.5) * dz - domain.Lz
         
         # Check distance to nearest existing particle
-        min_dist = minimum_distance_to_particles_periodic(x, y, z, nodeX, nodeY, nodeZ, dom)
+        min_dist = minimum_distance_to_particles_periodic(x, y, z, nodeX, nodeY, nodeZ, domain)
         
         if min_dist > criteria.max_particle_spacing
             # This region is sparse, consider for insertion
@@ -306,7 +306,7 @@ function find_insertion_regions_periodic(nodeX, nodeY, nodeZ, tri, eleGma, dom, 
     return candidates
 end
 
-function find_removal_candidates_periodic(nodeX, nodeY, nodeZ, tri, eleGma, dom, criteria)
+function find_removal_candidates_periodic(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
     candidates = RemovalCandidate[]
     
     # Find nodes with weak circulation
@@ -324,14 +324,14 @@ function find_removal_candidates_periodic(nodeX, nodeY, nodeZ, tri, eleGma, dom,
     return candidates
 end
 
-function minimum_distance_to_particles_periodic(x, y, z, nodeX, nodeY, nodeZ, dom)
+function minimum_distance_to_particles_periodic(x, y, z, nodeX, nodeY, nodeZ, domain)
     min_dist = Inf
     
     for i in eachindex(nodeX)
         # Periodic minimum image distance
-        dx = minimum_image_distance(x - nodeX[i], dom.Lx)
-        dy = minimum_image_distance(y - nodeY[i], dom.Ly) 
-        dz = minimum_image_distance(z - nodeZ[i], 2*dom.Lz)
+        dx = minimum_image_distance(x - nodeX[i], domain.Lx)
+        dy = minimum_image_distance(y - nodeY[i], domain.Ly) 
+        dz = minimum_image_distance(z - nodeZ[i], 2*domain.Lz)
         
         dist = sqrt(dx^2 + dy^2 + dz^2)
         min_dist = min(min_dist, dist)
@@ -348,7 +348,7 @@ function minimum_image_distance(d, L)
     end
 end
 
-function insert_particle_into_mesh!(tri, eleGma, node_index, candidate, dom)
+function insert_particle_into_mesh!(tri, eleGma, node_index, candidate, domain)
     # Simplified mesh insertion - would need full triangulation update
     # For now, create a simple triangle with nearby nodes
     
@@ -361,7 +361,7 @@ function insert_particle_into_mesh!(tri, eleGma, node_index, candidate, dom)
     return true  # Placeholder success
 end
 
-function remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, node_index, dom)
+function remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, node_index, domain)
     # Simplified mesh removal - would need full mesh surgery
     # For now, mark for removal
     
@@ -411,19 +411,19 @@ function compute_node_circulations(tri, eleGma)
     return [Tuple(nc) for nc in node_circulations]
 end
 
-function add_blob_particle_to_mesh!(tri, eleGma, node_index, circulation, dom)
+function add_blob_particle_to_mesh!(tri, eleGma, node_index, circulation, domain)
     # Add a particle from vortex blob to the mesh
     # Placeholder implementation
     return true
 end
 
-function insert_particles_to_fill_gaps!(nodeX, nodeY, nodeZ, tri, eleGma, dom, n_needed)
+function insert_particles_to_fill_gaps!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_needed)
     # Insert particles in sparse regions
     # Placeholder implementation
     return n_needed
 end
 
-function remove_weakest_particles!(nodeX, nodeY, nodeZ, tri, eleGma, dom, n_excess)
+function remove_weakest_particles!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_excess)
     # Remove particles with weakest circulation
     # Placeholder implementation  
     return n_excess
@@ -432,12 +432,12 @@ end
 # Convenience functions for common operations
 
 """
-redistribute_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, dom)
+redistribute_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain)
 
 Redistribute particles to maintain more uniform spacing while preserving circulation.
 """
 function redistribute_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                        tri::Matrix{Int}, eleGma::Matrix{Float64}, dom::DomainSpec)
+                                        tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec)
     
     # This would implement particle redistribution algorithm
     # 1. Compute local particle density
@@ -445,21 +445,21 @@ function redistribute_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{
     # 3. Maintain circulation conservation
     # 4. Respect periodic boundaries
     
-    wrap_nodes!(nodeX, nodeY, nodeZ, dom)
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     return length(nodeX)  # Return final particle count
 end
 
 """
-remove_weak_vortices!(nodeX, nodeY, nodeZ, tri, eleGma, dom, threshold)
+remove_weak_vortices!(nodeX, nodeY, nodeZ, tri, eleGma, domain, threshold)
 
 Remove all particles with circulation magnitude below threshold.
 """
 function remove_weak_vortices!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                              tri::Matrix{Int}, eleGma::Matrix{Float64}, dom::DomainSpec, 
+                              tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec, 
                               threshold::Float64=1e-10)
     
     criteria = ParticleRemovalCriteria(weak_circulation_threshold=threshold)
-    return remove_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, dom, criteria)
+    return remove_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
 end
 
 end # module
