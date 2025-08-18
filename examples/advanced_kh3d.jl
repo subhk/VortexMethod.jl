@@ -115,10 +115,17 @@ for it in 1:nsteps
                 return (0.0, 0.0, 0.0)  # Placeholder
             end
             
+            # Thesis-style thresholds: aspect ratio, angle/jacobian quality,
+            # Frobenius norm grad threshold, and curvature (dihedral angle in radians)
             tri_new, changed = flow_adaptive_remesh!(
                 nodeX, nodeY, nodeZ, tri, velocity_field, dom;
-                quality_weight=0.4, gradient_weight=0.3, curvature_weight=0.3,
-                refinement_threshold=0.6, max_elements=10000
+                max_aspect_ratio=3.0,
+                max_skewness=0.8,
+                min_angle_quality=0.4,
+                min_jacobian_quality=0.4,
+                grad_threshold=0.2,         # ||∇U||_F
+                curvature_threshold=0.6,    # radians (~34°)
+                max_elements=10000
             )
             
             if changed

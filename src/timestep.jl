@@ -6,7 +6,20 @@ using ..Peskin3D
 using ..Circulation
 using ..Dissipation
 
-export node_velocities, rk2_step!, rk2_step_with_dissipation!
+export node_velocities, rk2_step!, rk2_step_with_dissipation!, grid_velocity
+
+"""
+grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+
+Computes the grid velocity fields (Ux,Uy,Uz) from element vorticity without interpolating to nodes.
+Performs spreading to grid, curl RHS, and Poisson solve.
+"""
+function grid_velocity(eleGma, triXC, triYC, triZC, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
+    VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
+    dx,dy,dz = grid_spacing(dom, gr)
+    u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+    return poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, dom; mode=poisson_mode)
+end
 
 function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral)
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, dom, gr)
