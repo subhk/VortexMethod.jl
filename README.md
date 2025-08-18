@@ -93,24 +93,32 @@ n_inserted = insert_vortex_blob_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, doma
 final_count = redistribute_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain)
 ```
 
-### Modern Checkpointing
+### Modern Checkpointing with Configurable Limits
 ```julia
 # Save simulation state with metadata
 save_state!("checkpoints/", 0.0, nodeX, nodeY, nodeZ, tri, eleGma;
            domain=domain, grid=gr, dt=dt, CFL=0.5, step=1)
 
-# Time-series storage (multiple snapshots in one file)
-for step in 1:100
+# Time-series storage with automatic file rollover
+for step in 1:5000
     # ... time stepping ...
     if step % 10 == 0
-        save_state_timeseries!("series.jld2", step*dt, nodeX, nodeY, nodeZ, tri, eleGma;
-                              domain=domain, grid=gr, step=step)
+        file = save_state_timeseries!("series.jld2", step*dt, nodeX, nodeY, nodeZ, tri, eleGma;
+                                      domain=domain, grid=gr, step=step, max_snapshots=500)
+        # Automatically creates series.jld2, series_001.jld2, series_002.jld2, etc.
+        # when each file reaches 500 snapshots
     end
 end
 
 # Load specific snapshot by time
-times, steps, count = series_times("series.jld2")
-idx, snapshot = load_series_nearest_time("series.jld2", 0.5)  # Load nearest to t=0.5
+times, steps, count = series_times("series_002.jld2")  # From specific file
+idx, snapshot = load_series_nearest_time("series_002.jld2", 5.0)
+
+# Get information about all files in a series
+info = get_series_info("series.jld2")
+println("Total snapshots across all files: $(info.total_snapshots)")
+println("Files: $(info.files)")
+println("Snapshots per file: $(info.file_counts)")
 ```
 
 ## Documentation
