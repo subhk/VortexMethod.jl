@@ -10,8 +10,8 @@ A high-performance 3D Lagrangian vortex method with MPI parallelism, periodic do
 
 - **High-Performance Computing**: Lagrangian–Eulerian pipeline with MPI parallelism and optimized FFT-based Poisson solvers
 - **Multiple Interpolation Kernels**: Peskin-style, cosine, M4', area-weighted (configurable support radius)
-- **Advanced Poisson Solvers**: Spectral FFT with periodic boundary conditions, iterative/multigrid interfaces
-- **Intelligent Remeshing**: Edge split/flip/collapse with flow-adaptive and quality-based criteria using periodic metrics  
+- **Poisson Solvers**: Spectral FFT with periodic boundary conditions, iterative/multigrid interfaces
+- **Remeshing**: Edge split/flip/collapse with flow-adaptive and quality-based criteria using periodic metrics  
 - **Particle Management**: Automatic insertion/removal, circulation conservation, density redistribution for optimal resolution
 - **Dissipation Models**: Smagorinsky, dynamic, vortex-stretching, and mixed-scale turbulence models
 - **Vortex Sheets**: Lagrangian/Eulerian/Hybrid structures with curvature and reconnection utilities
