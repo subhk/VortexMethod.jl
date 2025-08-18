@@ -1,6 +1,6 @@
 # Enhanced Kelvin-Helmholtz instability with all advanced features
 # Demonstrates: multiple kernels, advanced remeshing, dissipation models, 
-# Poisson solvers, and vortex sheet tracking
+# Poisson solvers, vortex sheet tracking, and parallel FFT computation
 
 using VortexMethod
 using MPI
@@ -9,6 +9,10 @@ using Printf
 init_mpi!()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
+nprocs = MPI.Comm_size(comm)
+
+# Parallel FFT configuration
+parallel_fft = "--parallel-fft" in ARGS || "--parallel" in ARGS
 
 # Advanced configuration
 dom = default_domain()
@@ -75,16 +79,25 @@ if rank == 0
     println("Advanced remeshing with quality metrics")
     println("="^60)
     println("Nx=$(Nx) Ny=$(Ny) nt=$(nt) dt=$(dt) steps=$(nsteps)")
+    println("MPI ranks: $nprocs")
     println("Kernel: $(typeof(kernel_type))")
     println("Dissipation: $(typeof(dissipation_model))")
     println("Poisson: $(typeof(poisson_solver))")
+    if parallel_fft
+        println("FFT: PencilFFTs (distributed parallel)")
+    else
+        println("FFT: FFTW (rank-0 broadcast)")
+        println("(Use --parallel-fft flag to enable PencilFFTs)")
+    end
+    println("="^60)
 end
 
 for it in 1:nsteps
     # Enhanced time stepping with all advanced features
     dt_used = rk2_step_with_dissipation!(
         nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt, dissipation_model;
-        At=Atg, adaptive=true, CFL=0.4, poisson_mode=:spectral, kernel=kernel_type
+        At=Atg, adaptive=true, CFL=0.4, poisson_mode=:spectral, 
+        parallel_fft=parallel_fft, kernel=kernel_type
     )
     time += dt_used
     

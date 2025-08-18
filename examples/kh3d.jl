@@ -1,4 +1,5 @@
 # Kelvin–Helmholtz-like 3D vortex sheet example with RK2 stepping
+# Enhanced with PencilFFTs parallel support
 
 using VortexMethod
 using MPI
@@ -7,9 +8,15 @@ using Printf
 init_mpi!()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
+nprocs = MPI.Comm_size(comm)
 
 dom = default_domain()
 gr = default_grid()
+
+# Parallel FFT configuration
+# Set to true to use PencilFFTs for distributed parallel FFT computation
+# Set to false to use original FFTW with rank-0 broadcast (default)
+parallel_fft = "--parallel-fft" in ARGS || "--parallel" in ARGS
 
 # Mesh resolution (structured)
 Nx = 64
@@ -40,10 +47,19 @@ next_save_t = save_interval
 
 if rank == 0
     println("KH 3D: Nx=$(Nx) Ny=$(Ny) nt=$(nt) dt=$(dt) steps=$(nsteps)")
+    println("MPI ranks: $nprocs")
+    if parallel_fft
+        println("Using PencilFFTs for distributed parallel FFT computation")
+    else
+        println("Using FFTW with rank-0 computation and broadcast")
+        println("(Use --parallel-fft flag to enable PencilFFTs)")
+    end
+    println()
 end
 
 for it in 1:nsteps
-    dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd)
+    dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, dom, gr, dt; 
+                       At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd, parallel_fft=parallel_fft)
     time += dt_used
     # recompute tri coords for next step (connectivity unchanged)
     @inbounds for k in 1:3, t in 1:size(tri,1)
@@ -105,7 +121,7 @@ for it in 1:nsteps
         save_count = Int(floor(time / save_interval))
         KE = nothing
         if save_count % ke_stride == 0
-            KE = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:fd)
+            KE = gamma_ke(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:fd, parallel_fft=parallel_fft)
         end
         if save_series
             base = save_state_timeseries!(series_file, time, nodeX, nodeY, nodeZ, tri, eleGma;
