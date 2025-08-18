@@ -2,8 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - '**'
   pull_request:
+    branches:
+      - '**'
 
 jobs:
   test:
@@ -41,9 +44,9 @@ jobs:
         with:
           version: '1'
       - name: Install MPICH
-		  run: |
-			sudo apt-get update
-			sudo apt-get install -y mpich libmpich-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mpich libmpich-dev
       - name: Instantiate
         run: |
           julia --project -e 'using Pkg; Pkg.instantiate()'
