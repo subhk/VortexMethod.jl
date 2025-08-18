@@ -260,6 +260,8 @@ function anisotropic_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nod
         nt = size(tri, 1)
     end
     
+    # enforce periodic wrap for safety
+    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, dom)
     return tri, changed
 end
 
@@ -338,6 +340,7 @@ function curvature_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64},
         nt = size(tri, 1)
     end
     
+    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, dom)
     return tri, changed
 end
 
@@ -465,6 +468,7 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         nt = size(tri, 1)
     end
     
+    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, dom)
     return tri, changed
 end
 
