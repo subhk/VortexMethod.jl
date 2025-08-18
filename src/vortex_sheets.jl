@@ -10,7 +10,7 @@ using LinearAlgebra
 export VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet, 
        HybridSheet, evolve_sheet!, track_sheet_interface!, 
        compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
-       reconnect_sheet_nodes!, adaptive_sheet_tracking!
+       reconnect_sheet_nodes!, adaptive_sheet_tracking!, compute_mesh_quality_sheet
 
 abstract type VortexSheet end
 abstract type SheetEvolution end
@@ -441,7 +441,7 @@ end
 function adaptive_sheet_tracking!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, dom::DomainSpec;
                                  curvature_threshold::Float64=1.0, quality_threshold::Float64=0.3)
     # Compute mesh quality metrics
-    qualities = compute_mesh_quality_sheet(sheet)
+    qualities = compute_mesh_quality_sheet(sheet, dom)
     
     # Determine evolution method based on local conditions
     if maximum(qualities) < quality_threshold
@@ -459,7 +459,7 @@ function adaptive_sheet_tracking!(sheet::LagrangianSheet, velocity_field::Functi
 end
 
 # Compute mesh quality for sheet triangles
-function compute_mesh_quality_sheet(sheet::LagrangianSheet)
+function compute_mesh_quality_sheet(sheet::LagrangianSheet, dom::DomainSpec)
     n_triangles = size(sheet.connectivity, 1)
     qualities = zeros(Float64, n_triangles)
     
@@ -469,8 +469,8 @@ function compute_mesh_quality_sheet(sheet::LagrangianSheet)
         p2 = tuple(sheet.nodes[v2, :]...)
         p3 = tuple(sheet.nodes[v3, :]...)
         
-        # Use existing quality metrics from RemeshAdvanced module
-        quality = VortexMethod.RemeshAdvanced.element_quality_metrics(p1, p2, p3)
+        # Use periodic minimum-image quality metrics from RemeshAdvanced module
+        quality = VortexMethod.RemeshAdvanced.element_quality_metrics_periodic(p1, p2, p3, dom)
         qualities[t] = quality.jacobian_quality
     end
     
