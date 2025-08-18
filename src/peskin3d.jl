@@ -214,15 +214,15 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     end
 
     # Local buffers
-    local = zeros(Float64, nx*ny*nz, 3)
+    local_buf = zeros(Float64, nx*ny*nz, 3)
     # strided work splitting
     @inbounds for idx in (rank+1):nprocs:length(coords)
         c = coords[idx]
         sx,sy,sz = peskin_grid_sum_kernel(eleGma, triC, subC, c, (dx,dy,dz), areas, kernel; dom=dom)
         # divide by cell volume
-        local[idx,1] = sx/(dx*dy*dz)
-        local[idx,2] = sy/(dx*dy*dz)
-        local[idx,3] = sz/(dx*dy*dz)
+        local_buf[idx,1] = sx/(dx*dy*dz)
+        local_buf[idx,2] = sy/(dx*dy*dz)
+        local_buf[idx,3] = sz/(dx*dy*dz)
     end
 
     # Reduce across ranks
@@ -274,15 +274,15 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     end
 
     # Local buffers
-    local = zeros(Float64, nx*ny*nz, 3)
+    local_buf = zeros(Float64, nx*ny*nz, 3)
     # strided work splitting (round-robin like python)
     @inbounds for idx in (rank+1):nprocs:length(coords)
         c = coords[idx]
         sx,sy,sz = peskin_grid_sum(eleGma, triC, subC, c, (dx,dy,dz), areas; dom=dom)
         # divide by cell volume like python
-        local[idx,1] = sx/(dx*dy*dz)
-        local[idx,2] = sy/(dx*dy*dz)
-        local[idx,3] = sz/(dx*dy*dz)
+        local_buf[idx,1] = sx/(dx*dy*dz)
+        local_buf[idx,2] = sy/(dx*dy*dz)
+        local_buf[idx,3] = sz/(dx*dy*dz)
     end
 
     # Reduce across ranks (sum), even though strided fill is disjoint this is safe
