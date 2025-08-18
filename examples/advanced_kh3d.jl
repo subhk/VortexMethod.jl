@@ -106,13 +106,14 @@ for it in 1:nsteps
         if min_quality < quality_threshold || max_aspect > ar_max
             # Store circulation before remeshing
             nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-            
-            # Apply flow-adaptive remeshing
+
+            # Build a grid velocity field once for this remeshing decision
+            Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+
+            # Define velocity sampling function using interpolation on the precomputed grid
             velocity_field(x, y, z) = begin
-                # Simple velocity approximation for remeshing guidance
-                u, v, w = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, dom, gr)
-                # Find nearest node (simplified)
-                return (0.0, 0.0, 0.0)  # Placeholder
+                u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, [x], [y], [z], dom, gr)
+                return (u[1], v[1], w[1])
             end
             
             # Thesis-style thresholds: aspect ratio, angle/jacobian quality,
@@ -148,7 +149,7 @@ for it in 1:nsteps
                 
                 # Update vortex sheet
                 vortex_sheet = VortexSheet(nodeX, nodeY, nodeZ, tri, eleGma)
-                
+            
                 if rank == 0
                     println("  Remeshing applied: $(nt) elements (quality=$(Printf.@sprintf("%.3f", min_quality)), AR=$(Printf.@sprintf("%.2f", max_aspect)))")
                 end
@@ -158,9 +159,14 @@ for it in 1:nsteps
     
     # Vortex sheet tracking and analysis
     if it % 5 == 0
-        # Track sheet interface evolution
-        adaptive_sheet_tracking!(vortex_sheet, 
-            (x,y,z) -> node_velocities(eleGma, triXC, triYC, triZC, [x], [y], [z], dom, gr),
+        # Track sheet interface evolution using periodic quality metrics
+        adaptive_sheet_tracking!(vortex_sheet,
+            (x,y,z) -> begin
+                # Reuse latest grid velocity for efficiency
+                Ux, Uy, Uz = grid_velocity(eleGma, triXC, triYC, triZC, dom, gr; poisson_mode=:spectral)
+                u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, [x], [y], [z], dom, gr)
+                (u[1], v[1], w[1])
+            end,
             dt_used, dom; curvature_threshold=curvature_threshold, quality_threshold=quality_threshold)
         
         # Detect rollup regions
