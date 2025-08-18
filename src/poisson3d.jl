@@ -126,7 +126,7 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
     uy = real(FFTW.ifft(V̂))
     uz = real(FFTW.ifft(Ŵ))
 
-    # Note: Removed periodic wrapping - FFT already handles periodicity correctly
+    # Note: Periodic boundary conditions are handled automatically by FFT
 
     return ux, uy, uz
 end
@@ -269,16 +269,7 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
     MPI.Bcast!(uy_gathered, 0, comm)
     MPI.Bcast!(uz_gathered, 0, comm)
     
-    # Apply periodic boundary conditions
-    ux_gathered[end, :, :] .= ux_gathered[1, :, :]
-    uy_gathered[end, :, :] .= uy_gathered[1, :, :]
-    uz_gathered[end, :, :] .= uz_gathered[1, :, :]
-    ux_gathered[:, end, :] .= ux_gathered[:, 1, :]
-    uy_gathered[:, end, :] .= uy_gathered[:, 1, :]
-    uz_gathered[:, end, :] .= uz_gathered[:, 1, :]
-    ux_gathered[:, :, end] .= ux_gathered[:, :, 1]
-    uy_gathered[:, :, end] .= uy_gathered[:, :, 1]
-    uz_gathered[:, :, end] .= uz_gathered[:, :, 1]
+    # Note: Periodic boundary conditions are handled automatically by FFT
     
     return ux_gathered, uy_gathered, uz_gathered
 end

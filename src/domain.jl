@@ -22,10 +22,11 @@ default_domain() = DomainSpec(1.0, 1.0, 1.0)
 default_grid()   = GridSpec(25, 50, 2*50-1) # mirrors python utility_3d_paral._SmoothGrid_Generation_
 
 function grid_vectors(domain::DomainSpec, gr::GridSpec)
-    x = range(0.0, domain.Lx; length=gr.nx) |> collect
-    y = range(0.0, domain.Ly; length=gr.ny) |> collect
-    # z is symmetric [-Lz, Lz]
-    z = range(-domain.Lz, domain.Lz; length=gr.nz) |> collect
+    # For periodic FFT, grid should go from 0 to L*(1-1/N), not 0 to L
+    x = range(0.0, domain.Lx * (1 - 1/gr.nx); length=gr.nx) |> collect
+    y = range(0.0, domain.Ly * (1 - 1/gr.ny); length=gr.ny) |> collect
+    # z is symmetric [-Lz, Lz] with periodic endpoints  
+    z = range(-domain.Lz, domain.Lz * (1 - 1/gr.nz); length=gr.nz) |> collect
     return x, y, z
 end
 

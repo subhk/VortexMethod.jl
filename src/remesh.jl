@@ -292,7 +292,7 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
                 push!(newtris, (v1, v2, v3))
             end
         end
-        tri = reshape(collect(Iterators.flatten(newtris)), (3, length(newtris)))' # n×3
+        tri = collect(reshape(collect(Iterators.flatten(newtris)), (3, length(newtris)))') # n×3
     end
     # 2) Edge flips for short edges (conservative stabilization)
     flips = 0

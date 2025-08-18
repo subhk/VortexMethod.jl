@@ -6,7 +6,6 @@ export save_checkpoint!, load_latest_checkpoint,
        save_state!, mesh_stats, save_state_timeseries!,
        series_times, load_series_snapshot, load_series_nearest_time
 
-using DelimitedFiles
 using Dates
 using Printf
 using JLD2
@@ -20,45 +19,62 @@ function save_checkpoint!(dir::AbstractString, step::Integer,
     return save_checkpoint_jld2!(dir, Float64(step), nodeX, nodeY, nodeZ, tri, eleGma; step=step)
 end
 
-# MAT format support removed - use save_checkpoint_jld2! instead
+# All checkpoints use JLD2 format exclusively for better performance and metadata support
 
 function load_latest_checkpoint(dir::AbstractString)
     isdir(dir) || error("Checkpoint directory not found: \"$dir\"")
-    files = filter(f->occursin("chkpt_", f), readdir(dir))
-    isempty(files) && error("No checkpoints in \"$dir\"")
+    files = filter(f->occursin("chkpt_", f) && endswith(f, ".jld2"), readdir(dir))
+    isempty(files) && error("No JLD2 checkpoints in \"$dir\"")
 
-    # prefer JLD2 files if present, fallback to CSV
-    jld2s = sort(filter(f->endswith(f, ".jld2"), files))
-    csvs = sort(filter(f->endswith(f, ".csv"), files))
-    
-    if !isempty(jld2s)
-        ck = load_checkpoint_jld2(joinpath(dir, jld2s[end]))
-        return ck.nodeX, ck.nodeY, ck.nodeZ, ck.tri, ck.eleGma
-    else
-        # reconstruct base from latest _tri.csv
-        tri_files = sort(filter(f->endswith(f, "_tri.csv"), files))
-        fname = replace(tri_files[end], "_tri.csv"=>"")
-        base = joinpath(dir, fname)
-
-        nodeX = vec(readdlm(base*"_nodes_x.csv", ','))
-        nodeY = vec(readdlm(base*"_nodes_y.csv", ','))
-        nodeZ = vec(readdlm(base*"_nodes_z.csv", ','))
-        tri   = Array{Int}(readdlm(base*"_tri.csv", ','))
-
-        eleGma= Array{Float64}(readdlm(base*"_gamma.csv", ','))
-
-        return nodeX, nodeY, nodeZ, tri, eleGma
+    # Sort files by step number (extract number from chkpt_N.jld2)
+    file_numbers = Tuple{Int, String}[]
+    for f in files
+        m = match(r"chkpt_(\d+)\.jld2", f)
+        if m !== nothing
+            step_num = parse(Int, m.captures[1])
+            push!(file_numbers, (step_num, f))
+        end
     end
+    
+    # Load the file with the highest step number
+    if isempty(file_numbers)
+        error("No valid checkpoint files found in \"$dir\"")
+    end
+    
+    sort!(file_numbers, by=x->x[1])  # Sort by step number
+    latest_file = file_numbers[end][2]  # Get filename with highest step
+    
+    ck = load_checkpoint_jld2(joinpath(dir, latest_file))
+    return ck.nodeX, ck.nodeY, ck.nodeZ, ck.tri, ck.eleGma
 end
 
 function save_checkpoint_jld2!(dir::AbstractString, time::Real,
                                nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
                                tri::Array{Int,2}, eleGma::AbstractMatrix;
-                               domain=nothing, grid=nothing, params=nothing, attrs...)
+                               domain=nothing, grid=nothing, params=nothing, step=nothing, attrs...)
     mkpath(dir)
-    ts = Dates.format(now(), dateformat"yyyymmdd_HHMMSS")
-
-    base = joinpath(dir, @sprintf("chkpt_t%010.6f_%s.jld2", float(time), ts))
+    
+    # Use step-based naming if step is provided, otherwise use time-based
+    if step !== nothing
+        base = joinpath(dir, @sprintf("chkpt_%d.jld2", Int(step)))
+    else
+        # If no step provided, try to auto-increment based on existing files
+        existing_files = filter(f -> startswith(f, "chkpt_") && endswith(f, ".jld2"), readdir(dir))
+        if isempty(existing_files)
+            next_num = 1
+        else
+            # Extract numbers from existing files and find the next one
+            numbers = Int[]
+            for f in existing_files
+                m = match(r"chkpt_(\d+)\.jld2", f)
+                if m !== nothing
+                    push!(numbers, parse(Int, m.captures[1]))
+                end
+            end
+            next_num = isempty(numbers) ? 1 : maximum(numbers) + 1
+        end
+        base = joinpath(dir, @sprintf("chkpt_%d.jld2", next_num))
+    end
     data = Dict{String,Any}("nodeX"=>nodeX, "nodeY"=>nodeY, "nodeZ"=>nodeZ,
                             "tri"=>tri, "gamma"=>eleGma, "time"=>float(time))
 
@@ -75,7 +91,11 @@ function save_checkpoint_jld2!(dir::AbstractString, time::Real,
     for (k,v) in pairs(Dict(attrs))
         data[String(k)] = v
     end
-    jldsave(base; data...)
+    JLD2.jldopen(base, "w") do f
+        for (k, v) in data
+            write(f, k, v)
+        end
+    end
     return base
 end
 
@@ -246,6 +266,7 @@ function save_state_timeseries!(file::AbstractString, time::Real,
         # determine next snapshot id
         count = haskey(f, "count") ? read(f, "count")::Int : 0
         count += 1
+        if haskey(f, "count"); delete!(f, "count"); end
         write(f, "count", count)
         # update index arrays
         times = haskey(f, "times") ? read(f, "times")::Vector{Float64} : Float64[]
@@ -254,6 +275,8 @@ function save_state_timeseries!(file::AbstractString, time::Real,
         push!(times, float(time)); 
         push!(steps, Int(step === nothing ? count : step))
 
+        if haskey(f, "times"); delete!(f, "times"); end
+        if haskey(f, "steps"); delete!(f, "steps"); end
         write(f, "times", times); 
         write(f, "steps", steps)
 
@@ -331,3 +354,9 @@ function load_series_nearest_time(file::AbstractString, t::Real)
 end
 
 end # module
+
+using .Checkpoint: save_checkpoint!, load_latest_checkpoint,
+                   save_checkpoint_jld2!, load_latest_jld2, load_checkpoint_jld2,
+                   save_checkpoint_jld2, load_latest_checkpoint_jld2, load_checkpoint,
+                   save_state!, mesh_stats, save_state_timeseries!,
+                   series_times, load_series_snapshot, load_series_nearest_time
