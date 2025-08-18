@@ -24,9 +24,7 @@ julia --project examples/plot_series_ke.jl
 
 Then reference it here:
 
-```
 ![](assets/ke_series.png)
-```
 
 ## Extracting figures from the thesis (optional)
 
@@ -49,12 +47,28 @@ pdftoppm -png -f 10 -l 12 mstock_dissertation.pdf docs/src/assets/page
 
 After saving, include figures in the appropriate pages (Theory/Remeshing/Parallelization), e.g.:
 
-```
 ![](assets/fig-0001.png)
-```
 
 ## Notes
 
 - Ensure that any figure usage aligns with the thesis’ distribution rights.
 - For reproducibility, note the exact example parameters used to generate the series file.
 
+## Results (example figures)
+
+- Gamma magnitude snapshot:
+
+Generate and embed a snapshot plot of |γ| at a chosen time (snapshot index):
+
+```
+SERIES_FILE=checkpoints/advanced_series.jld2 \
+SNAP_INDEX=10 \
+OUTPUT_PNG=docs/src/assets/snapshot_gamma.png \
+julia --project examples/plot_snapshot_gamma.jl
+```
+
+Then include it here:
+
+![](assets/snapshot_gamma.png)
+
+If you share the thesis figure numbers/pages to include (and captions), we’ll add them directly to the relevant sections with proper references.
