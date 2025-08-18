@@ -233,14 +233,68 @@ function save_state!(dir::AbstractString, time::Real,
 end
 
 """
-Append snapshot into a single time-series JLD2 file.
+    save_state_timeseries!(file, time, nodeX, nodeY, nodeZ, tri, eleGma; domain, grid, step, params...)
 
-save_state_timeseries!(file, time, nodeX,nodeY,nodeZ, tri, eleGma; domain, grid,
-                       dt, CFL, adaptive, poisson_mode, remesh_every, save_interval,
-                       ar_max, step, params_extra)
+Efficiently store simulation snapshots in a single JLD2 time-series file with random access.
 
-Creates group paths under `snapshots/NNNNNN/` with fields nodeX,nodeY,nodeZ,tri,gamma,time,
-and updates top-level arrays `times` and `steps`. Mesh stats stored at `snapshots/NNNNNN/stats`.
+This function appends simulation state to a JLD2 file, creating a searchable time series where individual
+snapshots can be accessed by index or time. All metadata (domain, grid, parameters, statistics) is stored
+alongside the particle data for complete simulation reconstruction.
+
+# Arguments
+- `file::String`: Path to JLD2 time-series file (created if it doesn't exist)
+- `time::Real`: Simulation time for this snapshot
+- `nodeX, nodeY, nodeZ::Vector{Float64}`: Particle positions
+- `tri::Matrix{Int}`: Triangle connectivity matrix
+- `eleGma::Matrix{Float64}`: Element circulation vectors [Γx, Γy, Γz]
+
+# Keyword Arguments
+- `domain::DomainSpec`: Domain specification (Lx, Ly, Lz)
+- `grid::GridSpec`: Grid specification (nx, ny, nz)
+- `step::Int`: Simulation step number (for clean organization)
+- `dt, CFL, adaptive, poisson_mode, remesh_every, save_interval, ar_max`: Simulation parameters
+- `params_extra::NamedTuple`: Additional custom parameters to store
+
+# Returns
+- `file::String`: Path to the updated JLD2 file
+
+# Features
+- **Single File Storage**: All snapshots in one JLD2 file with efficient compression
+- **Random Access**: Load any snapshot by index or nearest time
+- **Complete Metadata**: Domain, grid, parameters, and mesh statistics automatically stored
+- **Incremental Updates**: Efficient appending without rewriting existing data
+- **Cross-Platform**: Consistent binary format across different systems
+
+# File Structure
+```
+series.jld2
+├── count               # Number of snapshots
+├── times               # Array of snapshot times  
+├── steps               # Array of step numbers
+└── snapshots/
+    ├── 000001/
+    │   ├── time, nodeX, nodeY, nodeZ, tri, gamma
+    │   ├── domain, grid, params, stats
+    │   └── ...
+    ├── 000002/
+    └── ...
+```
+
+# Example
+```julia
+# Save snapshots during simulation
+for step in 1:1000
+    # ... time stepping ...
+    if step % 10 == 0
+        save_state_timeseries!("simulation.jld2", step*dt, nodeX, nodeY, nodeZ, tri, eleGma;
+                              domain=domain, grid=grid, step=step, CFL=0.5, dt=dt)
+    end
+end
+
+# Later analysis
+times, steps, count = series_times("simulation.jld2")  
+idx, snapshot = load_series_nearest_time("simulation.jld2", 5.0)  # Load t≈5.0
+```
 """
 function save_state_timeseries!(file::AbstractString, time::Real,
                                 nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,

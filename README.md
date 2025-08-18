@@ -24,25 +24,6 @@ A high-performance 3D Lagrangian vortex method with MPI parallelism, periodic do
 julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
 
-## New Features & Improvements
-
-### 🚀 Enhanced Particle Management
-- **Adaptive Particle Control**: Automatic insertion and removal based on local vorticity and spacing criteria
-- **Circulation Conservation**: Exact preservation of total circulation during particle operations
-- **Density Redistribution**: Smart particle repositioning to maintain uniform resolution
-- **Periodic Boundary Support**: Full compatibility with periodic domains
-
-### 💾 Modern Checkpointing System  
-- **JLD2-Only Format**: Fast binary storage with built-in compression and metadata support
-- **Clean Filenames**: Simple sequential naming (`chkpt_1.jld2`, `chkpt_2.jld2`, etc.)
-- **Time-Series Support**: Efficient storage of multiple snapshots with random access
-- **Cross-Platform**: Consistent behavior across different operating systems
-
-### 🔬 Improved Poisson Solver
-- **Spectral Accuracy**: Machine-precision FFT-based solutions for smooth problems  
-- **Proper Periodic Grid**: Correct grid spacing for FFT periodicity assumptions
-- **Optimized Performance**: Removed unnecessary boundary copying operations
-
 ## Run examples (MPI)
 
 ```
@@ -63,20 +44,73 @@ Nx, Ny = 64, 64
 nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
 eleGma = zeros(Float64, size(tri,1), 3); eleGma[:,2] .= 1.0
 
-# Single RK2 step (adaptive dt and periodic BCs handled internally)
+# Single RK2 step with spectral Poisson solver (high accuracy)
 dt = 1e-3
-rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt; adaptive=true, CFL=0.5, poisson_mode=:fd)
+rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt; 
+         adaptive=true, CFL=0.5, poisson_mode=:spectral)
 
-# Advanced remeshing with cached velocity sampler
+# Adaptive particle management for optimal resolution
+insert_criteria = ParticleInsertionCriteria(max_particles=50000, max_particle_spacing=0.02)
+removal_criteria = ParticleRemovalCriteria(weak_circulation_threshold=1e-8)
+n_changed = adaptive_particle_control!(nodeX, nodeY, nodeZ, tri, eleGma, domain; 
+                                      insert_criteria=insert_criteria, 
+                                      removal_criteria=removal_criteria)
+
+# Advanced remeshing with flow adaptation
 vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr)
 tri, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
     nodeX, nodeY, nodeZ, tri, vel, domain;
-    max_aspect_ratio=3.0, min_angle_quality=0.4, min_jacobian_quality=0.4,
-    max_skewness=0.8, grad_threshold=0.2, curvature_threshold=0.6,
+    max_aspect_ratio=3.0, min_angle_quality=0.4, grad_threshold=0.2
 )
+
+# Save checkpoint with clean filename
+save_checkpoint!("output/", 1, nodeX, nodeY, nodeZ, tri, eleGma)
+# Creates: output/chkpt_1.jld2
 
 # Always keep particles periodic after manual edits
 wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+```
+
+## Advanced Usage Examples
+
+### Particle Management
+```julia
+# Maintain target particle count with automatic insertion/removal
+target_count = 10000
+tolerance = 0.1  # ±10%
+n_change = maintain_particle_count!(nodeX, nodeY, nodeZ, tri, eleGma, domain, 
+                                    target_count, tolerance)
+
+# Insert vortex blob at specific location
+center = (0.5, 0.5, 0.0)
+strength = (0.0, 0.0, 1.0)  # ωz = 1
+radius = 0.1
+n_particles = 100
+n_inserted = insert_vortex_blob_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain,
+                                         center, strength, radius, n_particles)
+
+# Redistribute particles for uniform spacing
+final_count = redistribute_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain)
+```
+
+### Modern Checkpointing
+```julia
+# Save simulation state with metadata
+save_state!("checkpoints/", 0.0, nodeX, nodeY, nodeZ, tri, eleGma;
+           domain=domain, grid=gr, dt=dt, CFL=0.5, step=1)
+
+# Time-series storage (multiple snapshots in one file)
+for step in 1:100
+    # ... time stepping ...
+    if step % 10 == 0
+        save_state_timeseries!("series.jld2", step*dt, nodeX, nodeY, nodeZ, tri, eleGma;
+                              domain=domain, grid=gr, step=step)
+    end
+end
+
+# Load specific snapshot by time
+times, steps, count = series_times("series.jld2")
+idx, snapshot = load_series_nearest_time("series.jld2", 0.5)  # Load nearest to t=0.5
 ```
 
 ## Documentation

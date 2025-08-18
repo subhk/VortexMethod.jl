@@ -58,21 +58,45 @@ struct ParticleRemovalCriteria
 end
 
 """
-insert_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria; vorticity_field=nothing)
+    insert_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria; vorticity_field=nothing)
 
-Insert new particles in high-vorticity regions while maintaining domain periodicity.
-Automatically handles periodic boundary conditions and circulation conservation.
+Insert new particles in sparse regions while maintaining domain periodicity and circulation conservation.
+
+This function analyzes the current particle distribution and inserts new particles where needed to maintain
+adequate resolution. It uses grid-based sparsity analysis to identify regions requiring additional particles
+and ensures all operations respect periodic boundary conditions.
 
 # Arguments
-- `nodeX, nodeY, nodeZ`: Node position arrays (modified in-place)
-- `tri`: Triangle connectivity (modified in-place) 
-- `eleGma`: Element circulation (modified in-place)
-- `domain::DomainSpec`: Domain specification with periodic boundaries
-- `criteria::ParticleInsertionCriteria`: Insertion criteria
-- `vorticity_field`: Optional 3D vorticity field for insertion guidance
+- `nodeX, nodeY, nodeZ::Vector{Float64}`: Node position arrays (modified in-place)
+- `tri::Matrix{Int}`: Triangle connectivity matrix (modified in-place) 
+- `eleGma::Matrix{Float64}`: Element circulation vectors [Γx, Γy, Γz] (modified in-place)
+- `domain::DomainSpec`: Domain specification with periodic boundaries (Lx, Ly, Lz)
+- `criteria::ParticleInsertionCriteria`: Insertion criteria controlling spacing and limits
+- `vorticity_field`: Optional 3D vorticity field for insertion guidance (currently unused)
 
 # Returns
-- `n_inserted::Int`: Number of particles inserted
+- `n_inserted::Int`: Number of particles successfully inserted
+
+# Features
+- **Sparsity Analysis**: Grid-based detection of under-resolved regions
+- **Periodic Boundaries**: Full support for periodic wrapping in all directions  
+- **Circulation Conservation**: New particles carry appropriate circulation values
+- **Mesh Integration**: Automatic mesh connectivity updates via Delaunay-like insertion
+- **Adaptive Limits**: Respects maximum particle count and minimum spacing constraints
+
+# Example
+```julia
+# Configure insertion criteria
+criteria = ParticleInsertionCriteria(
+    max_particles=50000,
+    max_particle_spacing=0.05,
+    circulation_threshold=1e-6
+)
+
+# Insert particles to improve resolution
+n_inserted = insert_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
+println("Inserted \$n_inserted particles")
+```
 """
 function insert_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                                    tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
@@ -999,13 +1023,58 @@ function remove_weak_vortices!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
 end
 
 """
-adaptive_particle_control!(nodeX, nodeY, nodeZ, tri, eleGma, domain; target_count, tolerance, insert_criteria, removal_criteria)
+    adaptive_particle_control!(nodeX, nodeY, nodeZ, tri, eleGma, domain; target_count, tolerance, insert_criteria, removal_criteria)
 
-Adaptive particle management helper:
-- If `target_count` is provided, maintains particle count within `±tolerance` via maintain_particle_count!.
-- Otherwise, performs an insertion pass followed by a removal pass using provided criteria.
+Intelligent particle management system that automatically maintains optimal particle distribution.
 
-Returns the net change in particle count (insertions minus removals).
+This function provides two modes of operation:
+1. **Target Count Mode**: Maintains particle count within specified tolerance of a target
+2. **Criteria-Based Mode**: Performs insertion and removal based on physical criteria
+
+The system ensures circulation conservation throughout all operations and respects periodic boundary conditions.
+
+# Arguments
+- `nodeX, nodeY, nodeZ::Vector{Float64}`: Particle position arrays (modified in-place)
+- `tri::Matrix{Int}`: Triangle connectivity matrix (modified in-place)
+- `eleGma::Matrix{Float64}`: Element circulation vectors (modified in-place)
+- `domain::DomainSpec`: Periodic domain specification
+
+# Keyword Arguments
+- `target_count::Union{Nothing,Int}=nothing`: Target particle count (if specified, uses target count mode)
+- `tolerance::Float64=0.1`: Allowed deviation from target count (±10% by default)
+- `insert_criteria::ParticleInsertionCriteria`: Criteria for particle insertion (used in criteria-based mode)
+- `removal_criteria::ParticleRemovalCriteria`: Criteria for particle removal (used in criteria-based mode)
+
+# Returns
+- `n_change::Int`: Net change in particle count (positive = more particles, negative = fewer particles)
+
+# Modes
+
+## Target Count Mode
+When `target_count` is provided, automatically adds or removes particles to maintain the count within tolerance:
+```julia
+# Maintain 10,000 ± 10% particles
+n_change = adaptive_particle_control!(nodeX, nodeY, nodeZ, tri, eleGma, domain; 
+                                     target_count=10000, tolerance=0.1)
+```
+
+## Criteria-Based Mode  
+When `target_count=nothing`, uses physical criteria to determine insertion/removal:
+```julia
+# Use custom criteria for particle management
+insert_criteria = ParticleInsertionCriteria(max_particles=50000, max_particle_spacing=0.02)
+removal_criteria = ParticleRemovalCriteria(weak_circulation_threshold=1e-8)
+n_change = adaptive_particle_control!(nodeX, nodeY, nodeZ, tri, eleGma, domain;
+                                     insert_criteria=insert_criteria,
+                                     removal_criteria=removal_criteria)
+```
+
+# Features
+- **Circulation Conservation**: Maintains total vorticity throughout all operations
+- **Periodic Boundaries**: Full support for periodic domain wrapping
+- **Adaptive Resolution**: Adds particles where needed, removes where unnecessary
+- **Flexible Criteria**: Configurable thresholds for spacing, circulation strength, etc.
+- **Performance Optimized**: Efficient algorithms for large particle counts
 """
 function adaptive_particle_control!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                                     tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec;
