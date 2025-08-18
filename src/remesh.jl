@@ -52,20 +52,25 @@ function detect_min_edge_length(triXC, triYC, triZC, ds_min::Float64)
 end
 
 function element_splitting!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                            tri::Array{Int,2}, ele_idx::Int)
+                            tri::Array{Int,2}, ele_idx::Int; dom::DomainSpec=default_domain())
     v1, v2, v3 = tri[ele_idx,1], tri[ele_idx,2], tri[ele_idx,3]
     p1 = (nodeX[v1], nodeY[v1], nodeZ[v1])
     p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
     p3 = (nodeX[v3], nodeY[v3], nodeZ[v3])
-    push!(nodeX, (p1[1]+p2[1])/2); push!(nodeY, (p1[2]+p2[2])/2); push!(nodeZ, (p1[3]+p2[3])/2); m12 = length(nodeX)
-    push!(nodeX, (p2[1]+p3[1])/2); push!(nodeY, (p2[2]+p3[2])/2); push!(nodeZ, (p2[3]+p3[3])/2); m23 = length(nodeX)
-    push!(nodeX, (p3[1]+p1[1])/2); push!(nodeY, (p3[2]+p1[2])/2); push!(nodeZ, (p3[3]+p1[3])/2); m31 = length(nodeX)
+    mx,my,mz = midpoint_periodic(p1[1],p1[2],p1[3], p2[1],p2[2],p2[3], dom)
+    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz); m12 = length(nodeX)
+    mx,my,mz = midpoint_periodic(p2[1],p2[2],p2[3], p3[1],p3[2],p3[3], dom)
+    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz); m23 = length(nodeX)
+    mx,my,mz = midpoint_periodic(p3[1],p3[2],p3[3], p1[1],p1[2],p1[3], dom)
+    push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz); m31 = length(nodeX)
     tri[ele_idx, :] .= (v1, m12, m31)
     tri_new = Array{Int}(undef, 3, 3)
     tri_new[1,:] = (m12, v2, m23)
     tri_new[2,:] = (m31, m23, v3)
     tri_new[3,:] = (m12, m23, m31)
     tri = vcat(tri, tri_new)
+    # enforce periodic wrap (safety)
+    wrap_nodes!(nodeX, nodeY, nodeZ, dom)
     return nodeX, nodeY, nodeZ, tri
 end
 
@@ -305,6 +310,8 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
         end
         nodeX[:] = nodeXnew; nodeY[:] = nodeYnew; nodeZ[:] = nodeZnew
     end
+    # Ensure all nodes are wrapped at the end
+    wrap_nodes!(nodeX, nodeY, nodeZ, dom)
     return tri, changed
 end
 
