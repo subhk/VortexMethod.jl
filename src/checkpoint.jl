@@ -235,14 +235,14 @@ end
 """
     save_state_timeseries!(file, time, nodeX, nodeY, nodeZ, tri, eleGma; domain, grid, step, params...)
 
-Efficiently store simulation snapshots in a single JLD2 time-series file with random access.
+Efficiently store simulation snapshots in JLD2 time-series files with random access and configurable limits.
 
 This function appends simulation state to a JLD2 file, creating a searchable time series where individual
-snapshots can be accessed by index or time. All metadata (domain, grid, parameters, statistics) is stored
-alongside the particle data for complete simulation reconstruction.
+snapshots can be accessed by index or time. When the snapshot limit is reached, it automatically creates
+a new file with incremented numbering (e.g., `series_001.jld2`, `series_002.jld2`).
 
 # Arguments
-- `file::String`: Path to JLD2 time-series file (created if it doesn't exist)
+- `file::String`: Base path to JLD2 time-series file (created if it doesn't exist)
 - `time::Real`: Simulation time for this snapshot
 - `nodeX, nodeY, nodeZ::Vector{Float64}`: Particle positions
 - `tri::Matrix{Int}`: Triangle connectivity matrix
@@ -252,13 +252,16 @@ alongside the particle data for complete simulation reconstruction.
 - `domain::DomainSpec`: Domain specification (Lx, Ly, Lz)
 - `grid::GridSpec`: Grid specification (nx, ny, nz)
 - `step::Int`: Simulation step number (for clean organization)
+- `max_snapshots::Int=1000`: Maximum snapshots per file (automatic rollover when exceeded)
 - `dt, CFL, adaptive, poisson_mode, remesh_every, save_interval, ar_max`: Simulation parameters
 - `params_extra::NamedTuple`: Additional custom parameters to store
 
 # Returns
-- `file::String`: Path to the updated JLD2 file
+- `file::String`: Path to the updated JLD2 file (may differ from input if rollover occurred)
 
 # Features
+- **Configurable File Size**: Set maximum snapshots per file to control file sizes
+- **Automatic Rollover**: Creates new files when snapshot limit is reached
 - **Single File Storage**: All snapshots in one JLD2 file with efficient compression
 - **Random Access**: Load any snapshot by index or nearest time
 - **Complete Metadata**: Domain, grid, parameters, and mesh statistics automatically stored
@@ -267,33 +270,34 @@ alongside the particle data for complete simulation reconstruction.
 
 # File Structure
 ```
-series.jld2
-├── count               # Number of snapshots
+series_001.jld2         # First 1000 snapshots
+├── count=1000
 ├── times               # Array of snapshot times  
 ├── steps               # Array of step numbers
 └── snapshots/
-    ├── 000001/
-    │   ├── time, nodeX, nodeY, nodeZ, tri, gamma
-    │   ├── domain, grid, params, stats
-    │   └── ...
-    ├── 000002/
-    └── ...
+    ├── 000001/ to 001000/
+
+series_002.jld2         # Next 1000 snapshots
+├── count=1000
+└── snapshots/
+    ├── 000001/ to 001000/
 ```
 
 # Example
 ```julia
-# Save snapshots during simulation
-for step in 1:1000
+# Save snapshots with custom limits
+for step in 1:5000
     # ... time stepping ...
     if step % 10 == 0
-        save_state_timeseries!("simulation.jld2", step*dt, nodeX, nodeY, nodeZ, tri, eleGma;
-                              domain=domain, grid=grid, step=step, CFL=0.5, dt=dt)
+        file = save_state_timeseries!("simulation.jld2", step*dt, nodeX, nodeY, nodeZ, tri, eleGma;
+                                      domain=domain, grid=grid, step=step, max_snapshots=500)
+        # Automatically creates simulation_001.jld2, simulation_002.jld2, etc.
     end
 end
 
-# Later analysis
-times, steps, count = series_times("simulation.jld2")  
-idx, snapshot = load_series_nearest_time("simulation.jld2", 5.0)  # Load t≈5.0
+# Load from specific file
+times, steps, count = series_times("simulation_002.jld2")  
+idx, snapshot = load_series_nearest_time("simulation_002.jld2", 5.0)
 ```
 """
 function save_state_timeseries!(file::AbstractString, time::Real,
@@ -301,8 +305,12 @@ function save_state_timeseries!(file::AbstractString, time::Real,
                                 tri::Array{Int,2}, eleGma::AbstractMatrix;
                                 domain=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
                                 poisson_mode=nothing, remesh_every=nothing, save_interval=nothing, ar_max=nothing,
-                                step=nothing, params_extra=NamedTuple())
+                                step=nothing, max_snapshots::Int=1000, params_extra=NamedTuple())
     mkpath(dirname(file))
+    
+    # Determine the correct file to use with rollover logic
+    actual_file = determine_series_file(file, max_snapshots)
+    
     # assemble params
     params = (;)
     if dt !== nothing;            params = merge(params, (; dt=dt)); end
@@ -316,7 +324,7 @@ function save_state_timeseries!(file::AbstractString, time::Real,
 
     stats = domain === nothing ? mesh_stats(nodeX, nodeY, nodeZ, tri) : mesh_stats(nodeX, nodeY, nodeZ, tri, domain)
 
-    JLD2.jldopen(file, "a+") do f
+    JLD2.jldopen(actual_file, "a+") do f
         # determine next snapshot id
         count = haskey(f, "count") ? read(f, "count")::Int : 0
         count += 1
@@ -351,7 +359,91 @@ function save_state_timeseries!(file::AbstractString, time::Real,
         write(f, key*"params", params)
         write(f, key*"stats", stats)
     end
-    return file
+    return actual_file
+end
+
+"""
+    determine_series_file(base_file, max_snapshots) -> actual_file
+
+Determines which file to use for storing the next snapshot, creating new files when the limit is reached.
+
+This function implements automatic file rollover:
+- If no numbered files exist, uses the base filename
+- If the latest file has reached max_snapshots, creates a new numbered file
+- Numbered files follow the pattern: `base_001.jld2`, `base_002.jld2`, etc.
+"""
+function determine_series_file(base_file::AbstractString, max_snapshots::Int)
+    dir = dirname(base_file)
+    base_name = splitext(basename(base_file))[1]
+    ext = splitext(base_file)[2]
+    
+    # Find existing series files
+    if isdir(dir)
+        pattern = Regex("^$(escape_string(base_name))_(\\d+)\\.jld2\$")
+        existing_files = filter(readdir(dir)) do f
+            occursin(pattern, f)
+        end
+        
+        if !isempty(existing_files)
+            # Extract numbers and find the latest file
+            file_numbers = Int[]
+            for f in existing_files
+                m = match(pattern, f)
+                if m !== nothing
+                    push!(file_numbers, parse(Int, m.captures[1]))
+                end
+            end
+            
+            if !isempty(file_numbers)
+                latest_num = maximum(file_numbers)
+                latest_file = joinpath(dir, "$(base_name)_$(lpad(latest_num, 3, '0')).jld2")
+                
+                # Check if latest file has reached its limit
+                if isfile(latest_file)
+                    try
+                        count = JLD2.jldopen(latest_file, "r") do f
+                            haskey(f, "count") ? read(f, "count")::Int : 0
+                        end
+                        
+                        if count >= max_snapshots
+                            # Create new file with next number
+                            next_num = latest_num + 1
+                            return joinpath(dir, "$(base_name)_$(lpad(next_num, 3, '0')).jld2")
+                        else
+                            # Use existing latest file
+                            return latest_file
+                        end
+                    catch
+                        # If there's an error reading the file, create a new one
+                        next_num = latest_num + 1
+                        return joinpath(dir, "$(base_name)_$(lpad(next_num, 3, '0')).jld2")
+                    end
+                else
+                    return latest_file
+                end
+            end
+        end
+    end
+    
+    # Check if the base file itself exists and has reached limit
+    if isfile(base_file)
+        try
+            count = JLD2.jldopen(base_file, "r") do f
+                haskey(f, "count") ? read(f, "count")::Int : 0
+            end
+            
+            if count >= max_snapshots
+                # Create first numbered file
+                return joinpath(dir, "$(base_name)_001.jld2")
+            end
+        catch
+            # If there's an error reading the file, create a numbered file
+            return joinpath(dir, "$(base_name)_001.jld2")
+        end
+    end
+    
+    # Use the original base file
+    return base_file
 end
 
 """
