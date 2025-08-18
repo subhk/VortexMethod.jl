@@ -65,4 +65,4 @@ jobs:
           '
       - name: Run MPI sanity test (2 ranks)
         run: |
-          ~/.julia/bin/mpiexecjl -n 2 julia --project test/mpi_sanity.jl
+          mpirun -n 2 julia --project test/mpi_sanity.jl
