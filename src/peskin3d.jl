@@ -447,4 +447,6 @@ end
 
 end # module
 
-using .Peskin3D: init_mpi!, finalize_mpi!, triangle_centroids, triangle_areas, subtriangle_centroids4, spread_vorticity_to_grid_mpi, interpolate_node_velocity_mpi
+using .Peskin3D: init_mpi!, finalize_mpi!, triangle_centroids, triangle_areas, subtriangle_centroids4,
+                          spread_vorticity_to_grid_mpi, interpolate_node_velocity_mpi,
+                          spread_vorticity_to_grid_kernel_mpi, interpolate_node_velocity_kernel_mpi

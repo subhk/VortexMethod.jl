@@ -9,8 +9,8 @@ using LinearAlgebra
 
 export VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet, 
        HybridSheet, evolve_sheet!, track_sheet_interface!, 
-       compute_sheet_curvature, detect_sheet_rollup, sheet_reconnection!,
-       sheet_merging!, adaptive_sheet_tracking!
+       compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
+       reconnect_sheet_nodes!, adaptive_sheet_tracking!
 
 abstract type VortexSheet end
 abstract type SheetEvolution end
@@ -481,5 +481,5 @@ end # module
 
 using .VortexSheets: VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet, 
                      HybridSheet, evolve_sheet!, track_sheet_interface!, 
-                     compute_sheet_curvature, detect_sheet_rollup, sheet_reconnection!,
-                     adaptive_sheet_tracking!
+                     compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
+                     reconnect_sheet_nodes!, adaptive_sheet_tracking!
