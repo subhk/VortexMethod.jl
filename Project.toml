@@ -1,7 +1,7 @@
 name = "VortexMethod"
 uuid = "d0bfb0ea-6286-496d-8bb4-f6dc2a72891a"
 authors = ["Subhajit Kar <subhajitkar19@gmail.com> and contributors"]
-version = "1.0.0-DEV"
+version = "2.0.0-DEV"
 
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
