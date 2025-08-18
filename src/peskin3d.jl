@@ -230,9 +230,9 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
 
     # Reshape to (nz,ny,nx)
-    VorX = reshape(view(global,:,1), nz, ny, nx)
-    VorY = reshape(view(global,:,2), nz, ny, nx)
-    VorZ = reshape(view(global,:,3), nz, ny, nx)
+    VorX = reshape(view(global_buf,:,1), nz, ny, nx)
+    VorY = reshape(view(global_buf,:,2), nz, ny, nx)
+    VorZ = reshape(view(global_buf,:,3), nz, ny, nx)
 
     # Periodic wrap
     VorX[end, :, :] .= VorX[1, :, :]
@@ -290,9 +290,9 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
 
     # Reshape to (nz,ny,nx)
-    VorX = reshape(view(global,:,1), nz, ny, nx)
-    VorY = reshape(view(global,:,2), nz, ny, nx)
-    VorZ = reshape(view(global,:,3), nz, ny, nx)
+    VorX = reshape(view(global_buf,:,1), nz, ny, nx)
+    VorY = reshape(view(global_buf,:,2), nz, ny, nx)
+    VorZ = reshape(view(global_buf,:,3), nz, ny, nx)
 
     # Periodic wrap like python
     VorX[end, :, :] .= VorX[1, :, :]
