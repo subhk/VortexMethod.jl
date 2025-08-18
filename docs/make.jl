@@ -25,9 +25,11 @@ makedocs(;
     ],
 )
 # Deploy using Documenter's GitHubActions provider (pushes to gh-pages).
-deploydocs(
-    repo="github.com/subhk/VortexMethod.jl",
-    devbranch="main",
-    provider=Documenter.GitHubActions(),
-    push_preview=false,
-)
+# Skip deploy on pull_request events to avoid permission issues.
+if get(ENV, "GITHUB_EVENT_NAME", "") != "pull_request"
+    deploydocs(
+        repo="github.com/subhk/VortexMethod.jl",
+        devbranch="main",
+        provider=Documenter.GitHubActions(),
+    )
+end
