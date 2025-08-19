@@ -61,9 +61,9 @@ function kvec(n::Int, L::Float64)
     @inbounds for i in 1:n
         m = i-1
         if m <= n2
-            k[i] = 2pi * m / L
+            k[i] = 2π * m / L
         else
-            k[i] = -2pi * (n - m) / L
+            k[i] = -2π * (n - m) / L
         end
     end
     return k
