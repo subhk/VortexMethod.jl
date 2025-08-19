@@ -91,7 +91,37 @@ function kernel_function(k::KernelType, dx::Float64, dy::Float64, dz::Float64,
     return kernel_1d(k, dx, hx) * kernel_1d(k, dy, hy) * kernel_1d(k, dz, hz)
 end
 
-# Enhanced spreading function with kernel selection
+# Optimized vectorized kernel evaluation for multiple points
+@inline function kernel_function_vec!(weights::AbstractVector{Float64}, 
+                                     k::KernelType,
+                                     dx_vec::AbstractVector{Float64}, 
+                                     dy_vec::AbstractVector{Float64}, 
+                                     dz_vec::AbstractVector{Float64},
+                                     hx::Float64, hy::Float64, hz::Float64)
+    @inbounds @simd for i in eachindex(weights)
+        weights[i] = kernel_1d(k, dx_vec[i], hx) * 
+                    kernel_1d(k, dy_vec[i], hy) * 
+                    kernel_1d(k, dz_vec[i], hz)
+    end
+    return nothing
+end
+
+# Fast distance computation with SIMD
+@inline function compute_distances!(dx_vec::AbstractVector{Float64},
+                                   dy_vec::AbstractVector{Float64}, 
+                                   dz_vec::AbstractVector{Float64},
+                                   coord::AbstractVector{Float64},
+                                   subC::AbstractArray{Float64,3},
+                                   idx::Int)
+    @inbounds @simd for s in 1:size(subC,2)
+        dx_vec[s] = coord[1] - subC[idx,s,1]
+        dy_vec[s] = coord[2] - subC[idx,s,2]
+        dz_vec[s] = coord[3] - subC[idx,s,3]
+    end
+    return nothing
+end
+
+# Enhanced spreading function with kernel selection and vectorization
 function spread_element_kernel!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix, 
                                subC, triAreas, tri_list, coord, kernel::KernelType, 
                                eps::NTuple{3,Float64})
@@ -99,19 +129,77 @@ function spread_element_kernel!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix,
     (epsx, epsy, epsz) = eps
     x = coord
     delr = kernel_support_radius(kernel)
+    hx, hy, hz = epsx/delr, epsy/delr, epsz/delr
+    
+    # Pre-allocate temporary arrays for vectorized operations
+    n_sub = size(subC, 2)
+    dx_vec = Vector{Float64}(undef, n_sub)
+    dy_vec = Vector{Float64}(undef, n_sub)
+    dz_vec = Vector{Float64}(undef, n_sub)
+    weights = Vector{Float64}(undef, n_sub)
     
     @inbounds for idx in tri_list
+        # Vectorized distance computation
+        compute_distances!(dx_vec, dy_vec, dz_vec, x, subC, idx)
+        
+        # Vectorized kernel evaluation
+        kernel_function_vec!(weights, kernel, dx_vec, dy_vec, dz_vec, hx, hy, hz)
+        
+        # Sum weights
         S = 0.0
-        for s in 1:size(subC,2)
-            dx = x[1] - subC[idx,s,1]
-            dy = x[2] - subC[idx,s,2]
-            dz = x[3] - subC[idx,s,3]
-            
-            # Use selected kernel function
-            w = kernel_function(kernel, dx, dy, dz, epsx/delr, epsy/delr, epsz/delr)
-            S += w
+        @simd for s in 1:n_sub
+            S += weights[s]
         end
-        weight = triAreas[idx] * (S/size(subC,2))
+        
+        weight = triAreas[idx] * (S / n_sub)
+        sx += weight * eleGma[idx,1]
+        sy += weight * eleGma[idx,2]
+        sz += weight * eleGma[idx,3]
+    end
+    return (sx, sy, sz)
+end
+
+# Memory-efficient version that reuses workspace
+struct KernelWorkspace{T<:AbstractFloat}
+    dx_vec::Vector{T}
+    dy_vec::Vector{T}
+    dz_vec::Vector{T}
+    weights::Vector{T}
+end
+
+KernelWorkspace(::Type{T}, n::Int) where T = KernelWorkspace{T}(
+    Vector{T}(undef, n), Vector{T}(undef, n), Vector{T}(undef, n), Vector{T}(undef, n)
+)
+KernelWorkspace(n::Int) = KernelWorkspace(Float64, n)
+
+function spread_element_kernel_workspace!(workspace::KernelWorkspace, 
+                                        sum::NTuple{3,Float64}, eleGma::AbstractMatrix, 
+                                        subC, triAreas, tri_list, coord, kernel::KernelType, 
+                                        eps::NTuple{3,Float64})
+    sx, sy, sz = sum
+    (epsx, epsy, epsz) = eps
+    x = coord
+    delr = kernel_support_radius(kernel)
+    hx, hy, hz = epsx/delr, epsy/delr, epsz/delr
+    
+    # Reuse workspace arrays
+    dx_vec, dy_vec, dz_vec, weights = workspace.dx_vec, workspace.dy_vec, workspace.dz_vec, workspace.weights
+    n_sub = length(dx_vec)
+    
+    @inbounds for idx in tri_list
+        # Vectorized distance computation
+        compute_distances!(dx_vec, dy_vec, dz_vec, x, subC, idx)
+        
+        # Vectorized kernel evaluation
+        kernel_function_vec!(weights, kernel, dx_vec, dy_vec, dz_vec, hx, hy, hz)
+        
+        # Sum weights
+        S = 0.0
+        @simd for s in 1:n_sub
+            S += weights[s]
+        end
+        
+        weight = triAreas[idx] * (S / n_sub)
         sx += weight * eleGma[idx,1]
         sy += weight * eleGma[idx,2]
         sz += weight * eleGma[idx,3]

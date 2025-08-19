@@ -93,11 +93,26 @@ function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{F
     dX_dz[nz,:,:]   = dX_dz[1,:,:]
     dY_dz[nz,:,:]   = dY_dz[1,:,:]
 
-    # -curl(omega)
-    u = -(dZ_dy .- dY_dz)
-    v = -(dX_dz .- dZ_dx)
-    w = -(dY_dx .- dX_dy)
-    return u,v,w
+    # -curl(ω) computed in-place to avoid allocations
+    @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
+        u_rhs[k,j,i] = -(dZ_dy[k,j,i] - dY_dz[k,j,i])
+        v_rhs[k,j,i] = -(dX_dz[k,j,i] - dZ_dx[k,j,i]) 
+        w_rhs[k,j,i] = -(dY_dx[k,j,i] - dX_dy[k,j,i])
+    end
+    
+    return nothing
+end
+
+# Backward-compatible wrapper that allocates
+function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{Float64,3}, VorZ::AbstractArray{Float64,3},
+                           dx::Float64, dy::Float64, dz::Float64)
+    nz, ny, nx = size(VorX)
+    workspace = PoissonWorkspace(nz, ny, nx)
+    u_rhs = similar(VorX)
+    v_rhs = similar(VorX)
+    w_rhs = similar(VorX)
+    curl_rhs_centered!(workspace, u_rhs, v_rhs, w_rhs, VorX, VorY, VorZ, dx, dy, dz)
+    return u_rhs, v_rhs, w_rhs
 end
 
 # FFT-based Poisson solve (periodic): ∇^2 U = RHS -> Û = -RHŜ/k^2
