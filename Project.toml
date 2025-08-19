@@ -13,6 +13,7 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 FFTW = "1"
@@ -20,6 +21,7 @@ JLD2 = "0.5, 0.6"
 MPI = "0.20, 0.21"
 PencilFFTs = "0.15.2"
 julia = "1.6"
+StaticArrays = "1"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
