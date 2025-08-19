@@ -103,6 +103,88 @@ function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{F
     return nothing
 end
 
+# In-place version using pre-allocated workspace
+function curl_rhs_centered!(workspace::PoissonWorkspace{T}, 
+                           u_rhs::AbstractArray{T,3}, v_rhs::AbstractArray{T,3}, w_rhs::AbstractArray{T,3},
+                           VorX::AbstractArray{T,3}, VorY::AbstractArray{T,3}, VorZ::AbstractArray{T,3},
+                           dx::T, dy::T, dz::T) where T<:AbstractFloat
+    nz, ny, nx = size(VorX)
+    
+    # Use pre-allocated workspace arrays
+    dX_dy, dX_dz = workspace.dX_dy, workspace.dX_dz
+    dY_dx, dY_dz = workspace.dY_dx, workspace.dY_dz 
+    dZ_dx, dZ_dy = workspace.dZ_dx, workspace.dZ_dy
+
+    # x-derivatives
+    @inbounds for i in 3:nx-2
+        for k in 1:nz, j in 1:ny
+            dY_dx[k,j,i] = (VorY[k,j,i-2]/12 - 2*VorY[k,j,i-1]/3 + 2*VorY[k,j,i+1]/3 - VorY[k,j,i+2]/12) / dx
+            dZ_dx[k,j,i] = (VorZ[k,j,i-2]/12 - 2*VorZ[k,j,i-1]/3 + 2*VorZ[k,j,i+1]/3 - VorZ[k,j,i+2]/12) / dx
+        end
+    end
+    @inbounds for i in 1:2
+        for k in 1:nz, j in 1:ny
+            dY_dx[k,j,i] = (-3*VorY[k,j,i]/2 + 2*VorY[k,j,i+1] - VorY[k,j,i+2]/2)/dx
+            dZ_dx[k,j,i] = (-3*VorZ[k,j,i]/2 + 2*VorZ[k,j,i+1] - VorZ[k,j,i+2]/2)/dx
+        end
+    end
+    @inbounds for k in 1:nz, j in 1:ny
+        dY_dx[k,j,nx-1] = (3*VorY[k,j,nx-1]/2 - 2*VorY[k,j,nx-2] + VorY[k,j,nx-3]/2)/dx
+        dZ_dx[k,j,nx-1] = (3*VorZ[k,j,nx-1]/2 - 2*VorZ[k,j,nx-2] + VorZ[k,j,nx-3]/2)/dx
+        dY_dx[k,j,nx]   = dY_dx[k,j,1]
+        dZ_dx[k,j,nx]   = dZ_dx[k,j,1]
+    end
+
+    # y-derivatives  
+    @inbounds for j in 3:ny-2
+        for k in 1:nz, i in 1:nx
+            dX_dy[k,j,i] = (VorX[k,j-2,i]/12 - 2*VorX[k,j-1,i]/3 + 2*VorX[k,j+1,i]/3 - VorX[k,j+2,i]/12) / dy
+            dZ_dy[k,j,i] = (VorZ[k,j-2,i]/12 - 2*VorZ[k,j-1,i]/3 + 2*VorZ[k,j+1,i]/3 - VorZ[k,j+2,i]/12) / dy
+        end
+    end
+    @inbounds for j in 1:2
+        for k in 1:nz, i in 1:nx
+            dX_dy[k,j,i] = (-3*VorX[k,j,i]/2 + 2*VorX[k,j+1,i] - VorX[k,j+2,i]/2)/dy
+            dZ_dy[k,j,i] = (-3*VorZ[k,j,i]/2 + 2*VorZ[k,j+1,i] - VorZ[k,j+2,i]/2)/dy
+        end
+    end
+    @inbounds for k in 1:nz, i in 1:nx
+        dX_dy[k,ny-1,i] = (3*VorX[k,ny-1,i]/2 - 2*VorX[k,ny-2,i] + VorX[k,ny-3,i]/2)/dy
+        dZ_dy[k,ny-1,i] = (3*VorZ[k,ny-1,i]/2 - 2*VorZ[k,ny-2,i] + VorZ[k,ny-3,i]/2)/dy
+        dX_dy[k,ny,i]   = dX_dy[k,1,i]
+        dZ_dy[k,ny,i]   = dZ_dy[k,1,i]
+    end
+
+    # z-derivatives
+    @inbounds for k in 3:nz-2
+        for j in 1:ny, i in 1:nx
+            dX_dz[k,j,i] = (VorX[k-2,j,i]/12 - 2*VorX[k-1,j,i]/3 + 2*VorX[k+1,j,i]/3 - VorX[k+2,j,i]/12) / dz
+            dY_dz[k,j,i] = (VorY[k-2,j,i]/12 - 2*VorY[k-1,j,i]/3 + 2*VorY[k+1,j,i]/3 - VorY[k+2,j,i]/12) / dz
+        end
+    end
+    @inbounds for k in 1:2
+        for j in 1:ny, i in 1:nx
+            dX_dz[k,j,i] = (-3*VorX[k,j,i]/2 + 2*VorX[k+1,j,i] - VorX[k+2,j,i]/2)/dz
+            dY_dz[k,j,i] = (-3*VorY[k,j,i]/2 + 2*VorY[k+1,j,i] - VorY[k+2,j,i]/2)/dz
+        end
+    end
+    @inbounds for j in 1:ny, i in 1:nx
+        dX_dz[nz-1,j,i] = (3*VorX[nz-1,j,i]/2 - 2*VorX[nz-2,j,i] + VorX[nz-3,j,i]/2)/dz
+        dY_dz[nz-1,j,i] = (3*VorY[nz-1,j,i]/2 - 2*VorY[nz-2,j,i] + VorY[nz-3,j,i]/2)/dz
+        dX_dz[nz,j,i]   = dX_dz[1,j,i]
+        dY_dz[nz,j,i]   = dY_dz[1,j,i]
+    end
+
+    # -curl(ω) computed in-place
+    @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
+        u_rhs[k,j,i] = -(dZ_dy[k,j,i] - dY_dz[k,j,i])
+        v_rhs[k,j,i] = -(dX_dz[k,j,i] - dZ_dx[k,j,i]) 
+        w_rhs[k,j,i] = -(dY_dx[k,j,i] - dX_dy[k,j,i])
+    end
+    
+    return nothing
+end
+
 # Backward-compatible wrapper that allocates
 function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{Float64,3}, VorZ::AbstractArray{Float64,3},
                            dx::Float64, dy::Float64, dz::Float64)
