@@ -282,17 +282,17 @@ function cg_solve(A::SparseMatrixCSC, b::Vector, tol::Float64, maxiter::Int)
     
     for iter in 1:maxiter
         Ap = A * p
-        alpha = rsold / dot(p, Ap)
-        x += alpha * p
-        r -= alpha * Ap
+        α = rsold / dot(p, Ap)
+        x += α * p
+        r -= α * Ap
         rsnew = dot(r, r)
         
         if sqrt(rsnew) < tol
             break
         end
         
-        beta = rsnew / rsold
-        p = r + beta * p
+        β = rsnew / rsold
+        p = r + β * p
         rsold = rsnew
     end
     
@@ -305,14 +305,14 @@ function bicgstab_solve(A::SparseMatrixCSC, b::Vector, tol::Float64, maxiter::In
     x = zeros(n)
     r = b - A * x
     r_hat = copy(r)
-    rho = alpha = omega = 1.0
+    ρ = α = ω = 1.0
     v = zeros(n)
     p = zeros(n)
     
     for iter in 1:maxiter
-        rho_new = dot(r_hat, r)
-        beta = (rho_new / rho) * (alpha / omega)
-        p = r + beta * (p - omega * v)
+        ρ_new = dot(r_hat, r)
+        β = (ρ_new / ρ) * (α / ω)
+        p = r + β * (p - ω * v)
         v = A * p
         alpha = rho_new / dot(r_hat, v)
         s = r - alpha * v
