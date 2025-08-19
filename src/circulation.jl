@@ -8,7 +8,7 @@ export node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_
 function node_circulation_from_ele_gamma(tri_x_coords::AbstractMatrix, tri_y_coords::AbstractMatrix, tri_z_coords::AbstractMatrix,
                                          element_gamma::AbstractMatrix)
     nt = size(tri_x_coords,1)
-    tau = Array{Float64}(undef, nt, 3)
+    τ = Array{Float64}(undef, nt, 3)
     # triangle areas
     A = zeros(Float64, nt)
     @inbounds for t in 1:nt
@@ -30,15 +30,15 @@ function node_circulation_from_ele_gamma(tri_x_coords::AbstractMatrix, tri_y_coo
              1.0 1.0 1.0]
         rhs = [A[t]*element_gamma[t,1]; A[t]*element_gamma[t,2]; A[t]*element_gamma[t,3]; 0.0]
         aτ = M \ rhs
-        tau[t,1] = aτ[1]; tau[t,2] = aτ[2]; tau[t,3] = aτ[3]
+        τ[t,1] = aτ[1]; τ[t,2] = aτ[2]; τ[t,3] = aτ[3]
     end
-    return tau
+    return τ
 end
 
 # Compute element vorticity vectors from per-triangle node circulations.
 # Mirrors python: _cal_eleVorStrgth_frm_nodeCirculation
-function ele_gamma_from_node_circ(nodeTau::AbstractMatrix,
-                                  triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
+function ele_gamma_from_node_circ(node_τ::AbstractMatrix,
+                                  tri_x_coords::AbstractMatrix, tri_y_coords::AbstractMatrix, tri_z_coords::AbstractMatrix)
     nt = size(tri_x_coords,1)
     A = zeros(Float64, nt)
     eleGma = zeros(Float64, nt, 3)
@@ -52,10 +52,10 @@ function ele_gamma_from_node_circ(nodeTau::AbstractMatrix,
         s = (a+b+c)/2
         A[t] = sqrt(max(s*(s-a)*(s-b)*(s-c), 0.0))
         # vectors as in python formula: p1p2, p2p3, p1p3
-        X12 = triXC[t,2] - triXC[t,1]; Y12 = triYC[t,2] - triYC[t,1]; Z12 = triZC[t,2] - triZC[t,1]
-        X23 = triXC[t,3] - triXC[t,2]; Y23 = triYC[t,3] - triYC[t,2]; Z23 = triZC[t,3] - triZC[t,2]
-        X13 = triXC[t,1] - triXC[t,3]; Y13 = triYC[t,1] - triYC[t,3]; Z13 = triZC[t,1] - triZC[t,3]
-        τ1, τ2, τ3 = nodeTau[t,1], nodeTau[t,2], nodeTau[t,3]
+        X12 = tri_x_coords[t,2] - tri_x_coords[t,1]; Y12 = tri_y_coords[t,2] - tri_y_coords[t,1]; Z12 = tri_z_coords[t,2] - tri_z_coords[t,1]
+        X23 = tri_x_coords[t,3] - tri_x_coords[t,2]; Y23 = tri_y_coords[t,3] - tri_y_coords[t,2]; Z23 = tri_z_coords[t,3] - tri_z_coords[t,2]
+        X13 = tri_x_coords[t,1] - tri_x_coords[t,3]; Y13 = tri_y_coords[t,1] - tri_y_coords[t,3]; Z13 = tri_z_coords[t,1] - tri_z_coords[t,3]
+        τ1, τ2, τ3 = node_τ[t,1], node_τ[t,2], node_τ[t,3]
         eleGma[t,1] = (τ1*X12 + τ2*X23 + τ3*X13)/A[t]
         eleGma[t,2] = (τ1*Y12 + τ2*Y23 + τ3*Y13)/A[t]
         eleGma[t,3] = (τ1*Z12 + τ2*Z23 + τ3*Z13)/A[t]
