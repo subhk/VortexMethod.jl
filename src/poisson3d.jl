@@ -7,7 +7,38 @@ using MPI
 using PencilFFTs
 using ..DomainImpl
 
-export curl_rhs_centered, poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
+export curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace, 
+       poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
+
+# Pre-allocated workspace for memory-efficient operations
+struct PoissonWorkspace{T<:AbstractFloat}
+    dX_dy::Array{T,3}
+    dX_dz::Array{T,3} 
+    dY_dx::Array{T,3}
+    dY_dz::Array{T,3}
+    dZ_dx::Array{T,3}
+    dZ_dy::Array{T,3}
+    u_rhs_temp::Array{T,3}
+    v_rhs_temp::Array{T,3}
+    w_rhs_temp::Array{T,3}
+end
+
+# Constructor for workspace
+function PoissonWorkspace(::Type{T}, nz::Int, ny::Int, nx::Int) where T<:AbstractFloat
+    PoissonWorkspace{T}(
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx)
+    )
+end
+
+PoissonWorkspace(nz::Int, ny::Int, nx::Int) = PoissonWorkspace(Float64, nz, ny, nx)
 
 # Periodic finite-difference curl terms with central 4th-order where possible
 function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{Float64,3}, VorZ::AbstractArray{Float64,3},
