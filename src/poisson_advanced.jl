@@ -314,24 +314,24 @@ function bicgstab_solve(A::SparseMatrixCSC, b::Vector, tol::Float64, maxiter::In
         β = (ρ_new / ρ) * (α / ω)
         p = r + β * (p - ω * v)
         v = A * p
-        alpha = rho_new / dot(r_hat, v)
-        s = r - alpha * v
+        α = ρ_new / dot(r_hat, v)
+        s = r - α * v
         
         if norm(s) < tol
-            x += alpha * p
+            x += α * p
             break
         end
         
         t = A * s
-        omega = dot(t, s) / dot(t, t)
-        x += alpha * p + omega * s
-        r = s - omega * t
+        ω = dot(t, s) / dot(t, t)
+        x += α * p + ω * s
+        r = s - ω * t
         
         if norm(r) < tol
             break
         end
         
-        rho = rho_new
+        ρ = ρ_new
     end
     
     return x
