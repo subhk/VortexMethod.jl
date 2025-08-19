@@ -4,7 +4,8 @@
 module Kernels
 
 export KernelType, PeskinStandard, PeskinCosine, M4Prime, AreaWeighting,
-       kernel_function, kernel_support_radius
+       kernel_function, kernel_support_radius, kernel_function_vec!,
+       compute_distances!, KernelWorkspace, spread_element_kernel_workspace!
 
 abstract type KernelType end
 
