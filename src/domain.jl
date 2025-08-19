@@ -79,14 +79,14 @@ function wrap_point(x::Float64, y::Float64, z::Float64, domain::DomainSpec)
 end
 
 # In-place wrapping of node arrays
-function wrap_nodes!(node_x::AbstractVector{<:Real}, 
-                    node_y::AbstractVector{<:Real}, 
-                    node_z::AbstractVector{<:Real}, 
+function wrap_nodes!(nodeX::AbstractVector{<:Real}, 
+                    nodeY::AbstractVector{<:Real}, 
+                    nodeZ::AbstractVector{<:Real}, 
                     domain::DomainSpec)
 
-    @inbounds for i in eachindex(node_x)
-        xw, yw, zw = wrap_point(Float64(node_x[i]), Float64(node_y[i]), Float64(node_z[i]), domain)
-        node_x[i] = xw; node_y[i] = yw; node_z[i] = zw
+    @inbounds for i in eachindex(nodeX)
+        xw, yw, zw = wrap_point(Float64(nodeX[i]), Float64(nodeY[i]), Float64(nodeZ[i]), domain)
+        nodeX[i] = xw; nodeY[i] = yw; nodeZ[i] = zw
     end
 
     return nothing

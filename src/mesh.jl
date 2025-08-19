@@ -22,9 +22,9 @@ function structured_mesh(Nx::Int, Ny::Int; domain::DomainSpec=default_domain(),
     end
     
     # nodes flattened row-major (j fast or i fast? Use j major consistent with python meshgrid)
-    node_x = vec(permutedims(X, (2,1)))
-    node_y = vec(permutedims(Y, (2,1)))
-    node_z = vec(permutedims(Z, (2,1)))
+    nodeX = vec(permutedims(X, (2,1)))
+    nodeY = vec(permutedims(Y, (2,1)))
+    nodeZ = vec(permutedims(Z, (2,1)))
 
     # connectivity: each cell -> two triangles
     ntri = 2*(Nx-1)*(Ny-1)
@@ -44,17 +44,17 @@ function structured_mesh(Nx::Int, Ny::Int; domain::DomainSpec=default_domain(),
     # build triangle coordinate matrices
     nt = size(tri,1)
     
-    tri_x_coords = Array{Float64}(undef, nt, 3)
-    tri_y_coords = Array{Float64}(undef, nt, 3)
-    tri_z_coords = Array{Float64}(undef, nt, 3)
+    triXC = Array{Float64}(undef, nt, 3)
+    triYC = Array{Float64}(undef, nt, 3)
+    triZC = Array{Float64}(undef, nt, 3)
 
     @inbounds for k in 1:3, t in 1:nt
         v = tri[t,k]
-        tri_x_coords[t,k] = node_x[v]
-        tri_y_coords[t,k] = node_y[v]
-        tri_z_coords[t,k] = node_z[v]
+        triXC[t,k] = nodeX[v]
+        triYC[t,k] = nodeY[v]
+        triZC[t,k] = nodeZ[v]
     end
-    return node_x, node_y, node_z, tri, tri_x_coords, tri_y_coords, tri_z_coords
+    return nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC
     
 end
 
