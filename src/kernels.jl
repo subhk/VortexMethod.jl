@@ -219,4 +219,5 @@ end # module
 
 using .Kernels: KernelType, PeskinStandard, PeskinCosine, M4Prime, AreaWeighting,
                 kernel_function, kernel_support_radius, spread_element_kernel!,
-                interpolate_kernel_weight
+                interpolate_kernel_weight, kernel_function_vec!, compute_distances!,
+                KernelWorkspace, spread_element_kernel_workspace!
