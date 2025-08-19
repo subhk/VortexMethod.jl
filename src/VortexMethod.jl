@@ -21,6 +21,11 @@ include("vortex_sheets.jl")
 include("checkpoint.jl")
 include("energy.jl")
 include("particle_management.jl")
+# HPC optimization modules
+include("performance.jl")
+include("fast_linalg.jl")
+include("soa_layout.jl")
+include("cache_optimization.jl")
 
 # Exports organized by source file for better maintainability
 
