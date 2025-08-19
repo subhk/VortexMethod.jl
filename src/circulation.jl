@@ -5,30 +5,30 @@ export node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_
 
 # Compute per-triangle node circulations (3 per triangle) from element vorticity vectors.
 # Mirrors python: _MatrixInversion_2_cal_nodeCircu_frm_eleVor_
-function node_circulation_from_ele_gamma(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                                         eleGma::AbstractMatrix)
-    nt = size(triXC,1)
+function node_circulation_from_ele_gamma(tri_x_coords::AbstractMatrix, tri_y_coords::AbstractMatrix, tri_z_coords::AbstractMatrix,
+                                         element_gamma::AbstractMatrix)
+    nt = size(tri_x_coords,1)
     tau = Array{Float64}(undef, nt, 3)
     # triangle areas
     A = zeros(Float64, nt)
     @inbounds for t in 1:nt
-        p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
-        p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
-        p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+        p1 = (tri_x_coords[t,1], tri_y_coords[t,1], tri_z_coords[t,1])
+        p2 = (tri_x_coords[t,2], tri_y_coords[t,2], tri_z_coords[t,2])
+        p3 = (tri_x_coords[t,3], tri_y_coords[t,3], tri_z_coords[t,3])
         a = hypot(hypot(p1[1]-p2[1], p1[2]-p2[2]), p1[3]-p2[3])
         b = hypot(hypot(p2[1]-p3[1], p2[2]-p3[2]), p2[3]-p3[3])
         c = hypot(hypot(p3[1]-p1[1], p3[2]-p1[2]), p3[3]-p1[3])
         s = (a+b+c)/2
         A[t] = sqrt(max(s*(s-a)*(s-b)*(s-c), 0.0))
         # edge vectors
-        X12 = triXC[t,2] - triXC[t,1]; Y12 = triYC[t,2] - triYC[t,1]; Z12 = triZC[t,2] - triZC[t,1]
-        X23 = triXC[t,3] - triXC[t,2]; Y23 = triYC[t,3] - triYC[t,2]; Z23 = triZC[t,3] - triZC[t,2]
-        X31 = triXC[t,1] - triXC[t,3]; Y31 = triYC[t,1] - triYC[t,3]; Z31 = triZC[t,1] - triZC[t,3]
+        X12 = tri_x_coords[t,2] - tri_x_coords[t,1]; Y12 = tri_y_coords[t,2] - tri_y_coords[t,1]; Z12 = tri_z_coords[t,2] - tri_z_coords[t,1]
+        X23 = tri_x_coords[t,3] - tri_x_coords[t,2]; Y23 = tri_y_coords[t,3] - tri_y_coords[t,2]; Z23 = tri_z_coords[t,3] - tri_z_coords[t,2]
+        X31 = tri_x_coords[t,1] - tri_x_coords[t,3]; Y31 = tri_y_coords[t,1] - tri_y_coords[t,3]; Z31 = tri_z_coords[t,1] - tri_z_coords[t,3]
         M = [X12 X23 X31;
              Y12 Y23 Y31;
              Z12 Z23 Z31;
              1.0 1.0 1.0]
-        rhs = [A[t]*eleGma[t,1]; A[t]*eleGma[t,2]; A[t]*eleGma[t,3]; 0.0]
+        rhs = [A[t]*element_gamma[t,1]; A[t]*element_gamma[t,2]; A[t]*element_gamma[t,3]; 0.0]
         aτ = M \ rhs
         tau[t,1] = aτ[1]; tau[t,2] = aτ[2]; tau[t,3] = aτ[3]
     end
@@ -39,13 +39,13 @@ end
 # Mirrors python: _cal_eleVorStrgth_frm_nodeCirculation
 function ele_gamma_from_node_circ(nodeTau::AbstractMatrix,
                                   triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
-    nt = size(triXC,1)
+    nt = size(tri_x_coords,1)
     A = zeros(Float64, nt)
     eleGma = zeros(Float64, nt, 3)
     @inbounds for t in 1:nt
-        p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
-        p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
-        p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+        p1 = (tri_x_coords[t,1], tri_y_coords[t,1], tri_z_coords[t,1])
+        p2 = (tri_x_coords[t,2], tri_y_coords[t,2], tri_z_coords[t,2])
+        p3 = (tri_x_coords[t,3], tri_y_coords[t,3], tri_z_coords[t,3])
         a = hypot(hypot(p1[1]-p2[1], p1[2]-p2[2]), p1[3]-p2[3])
         b = hypot(hypot(p2[1]-p3[1], p2[2]-p3[2]), p2[3]-p3[3])
         c = hypot(hypot(p3[1]-p1[1], p3[2]-p1[2]), p3[3]-p1[3])
@@ -74,7 +74,7 @@ end
 
 # Unit normals for each triangle; flip to ensure positive z-component like python helper
 function triangle_normals(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
-    nt = size(triXC,1)
+    nt = size(tri_x_coords,1)
     N = zeros(Float64, nt, 3)
     @inbounds for t in 1:nt
         p0 = (triXC[t,1], triYC[t,1], triZC[t,1])
@@ -102,7 +102,7 @@ end
 # Baroclinic contribution to element vorticity over dt: dγ = [+2At*ny, -2At*nx, 0]*dt
 function baroclinic_ele_gamma(At::Float64, dt::Float64, triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
     N = triangle_normals(triXC, triYC, triZC)
-    nt = size(triXC,1)
+    nt = size(tri_x_coords,1)
     dG = zeros(Float64, nt, 3)
     @inbounds for t in 1:nt
         nx = N[t,1]; ny = N[t,2]
