@@ -143,20 +143,34 @@ function peskin_grid_sum(eleGma, triC, subC, coord, ds, triAreas; delr=4.0, doma
     (sx,sy,sz) = peskin_add_ele!((sx,sy,sz), eleGma, subC, triAreas, tri_list, coord, delr, eps)
     # Neighbor tiles (E,W,N,S, and corners)
     Lx,Ly,Lz = domain.Lx, domain.Ly, domain.Lz
-    function shifted(tile::Tuple{Float64,Float64})
-        dx,dy = tile
-        triC0 = copy(triC); subC0 = copy(subC)
-        triC0[:,1] .+= dx; triC0[:,2] .+= dy
-        subC0[:,:,1] .+= dx; subC0[:,:,2] .+= dy
-        tl = find_elements_nearby(coord[1],coord[2],coord[3], eps... , triC0)
-        peskin_add_ele!((sx,sy,sz), eleGma, subC0, triAreas, tl, coord, delr, eps)
+    # Pre-allocate workspace to avoid repeated allocations
+    triC0 = similar(triC)
+    subC0 = similar(subC)
+    
+    function shifted!(tile::Tuple{Float64,Float64})
+        dx, dy = tile
+        # In-place coordinate shifting to avoid allocations
+        @inbounds for i in 1:size(triC, 1)
+            triC0[i,1] = triC[i,1] + dx
+            triC0[i,2] = triC[i,2] + dy  
+            triC0[i,3] = triC[i,3]
+        end
+        
+        @inbounds for i in 1:size(subC, 1), j in 1:size(subC, 2)
+            subC0[i,j,1] = subC[i,j,1] + dx
+            subC0[i,j,2] = subC[i,j,2] + dy
+            subC0[i,j,3] = subC[i,j,3]
+        end
+        
+        tl = find_elements_nearby(coord[1], coord[2], coord[3], eps..., triC0)
+        return peskin_add_ele!((sx,sy,sz), eleGma, subC0, triAreas, tl, coord, delr, eps)
     end
     # E, W, N, S
-    (sx,sy,sz) = shifted((+Lx, 0.0)); (sx,sy,sz) = shifted((-Lx, 0.0))
-    (sx,sy,sz) = shifted((0.0, +Ly)); (sx,sy,sz) = shifted((0.0, -Ly))
+    (sx,sy,sz) = shifted!((+Lx, 0.0)); (sx,sy,sz) = shifted!((-Lx, 0.0))
+    (sx,sy,sz) = shifted!((0.0, +Ly)); (sx,sy,sz) = shifted!((0.0, -Ly))
     # Corners
-    (sx,sy,sz) = shifted((+Lx,+Ly)); (sx,sy,sz) = shifted((+Lx,-Ly))
-    (sx,sy,sz) = shifted((-Lx,+Ly)); (sx,sy,sz) = shifted((-Lx,-Ly))
+    (sx,sy,sz) = shifted!((+Lx,+Ly)); (sx,sy,sz) = shifted!((+Lx,-Ly))
+    (sx,sy,sz) = shifted!((-Lx,+Ly)); (sx,sy,sz) = shifted!((-Lx,-Ly))
     return sx,sy,sz
 end
 
@@ -181,11 +195,11 @@ function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, kernel:
         spread_element_kernel!((sx,sy,sz), eleGma, subC0, triAreas, tl, coord, kernel, eps)
     end
     # E, W, N, S
-    (sx,sy,sz) = shifted((+Lx, 0.0)); (sx,sy,sz) = shifted((-Lx, 0.0))
-    (sx,sy,sz) = shifted((0.0, +Ly)); (sx,sy,sz) = shifted((0.0, -Ly))
+    (sx,sy,sz) = shifted!((+Lx, 0.0)); (sx,sy,sz) = shifted!((-Lx, 0.0))
+    (sx,sy,sz) = shifted!((0.0, +Ly)); (sx,sy,sz) = shifted!((0.0, -Ly))
     # Corners
-    (sx,sy,sz) = shifted((+Lx,+Ly)); (sx,sy,sz) = shifted((+Lx,-Ly))
-    (sx,sy,sz) = shifted((-Lx,+Ly)); (sx,sy,sz) = shifted((-Lx,-Ly))
+    (sx,sy,sz) = shifted!((+Lx,+Ly)); (sx,sy,sz) = shifted!((+Lx,-Ly))
+    (sx,sy,sz) = shifted!((-Lx,+Ly)); (sx,sy,sz) = shifted!((-Lx,-Ly))
     return sx,sy,sz
 end
 
