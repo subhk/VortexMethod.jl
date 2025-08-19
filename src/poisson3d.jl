@@ -339,4 +339,5 @@ end
 
 end # module
 
-using .Poisson3D: curl_rhs_centered, poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
+using .Poisson3D: curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace, 
+                   poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
