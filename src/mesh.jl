@@ -16,9 +16,9 @@ function structured_mesh(Nx::Int, Ny::Int; domain::DomainSpec=default_domain(),
     Z = Array{Float64}(undef, Ny, Nx)
     
     @inbounds for j in 1:Ny, i in 1:Nx
-        X[j,i] = x[i] + 0.01*sin(2pi*x[i])
+        X[j,i] = x[i] + 0.01*sin(2π*x[i])
         Y[j,i] = y[j]
-        Z[j,i] = 0.01*sin(2pi*x[i]) + 0.01*sin(4pi*y[j])
+        Z[j,i] = 0.01*sin(2π*x[i]) + 0.01*sin(4π*y[j])
     end
     
     # nodes flattened row-major (j fast or i fast? Use j major consistent with python meshgrid)
