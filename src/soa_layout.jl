@@ -2,7 +2,7 @@
 
 module SoALayout
 
-using SIMD
+# Using built-in Julia SIMD capabilities
 
 export TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA, 
        aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!, 
@@ -220,7 +220,8 @@ end
 function compute_distances_soa!(dx_vec::Vector{T}, dy_vec::Vector{T}, dz_vec::Vector{T},
                                point_x::T, point_y::T, point_z::T,
                                targets::NodeSoA{T}, indices::AbstractVector{Int}) where T
-    @inbounds @simd for (idx, target_idx) in enumerate(indices)
+    @inbounds for idx in 1:length(indices)
+        target_idx = indices[idx]
         dx_vec[idx] = point_x - targets.x[target_idx]
         dy_vec[idx] = point_y - targets.y[target_idx]
         dz_vec[idx] = point_z - targets.z[target_idx]

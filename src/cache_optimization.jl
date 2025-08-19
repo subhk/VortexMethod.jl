@@ -231,7 +231,8 @@ function compute_block_interactions!(kernel::BlockedSpreadingKernel{T},
         gx, gy, gz = grid_pos[1] * dx, grid_pos[2] * dy, grid_pos[3] * dz
         
         # Process all particles in block against this grid point
-        @simd for (p_idx, particle_idx) in enumerate(particle_indices)
+        for p_idx in 1:length(particle_indices)
+            particle_idx = particle_indices[p_idx]
             px, py, pz = particle_positions[particle_idx, 1], particle_positions[particle_idx, 2], particle_positions[particle_idx, 3]
             
             # Compute distance
