@@ -67,8 +67,8 @@ end
 function transport_ele_gamma(eleGma_old::AbstractMatrix,
                              triXC_old::AbstractMatrix, triYC_old::AbstractMatrix, triZC_old::AbstractMatrix,
                              triXC_new::AbstractMatrix, triYC_new::AbstractMatrix, triZC_new::AbstractMatrix)
-    tau = node_circulation_from_ele_gamma(triXC_old, triYC_old, triZC_old, eleGma_old)
-    eleGma_new = ele_gamma_from_node_circ(tau, triXC_new, triYC_new, triZC_new)
+    τ = node_circulation_from_ele_gamma(triXC_old, triYC_old, triZC_old, eleGma_old)
+    eleGma_new = ele_gamma_from_node_circ(τ, triXC_new, triYC_new, triZC_new)
     return eleGma_new
 end
 
