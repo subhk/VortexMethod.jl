@@ -45,7 +45,7 @@ struct MixedScaleModel <: DissipationModel
 end
 
 # Compute filter width from grid spacing and element size
-function filter_width(dx::Float64, dy::Float64, dz::Float64, element_area::Float64)
+function filter_width(dx::Float64, dy::Float64, dz::Float64, element_area::Float64)::Float64
     # Anisotropic filter width accounting for element size
     grid_filter = (dx * dy * dz)^(1/3)
     element_filter = sqrt(element_area)
@@ -55,7 +55,7 @@ end
 # Compute strain rate tensor magnitude
 function strain_rate_magnitude(dudx::Float64, dudy::Float64, dudz::Float64,
                               dvdx::Float64, dvdy::Float64, dvdz::Float64,
-                              dwdx::Float64, dwdy::Float64, dwdz::Float64)
+                              dwdx::Float64, dwdy::Float64, dwdz::Float64)::Float64
                               
     # Strain rate tensor S_ij = 0.5 * (∂u_i/∂x_j + ∂u_j/∂x_i)
     S11 = dudx

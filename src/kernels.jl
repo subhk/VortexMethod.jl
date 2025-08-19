@@ -39,7 +39,7 @@ kernel_support_radius(k::M4Prime)        = k.delr
 kernel_support_radius(k::AreaWeighting)  = k.delr
 
 # 1D kernel functions
-function kernel_1d(::PeskinStandard, r::Float64, h::Float64)
+function kernel_1d(::PeskinStandard, r::Float64, h::Float64)::Float64
     # Standard discrete delta function
     x = abs(r) / h
     if x >= 2.0
@@ -51,7 +51,7 @@ function kernel_1d(::PeskinStandard, r::Float64, h::Float64)
     end
 end
 
-function kernel_1d(::PeskinCosine, r::Float64, h::Float64)
+function kernel_1d(::PeskinCosine, r::Float64, h::Float64)::Float64
     # Improved cosine kernel with better smoothness properties
     x = abs(r) / h
     if x >= 1.5
@@ -61,7 +61,7 @@ function kernel_1d(::PeskinCosine, r::Float64, h::Float64)
     end
 end
 
-function kernel_1d(::M4Prime, r::Float64, h::Float64)
+function kernel_1d(::M4Prime, r::Float64, h::Float64)::Float64
     # 4th order accurate kernel with compact support
     x = abs(r) / h
     if x >= 2.0
@@ -75,7 +75,7 @@ function kernel_1d(::M4Prime, r::Float64, h::Float64)
     end
 end
 
-function kernel_1d(::AreaWeighting, r::Float64, h::Float64)
+function kernel_1d(::AreaWeighting, r::Float64, h::Float64)::Float64
     # Area-weighted distribution (hat function)
     x = abs(r) / h
     if x >= 1.0
@@ -87,7 +87,7 @@ end
 
 # 3D kernel function
 function kernel_function(k::KernelType, dx::Float64, dy::Float64, dz::Float64, 
-                        hx::Float64, hy::Float64, hz::Float64)
+                        hx::Float64, hy::Float64, hz::Float64)::Float64
     return kernel_1d(k, dx, hx) * kernel_1d(k, dy, hy) * kernel_1d(k, dz, hz)
 end
 
@@ -121,7 +121,7 @@ end
 
 # Enhanced interpolation function with kernel selection
 function interpolate_kernel_weight(kernel::KernelType, dx::Float64, dy::Float64, dz::Float64,
-                                 hx::Float64, hy::Float64, hz::Float64)
+                                 hx::Float64, hy::Float64, hz::Float64)::Float64
     delr = kernel_support_radius(kernel)
     return kernel_function(kernel, dx, dy, dz, hx/delr, hy/delr, hz/delr)
 end
