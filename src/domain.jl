@@ -55,8 +55,8 @@ function grid_mesh(domain::DomainSpec, gr::GridSpec)
 end
 
 # Spectral wavenumber vector for periodic FFT Poisson solve
-function kvec(n::Int, L::Float64)
-    k = similar(zeros(Float64), n)
+function kvec(n::Int, L::Float64)::Vector{Float64}
+    k = Vector{Float64}(undef, n)
     n2 = fld(n, 2)
     @inbounds for i in 1:n
         m = i-1
