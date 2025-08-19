@@ -91,6 +91,24 @@ export DomainSpec, GridSpec,
        compact_mesh!, adaptive_particle_control!,
        ParticleInsertionCriteria, ParticleRemovalCriteria,
        insert_vortex_blob_periodic!, remove_weak_vortices!,
-       maintain_particle_count!, redistribute_particles_periodic!
+       maintain_particle_count!, redistribute_particles_periodic!,
+
+# performance.jl - Performance monitoring and profiling
+       @vortex_time, PerformanceCounters, reset_counters!, print_performance_report,
+       enable_profiling!, disable_profiling!,
+
+# fast_linalg.jl - Optimized linear algebra for small matrices
+       solve_3x3!, solve_4x3!, fast_inv_3x3!, fast_det_3x3, fast_cross_product!,
+       batch_solve_3x3!, TriangleMatrix3x3, EdgeVectorCache, fast_triangle_area,
+
+# soa_layout.jl - Structure of Arrays memory layout
+       TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA,
+       aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!,
+       soa_triangle_areas!, soa_circulation_solve!,
+
+# cache_optimization.jl - Cache-aware algorithms
+       TiledPoissonSolver, BlockedSpreadingKernel, CacheAwareMesh,
+       tiled_curl_computation!, blocked_kernel_evaluation!,
+       cache_optimized_interpolation!, hierarchical_grid_traversal
 
 end
