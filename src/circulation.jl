@@ -21,9 +21,9 @@ function node_circulation_from_ele_gamma(triXC::AbstractMatrix, triYC::AbstractM
         s = (a+b+c)/2
         A[t] = sqrt(max(s*(s-a)*(s-b)*(s-c), 0.0))
         # edge vectors
-        X12 = tri_x_coords[t,2] - tri_x_coords[t,1]; Y12 = tri_y_coords[t,2] - tri_y_coords[t,1]; Z12 = tri_z_coords[t,2] - tri_z_coords[t,1]
-        X23 = tri_x_coords[t,3] - tri_x_coords[t,2]; Y23 = tri_y_coords[t,3] - tri_y_coords[t,2]; Z23 = tri_z_coords[t,3] - tri_z_coords[t,2]
-        X31 = tri_x_coords[t,1] - tri_x_coords[t,3]; Y31 = tri_y_coords[t,1] - tri_y_coords[t,3]; Z31 = tri_z_coords[t,1] - tri_z_coords[t,3]
+        X12 = triXC[t,2] - triXC[t,1]; Y12 = triYC[t,2] - triYC[t,1]; Z12 = triZC[t,2] - triZC[t,1]
+        X23 = triXC[t,3] - triXC[t,2]; Y23 = triYC[t,3] - triYC[t,2]; Z23 = triZC[t,3] - triZC[t,2]
+        X31 = triXC[t,1] - triXC[t,3]; Y31 = triYC[t,1] - triYC[t,3]; Z31 = triZC[t,1] - triZC[t,3]
         M = [X12 X23 X31;
              Y12 Y23 Y31;
              Z12 Z23 Z31;
