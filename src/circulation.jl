@@ -1,7 +1,95 @@
 module Circulation
 
 export node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma,
-       triangle_normals, baroclinic_ele_gamma
+       triangle_normals, baroclinic_ele_gamma, TriangleGeometry, compute_triangle_geometry
+
+# Cache for triangle geometry to avoid redundant calculations
+struct TriangleGeometry{T<:AbstractFloat}
+    areas::Vector{T}
+    edge_vectors::Array{T,3}  # [triangle_id, edge_id, xyz]
+    inverse_matrices::Array{T,3}  # Pre-computed M^{-1} for each triangle
+    centroids::Matrix{T}  # [triangle_id, xyz]
+end
+
+# Constructor for triangle geometry cache
+function TriangleGeometry(::Type{T}, nt::Int) where T<:AbstractFloat
+    TriangleGeometry{T}(
+        Vector{T}(undef, nt),
+        Array{T}(undef, nt, 3, 3),  # 3 edges per triangle, 3 components each
+        Array{T}(undef, nt, 4, 3),  # 4x3 inverse matrices
+        Matrix{T}(undef, nt, 3)
+    )
+end
+
+TriangleGeometry(nt::Int) = TriangleGeometry(Float64, nt)
+
+# Fast triangle area using cross product (more numerically stable than Heron's formula)
+@inline function triangle_area_fast(p1::NTuple{3,T}, p2::NTuple{3,T}, p3::NTuple{3,T}) where T
+    # Area = 0.5 * ||(p2-p1) × (p3-p1)||
+    v1x, v1y, v1z = p2[1] - p1[1], p2[2] - p1[2], p2[3] - p1[3]
+    v2x, v2y, v2z = p3[1] - p1[1], p3[2] - p1[2], p3[3] - p1[3]
+    
+    cx = v1y * v2z - v1z * v2y
+    cy = v1z * v2x - v1x * v2z  
+    cz = v1x * v2y - v1y * v2x
+    
+    return T(0.5) * sqrt(cx*cx + cy*cy + cz*cz)
+end
+
+# Compute and cache triangle geometry
+function compute_triangle_geometry!(geom::TriangleGeometry{T}, 
+                                  triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix) where T
+    nt = size(triXC, 1)
+    
+    @inbounds for t in 1:nt
+        p1 = (T(triXC[t,1]), T(triYC[t,1]), T(triZC[t,1]))
+        p2 = (T(triXC[t,2]), T(triYC[t,2]), T(triZC[t,2]))
+        p3 = (T(triXC[t,3]), T(triYC[t,3]), T(triZC[t,3]))
+        
+        # Cache triangle area
+        geom.areas[t] = triangle_area_fast(p1, p2, p3)
+        
+        # Cache edge vectors
+        geom.edge_vectors[t,1,1] = p2[1] - p1[1]  # X12
+        geom.edge_vectors[t,1,2] = p2[2] - p1[2]  # Y12  
+        geom.edge_vectors[t,1,3] = p2[3] - p1[3]  # Z12
+        
+        geom.edge_vectors[t,2,1] = p3[1] - p2[1]  # X23
+        geom.edge_vectors[t,2,2] = p3[2] - p2[2]  # Y23
+        geom.edge_vectors[t,2,3] = p3[3] - p2[3]  # Z23
+        
+        geom.edge_vectors[t,3,1] = p1[1] - p3[1]  # X31
+        geom.edge_vectors[t,3,2] = p1[2] - p3[2]  # Y31
+        geom.edge_vectors[t,3,3] = p1[3] - p3[3]  # Z31
+        
+        # Cache centroid
+        geom.centroids[t,1] = (p1[1] + p2[1] + p3[1]) / 3
+        geom.centroids[t,2] = (p1[2] + p2[2] + p3[2]) / 3
+        geom.centroids[t,3] = (p1[3] + p2[3] + p3[3]) / 3
+        
+        # Pre-compute and cache inverse matrix M^{-1}
+        # M = [X12 X23 X31; Y12 Y23 Y31; Z12 Z23 Z31; 1 1 1]
+        # This is expensive, so we use a more efficient approach
+        X12, Y12, Z12 = geom.edge_vectors[t,1,1], geom.edge_vectors[t,1,2], geom.edge_vectors[t,1,3]
+        X23, Y23, Z23 = geom.edge_vectors[t,2,1], geom.edge_vectors[t,2,2], geom.edge_vectors[t,2,3]
+        X31, Y31, Z31 = geom.edge_vectors[t,3,1], geom.edge_vectors[t,3,2], geom.edge_vectors[t,3,3]
+        
+        # Store matrix elements for later inversion (4x3 system)
+        M = [X12 X23 X31; Y12 Y23 Y31; Z12 Z23 Z31; 1.0 1.0 1.0]
+        # For efficiency, we'll solve the system each time rather than pre-computing inverse
+        # geom.inverse_matrices[t,:,:] .= pinv(M)  # Too expensive to pre-compute
+    end
+    
+    return nothing
+end
+
+# Convenience constructor
+function compute_triangle_geometry(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
+    nt = size(triXC, 1)
+    geom = TriangleGeometry(nt)
+    compute_triangle_geometry!(geom, triXC, triYC, triZC)
+    return geom
+end
 
 # Compute per-triangle node circulations (3 per triangle) from element vorticity vectors.
 # Mirrors python: _MatrixInversion_2_cal_nodeCircu_frm_eleVor_
