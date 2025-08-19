@@ -198,13 +198,13 @@ function apply_dissipation!(model::VortexStretchingDissipation, eleGma::Abstract
         Delta = filter_width(dx, dy, dz, area)
         
         # Vorticity vector
-        omega = (eleGma[t,1], eleGma[t,2], eleGma[t,3])
-        omega_mag = sqrt(omega[1]^2 + omega[2]^2 + omega[3]^2)
+        ω = (eleGma[t,1], eleGma[t,2], eleGma[t,3])
+        ω_mag = sqrt(ω[1]^2 + ω[2]^2 + ω[3]^2)
         
-        if omega_mag > model.strain_threshold
+        if ω_mag > model.strain_threshold
             # Vortex stretching dissipation: stronger dissipation for high vorticity
-            stretch_factor = omega_mag / model.strain_threshold
-            dissipation_rate = model.C_stretch * stretch_factor * omega_mag / Delta^2
+            stretch_factor = ω_mag / model.strain_threshold
+            dissipation_rate = model.C_stretch * stretch_factor * ω_mag / Delta^2
             
             decay_factor = exp(-dissipation_rate * dt)
             eleGma[t,1] *= decay_factor
