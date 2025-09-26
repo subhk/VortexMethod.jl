@@ -40,69 +40,6 @@ end
 
 PoissonWorkspace(nz::Int, ny::Int, nx::Int) = PoissonWorkspace(Float64, nz, ny, nx)
 
-# Periodic finite-difference curl terms with central 4th-order where possible
-function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{Float64,3}, VorZ::AbstractArray{Float64,3},
-                           dx::Float64, dy::Float64, dz::Float64)
-    nz, ny, nx = size(VorX)
-    dX_dy = zeros(Float64, nz, ny, nx)
-    dX_dz = zeros(Float64, nz, ny, nx)
-    dY_dx = zeros(Float64, nz, ny, nx)
-    dY_dz = zeros(Float64, nz, ny, nx)
-    dZ_dx = zeros(Float64, nz, ny, nx)
-    dZ_dy = zeros(Float64, nz, ny, nx)
-
-    # x-derivatives
-    for i in 3:nx-2
-        dY_dx[:,:,i] = (VorY[:,:,i-2]/12 - 2*VorY[:,:,i-1]/3 + 2*VorY[:,:,i+1]/3 - VorY[:,:,i+2]/12) / dx
-        dZ_dx[:,:,i] = (VorZ[:,:,i-2]/12 - 2*VorZ[:,:,i-1]/3 + 2*VorZ[:,:,i+1]/3 - VorZ[:,:,i+2]/12) / dx
-    end
-    for i in 1:2
-        dY_dx[:,:,i] = (-3*VorY[:,:,i]/2 + 2*VorY[:,:,i+1] - VorY[:,:,i+2]/2)/dx
-        dZ_dx[:,:,i] = (-3*VorZ[:,:,i]/2 + 2*VorZ[:,:,i+1] - VorZ[:,:,i+2]/2)/dx
-    end
-    dY_dx[:,:,nx-1] = (3*VorY[:,:,nx-1]/2 - 2*VorY[:,:,nx-2] + VorY[:,:,nx-3]/2)/dx
-    dZ_dx[:,:,nx-1] = (3*VorZ[:,:,nx-1]/2 - 2*VorZ[:,:,nx-2] + VorZ[:,:,nx-3]/2)/dx
-    dY_dx[:,:,nx]   = dY_dx[:,:,1]
-    dZ_dx[:,:,nx]   = dZ_dx[:,:,1]
-
-    # y-derivatives
-    for j in 3:ny-2
-        dX_dy[:,j,:] = (VorX[:,j-2,:]/12 - 2*VorX[:,j-1,:]/3 + 2*VorX[:,j+1,:]/3 - VorX[:,j+2,:]/12) / dy
-        dZ_dy[:,j,:] = (VorZ[:,j-2,:]/12 - 2*VorZ[:,j-1,:]/3 + 2*VorZ[:,j+1,:]/3 - VorZ[:,j+2,:]/12) / dy
-    end
-    for j in 1:2
-        dX_dy[:,j,:] = (-3*VorX[:,j,:]/2 + 2*VorX[:,j+1,:] - VorX[:,j+2,:]/2)/dy
-        dZ_dy[:,j,:] = (-3*VorZ[:,j,:]/2 + 2*VorZ[:,j+1,:] - VorZ[:,j+2,:]/2)/dy
-    end
-    dX_dy[:,ny-1,:] = (3*VorX[:,ny-1,:]/2 - 2*VorX[:,ny-2,:] + VorX[:,ny-3,:]/2)/dy
-    dZ_dy[:,ny-1,:] = (3*VorZ[:,ny-1,:]/2 - 2*VorZ[:,ny-2,:] + VorZ[:,ny-3,:]/2)/dy
-    dX_dy[:,ny,:]   = dX_dy[:,1,:]
-    dZ_dy[:,ny,:]   = dZ_dy[:,1,:]
-
-    # z-derivatives
-    for k in 3:nz-2
-        dX_dz[k,:,:] = (VorX[k-2,:,:]/12 - 2*VorX[k-1,:,:]/3 + 2*VorX[k+1,:,:]/3 - VorX[k+2,:,:]/12) / dz
-        dY_dz[k,:,:] = (VorY[k-2,:,:]/12 - 2*VorY[k-1,:,:]/3 + 2*VorY[k+1,:,:]/3 - VorY[k+2,:,:]/12) / dz
-    end
-    for k in 1:2
-        dX_dz[k,:,:] = (-3*VorX[k,:,:]/2 + 2*VorX[k+1,:,:] - VorX[k+2,:,:]/2)/dz
-        dY_dz[k,:,:] = (-3*VorY[k,:,:]/2 + 2*VorY[k+1,:,:] - VorY[k+2,:,:]/2)/dz
-    end
-    dX_dz[nz-1,:,:] = (3*VorX[nz-1,:,:]/2 - 2*VorX[nz-2,:,:] + VorX[nz-3,:,:]/2)/dz
-    dY_dz[nz-1,:,:] = (3*VorY[nz-1,:,:]/2 - 2*VorY[nz-2,:,:] + VorY[nz-3,:,:]/2)/dz
-    dX_dz[nz,:,:]   = dX_dz[1,:,:]
-    dY_dz[nz,:,:]   = dY_dz[1,:,:]
-
-    # -curl(ω) computed in-place to avoid allocations
-    @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
-        u_rhs[k,j,i] = -(dZ_dy[k,j,i] - dY_dz[k,j,i])
-        v_rhs[k,j,i] = -(dX_dz[k,j,i] - dZ_dx[k,j,i]) 
-        w_rhs[k,j,i] = -(dY_dx[k,j,i] - dX_dy[k,j,i])
-    end
-    
-    return nothing
-end
-
 # In-place version using pre-allocated workspace
 function curl_rhs_centered!(workspace::PoissonWorkspace{T}, 
                            u_rhs::AbstractArray{T,3}, v_rhs::AbstractArray{T,3}, w_rhs::AbstractArray{T,3},
