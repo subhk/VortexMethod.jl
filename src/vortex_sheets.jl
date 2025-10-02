@@ -42,10 +42,12 @@ end
 
 # Sheet evolution algorithms
 struct ClassicalEvolution <: SheetEvolution end
+
 struct AdaptiveEvolution <: SheetEvolution 
     curvature_threshold::Float64
     reconnection_distance::Float64
 end
+
 struct HighOrderEvolution <: SheetEvolution
     order::Int  # RK order
     adaptive_timestep::Bool
@@ -65,6 +67,7 @@ function VortexSheet(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vect
     
     return LagrangianSheet(nodes, tri, eleGma, ages, interface_markers)
 end
+
 
 # Detect interface nodes
 function detect_interface_nodes(tri::Matrix{Int}, num_nodes::Int)
@@ -95,6 +98,7 @@ function detect_interface_nodes(tri::Matrix{Int}, num_nodes::Int)
     
     return interface
 end
+
 
 # Evolve vortex sheet using classical method
 function evolve_sheet!(sheet::LagrangianSheet, evolution::ClassicalEvolution, 
@@ -318,7 +322,8 @@ function detect_sheet_rollup(sheet::LagrangianSheet; vorticity_threshold::Float6
 end
 
 # Smooth local curvature
-function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, smoothing_factor::Float64, domain::DomainSpec=nothing)
+function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, 
+                            smoothing_factor::Float64, domain::DomainSpec=nothing)
     # Find neighboring nodes
     neighbors = find_node_neighbors(sheet, node_idx)
     
@@ -472,8 +477,12 @@ function track_sheet_interface!(sheet::EulerianSheet, velocity_field::Function, 
 end
 
 # Adaptive sheet tracking combining multiple methods
-function adaptive_sheet_tracking!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, domain::DomainSpec;
-                                 curvature_threshold::Float64=1.0, quality_threshold::Float64=0.3)
+function adaptive_sheet_tracking!(sheet::LagrangianSheet, 
+                                velocity_field::Function, 
+                                dt::Float64, 
+                                domain::DomainSpec;
+                                curvature_threshold::Float64=1.0, 
+                                quality_threshold::Float64=0.3)
     # Compute mesh quality metrics
     qualities = compute_mesh_quality_sheet(sheet, domain)
     
