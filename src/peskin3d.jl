@@ -19,6 +19,7 @@ finalize_mpi!() = (MPI.Finalized() || MPI.Finalize(); nothing)
 triangle_centroids(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix) = begin
     nt = size(triXC, 1)
     C = zeros(Float64, nt, 3)
+
     @inbounds for t in 1:nt
         C[t, 1] = (triXC[t, 1] + triXC[t, 2] + triXC[t, 3]) / 3
         C[t, 2] = (triYC[t, 1] + triYC[t, 2] + triYC[t, 3]) / 3
@@ -30,13 +31,17 @@ end
 function triangle_areas(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
     nt = size(triXC, 1)
     A = zeros(Float64, nt)
+
     @inbounds for t in 1:nt
         p1 = (triXC[t, 1], triYC[t, 1], triZC[t, 1])
         p2 = (triXC[t, 2], triYC[t, 2], triZC[t, 2])
         p3 = (triXC[t, 3], triYC[t, 3], triZC[t, 3])
+
         a = hypot(hypot(p1[1]-p2[1], p1[2]-p2[2]), p1[3]-p2[3])
         b = hypot(hypot(p2[1]-p3[1], p2[2]-p3[2]), p2[3]-p3[3])
         c = hypot(hypot(p3[1]-p1[1], p3[2]-p1[2]), p3[3]-p1[3])
+
+        # Heron's formula
         s = (a+b+c)/2
         A[t] = sqrt(max(s*(s-a)*(s-b)*(s-c), 0.0))
     end
@@ -58,16 +63,19 @@ function subtriangle_centroids4(p1::NTuple{3,Float64}, p2::NTuple{3,Float64}, p3
     v2 = (p1[1]+ds12[1], p1[2]+ds12[2], p1[3]+ds12[3])
     v3 = (p1[1]-ds31[1], p1[2]-ds31[2], p1[3]-ds31[3])
     T[1,:] = [(v1[1]+v2[1]+v3[1])/3, (v1[2]+v2[2]+v3[2])/3, (v1[3]+v2[3]+v3[3])/3]
+
     # tri 2: p1+ds12, p2+ds23, p1-ds31
     v1 = (p1[1]+ds12[1], p1[2]+ds12[2], p1[3]+ds12[3])
     v2 = (p2[1]+ds23[1], p2[2]+ds23[2], p2[3]+ds23[3])
     v3 = (p1[1]-ds31[1], p1[2]-ds31[2], p1[3]-ds31[3])
     T[2,:] = [(v1[1]+v2[1]+v3[1])/3, (v1[2]+v2[2]+v3[2])/3, (v1[3]+v2[3]+v3[3])/3]
+
     # tri 3: p2, p2+ds23, p1+ds12
     v1 = p2
     v2 = (p2[1]+ds23[1], p2[2]+ds23[2], p2[3]+ds23[3])
     v3 = (p1[1]+ds12[1], p1[2]+ds12[2], p1[3]+ds12[3])
     T[3,:] = [(v1[1]+v2[1]+v3[1])/3, (v1[2]+v2[2]+v3[2])/3, (v1[3]+v2[3]+v3[3])/3]
+
     # tri 4: p2+ds23, p3, p1-ds31
     v1 = (p2[1]+ds23[1], p2[2]+ds23[2], p2[3]+ds23[3])
     v2 = p3
@@ -80,11 +88,15 @@ end
 function build_all_subcentroids(triXC, triYC, triZC)
     nt = size(triXC,1)
     C = Array{Float64}(undef, nt, 4, 3)
+
     @inbounds for t in 1:nt
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
+
+        # Compute centroids of the 4 sub-triangles
         T = subtriangle_centroids4(p1,p2,p3) # 4 x 3
+
         C[t, :, 1] = view(T, :, 1)
         C[t, :, 2] = view(T, :, 2)
         C[t, :, 3] = view(T, :, 3)
@@ -113,7 +125,8 @@ function shifted_centroids(triC, subC, dx::Tuple{Float64,Float64})
 end
 
 # Core Peskin sum for a list of triangles (grid vorticity accumulation)
-function peskin_add_ele!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix, subC, triAreas, tri_list, coord, delr, eps)
+function peskin_add_ele!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix, 
+                    subC, triAreas, tri_list, coord, delr, eps)
     sx, sy, sz = sum
     (epsx,epsy,epsz) = eps
     x = coord
@@ -135,12 +148,14 @@ function peskin_add_ele!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix, subC, t
 end
 
 # Accumulate vorticity at a coordinate from periodic tiles (9 tiles in xy like python)
-function peskin_grid_sum(eleGma, triC, subC, coord, ds, triAreas; delr=4.0, domain::DomainSpec=default_domain())
+function peskin_grid_sum(eleGma, triC, subC, coord, ds, triAreas; delr=4.0, 
+                        domain::DomainSpec=default_domain())
     eps = (delr*ds[1], delr*ds[2], delr*ds[3]) # ds tuple indexing (dx,dy,dz)
     (sx,sy,sz) = (0.0,0.0,0.0)
     # Middle tile
     tri_list = find_elements_nearby(coord[1], coord[2], coord[3], eps... , triC)
     (sx,sy,sz) = peskin_add_ele!((sx,sy,sz), eleGma, subC, triAreas, tri_list, coord, delr, eps)
+
     # Neighbor tiles (E,W,N,S, and corners)
     Lx,Ly,Lz = domain.Lx, domain.Ly, domain.Lz
     # Pre-allocate workspace to avoid repeated allocations
@@ -165,17 +180,20 @@ function peskin_grid_sum(eleGma, triC, subC, coord, ds, triAreas; delr=4.0, doma
         tl = find_elements_nearby(coord[1], coord[2], coord[3], eps..., triC0)
         return peskin_add_ele!((sx,sy,sz), eleGma, subC0, triAreas, tl, coord, delr, eps)
     end
+
     # E, W, N, S
-    (sx,sy,sz) = shifted!((+Lx, 0.0)); (sx,sy,sz) = shifted!((-Lx, 0.0))
-    (sx,sy,sz) = shifted!((0.0, +Ly)); (sx,sy,sz) = shifted!((0.0, -Ly))
+    (sx, sy, sz) = shifted!((+Lx, 0.0)); (sx, sy, sz) = shifted!((-Lx, 0.0))
+    (sx, sy, sz) = shifted!((0.0, +Ly)); (sx, sy, sz) = shifted!((0.0, -Ly))
+
     # Corners
-    (sx,sy,sz) = shifted!((+Lx,+Ly)); (sx,sy,sz) = shifted!((+Lx,-Ly))
-    (sx,sy,sz) = shifted!((-Lx,+Ly)); (sx,sy,sz) = shifted!((-Lx,-Ly))
-    return sx,sy,sz
+    (sx, sy, sz) = shifted!((+Lx,+Ly)); (sx, sy, sz) = shifted!((+Lx,-Ly))
+    (sx, sy, sz) = shifted!((-Lx,+Ly)); (sx, sy, sz) = shifted!((-Lx,-Ly))
+    return sx, sy, sz
 end
 
 # Enhanced grid sum with kernel selection
-function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, kernel::KernelType; domain::DomainSpec=default_domain())
+function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, 
+                        kernel::KernelType; domain::DomainSpec=default_domain())
     delr = kernel_support_radius(kernel)
     eps = (delr*ds[1], delr*ds[2], delr*ds[3])
     (sx,sy,sz) = (0.0,0.0,0.0)
@@ -185,7 +203,8 @@ function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, kernel:
     (sx,sy,sz) = spread_element_kernel!((sx,sy,sz), eleGma, subC, triAreas, tri_list, coord, kernel, eps)
     
     # Neighbor tiles (E,W,N,S, and corners)
-    Lx,Ly,Lz = domain.Lx, domain.Ly, domain.Lz
+    Lx, Ly, Lz = domain.Lx, domain.Ly, domain.Lz
+
     function shifted(tile::Tuple{Float64,Float64})
         dx,dy = tile
         triC0 = copy(triC); subC0 = copy(subC)
@@ -194,19 +213,25 @@ function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, kernel:
         tl = find_elements_nearby(coord[1],coord[2],coord[3], eps... , triC0)
         spread_element_kernel!((sx,sy,sz), eleGma, subC0, triAreas, tl, coord, kernel, eps)
     end
+
     # E, W, N, S
-    (sx,sy,sz) = shifted!((+Lx, 0.0)); (sx,sy,sz) = shifted!((-Lx, 0.0))
-    (sx,sy,sz) = shifted!((0.0, +Ly)); (sx,sy,sz) = shifted!((0.0, -Ly))
+    (sx, sy, sz) = shifted!((+Lx, 0.0)); (sx, sy, sz) = shifted!((-Lx, 0.0))
+    (sx, sy, sz) = shifted!((0.0, +Ly)); (sx, sy, sz) = shifted!((0.0, -Ly))
+
     # Corners
-    (sx,sy,sz) = shifted!((+Lx,+Ly)); (sx,sy,sz) = shifted!((+Lx,-Ly))
-    (sx,sy,sz) = shifted!((-Lx,+Ly)); (sx,sy,sz) = shifted!((-Lx,-Ly))
-    return sx,sy,sz
+    (sx, sy, sz) = shifted!((+Lx,+Ly)); (sx, sy, sz) = shifted!((+Lx,-Ly))
+    (sx, sy, sz) = shifted!((-Lx,+Ly)); (sx, sy, sz) = shifted!((-Lx,-Ly))
+    return sx, sy, sz
 end
 
 # MPI-parallel: spread element vorticity to grid with kernel selection
 function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
-                                            triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                                            domain::DomainSpec, gr::GridSpec, kernel::KernelType=PeskinStandard())
+                                        triXC::AbstractMatrix, 
+                                        triYC::AbstractMatrix, 
+                                        triZC::AbstractMatrix,
+                                        domain::DomainSpec, 
+                                        gr::GridSpec, 
+                                        kernel::KernelType=PeskinStandard())
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
@@ -218,9 +243,9 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     areas = triangle_areas(triXC, triYC, triZC)
 
     x, y, z = grid_vectors(domain, gr)
-    (dx,dy,dz) = grid_spacing(domain, gr)
-    nx,ny,nz = gr.nx, gr.ny, gr.nz
-    
+    (dx, dy, dz) = grid_spacing(domain, gr)
+    nx, ny, nz = gr.nx, gr.ny, gr.nz
+
     coords = Vector{NTuple{3,Float64}}(undef, nx*ny*nz)
     idx = 1
     for k in 1:nz, j in 1:ny, i in 1:nx
@@ -252,9 +277,11 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     VorX[end, :, :] .= VorX[1, :, :]
     VorY[end, :, :] .= VorY[1, :, :]
     VorZ[end, :, :] .= VorZ[1, :, :]
+
     VorX[:, end, :] .= VorX[:, 1, :]
     VorY[:, end, :] .= VorY[:, 1, :]
     VorZ[:, end, :] .= VorZ[:, 1, :]
+
     VorX[:, :, end] .= VorX[:, :, 1]
     VorY[:, :, end] .= VorY[:, :, 1]
     VorZ[:, :, end] .= VorZ[:, :, 1]
@@ -276,10 +303,12 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     subC = build_all_subcentroids(triXC, triYC, triZC)
     areas = triangle_areas(triXC, triYC, triZC)
 
-    x, y, z = grid_vectors(domain, gr)
-    (dx,dy,dz) = grid_spacing(domain, gr)
+    x, y, z   = grid_vectors(domain, gr)
+    (dx, dy, dz) = grid_spacing(domain, gr)
+
     # Flatten grid in order (nz,ny,nx) as in python final reshape
-    nx,ny,nz = gr.nx, gr.ny, gr.nz
+    nx, ny, nz = gr.nx, gr.ny, gr.nz
+
     # Build flattened coordinates in same order used later: we’ll use (k,j,i)
     coords = Vector{NTuple{3,Float64}}(undef, nx*ny*nz)
     idx = 1
@@ -289,6 +318,7 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
 
     # Local buffers
     local_buf = zeros(Float64, nx*ny*nz, 3)
+
     # strided work splitting (round-robin like python)
     @inbounds for idx in (rank+1):nprocs:length(coords)
         c = coords[idx]
@@ -312,9 +342,11 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     VorX[end, :, :] .= VorX[1, :, :]
     VorY[end, :, :] .= VorY[1, :, :]
     VorZ[end, :, :] .= VorZ[1, :, :]
+
     VorX[:, end, :] .= VorX[:, 1, :]
     VorY[:, end, :] .= VorY[:, 1, :]
     VorZ[:, end, :] .= VorZ[:, 1, :]
+    
     VorX[:, :, end] .= VorX[:, :, 1]
     VorY[:, :, end] .= VorY[:, :, 1]
     VorZ[:, :, end] .= VorZ[:, :, 1]
