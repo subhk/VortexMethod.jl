@@ -28,6 +28,7 @@ function grid_velocity(eleGma, triXC, triYC, triZC,
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
     dx,dy,dz = grid_spacing(domain, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+
     if parallel_fft
         return poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
     else
@@ -68,34 +69,48 @@ function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ,
                     parallel_fft::Bool=false)
                     
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
-    dx,dy,dz = grid_spacing(domain, gr)
+    dx, dy, dz = grid_spacing(domain, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+
     if parallel_fft
         Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
     else
         Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
     end
+
     u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ, domain, gr)
+
     return u, v, w
 end
 
-function max_grid_speed(eleGma, triXC, triYC, triZC, domain::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
+function max_grid_speed(eleGma, triXC, triYC, triZC, 
+                        domain::DomainSpec, gr::GridSpec; 
+                        poisson_mode::Symbol=:spectral, 
+                        parallel_fft::Bool=false)
+                        
     VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
-    dx,dy,dz = grid_spacing(domain, gr)
+    dx, dy, dz = grid_spacing(domain, gr)
     u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+
     if parallel_fft
         Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
     else
         Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
     end
+
     # compute max |U| over grid and reduce across ranks
     magmax_local = maximum(sqrt.(Ux.^2 .+ Uy.^2 .+ Uz.^2))
     magmax = MPI.Allreduce(magmax_local, MPI.MAX, MPI.COMM_WORLD)
+
     return magmax
 end
 
-function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain::DomainSpec, gr::GridSpec, dt::Float64;
-                   At::Float64=0.0, adaptive::Bool=false, CFL::Float64=0.5, poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
+function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, 
+                domain::DomainSpec, gr::GridSpec, dt::Float64;
+                At::Float64=0.0, adaptive::Bool=false, 
+                CFL::Float64=0.5, poisson_mode::Symbol=:spectral, 
+                parallel_fft::Bool=false)
+
     # velocities at t^n
     triXC = similar(eleGma, size(tri,1), 3); triYC = similar(triXC); triZC = similar(triXC)
     @inbounds for k in 1:3, t in 1:size(tri,1)
@@ -104,20 +119,24 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain::DomainSpec, gr::Gri
         triYC[t,k] = nodeY[v]
         triZC[t,k] = nodeZ[v]
     end
+
     # compute node circulation from current gamma
     nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
+
     # adaptive dt based on grid max speed if requested
     if adaptive
         dx,dy,_ = grid_spacing(domain, gr)
         umax = max_grid_speed(eleGma, triXC, triYC, triZC, domain, gr; poisson_mode=poisson_mode, parallel_fft=parallel_fft)
         dt = CFL * min(dx,dy) / max(umax, 1e-12)
     end
-    u1, v1, w1 = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, domain, gr; poisson_mode=poisson_mode, parallel_fft=parallel_fft)
+    u1, v1, w1 = node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ, domain, gr; 
+                                poisson_mode=poisson_mode, parallel_fft=parallel_fft)
 
     # half-step positions
     xh = nodeX .+ 0.5 .* dt .* u1
     yh = nodeY .+ 0.5 .* dt .* v1
     zh = nodeZ .+ 0.5 .* dt .* w1
+
     # periodic wrap
     xh .= mod.(xh, domain.Lx)
     yh .= mod.(yh, domain.Ly)
@@ -130,15 +149,18 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain::DomainSpec, gr::Gri
         triYC[t,k] = yh[v]
         triZC[t,k] = zh[v]
     end
+
     # baroclinic update at half step
     if At != 0.0
         dGmid = baroclinic_ele_gamma(At, 0.5*dt, triXC, triYC, triZC)
         dTau = node_circulation_from_ele_gamma(triXC, triYC, triZC, dGmid)
         nodeCirc .+= dTau
     end
+
     # recompute gamma at half-step geometry from updated node circulation
     eleGma_mid = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
-    u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, domain, gr; poisson_mode=poisson_mode, parallel_fft=parallel_fft)
+    u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, domain, gr; 
+                                poisson_mode=poisson_mode, parallel_fft=parallel_fft)
 
     # full-step update
     nodeX .+= dt .* u2
@@ -156,12 +178,14 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain::DomainSpec, gr::Gri
         triYC_new[t,k] = nodeY[v]
         triZC_new[t,k] = nodeZ[v]
     end
+
     # second baroclinic update at end step
     if At != 0.0
         dGend = baroclinic_ele_gamma(At, 0.5*dt, triXC_new, triYC_new, triZC_new)
         dTau2 = node_circulation_from_ele_gamma(triXC_new, triYC_new, triZC_new, dGend)
         nodeCirc .+= dTau2
     end
+
     # produce gamma at new geometry from node circulation
     eleGma_new = ele_gamma_from_node_circ(nodeCirc, triXC_new, triYC_new, triZC_new)
     eleGma .= eleGma_new
@@ -170,10 +194,16 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain::DomainSpec, gr::Gri
 end
 
 # Enhanced RK2 time stepping with dissipation models
-function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::DomainSpec, gr::GridSpec, dt::Float64,
-                                   dissipation_model::DissipationModel=NoDissipation();
-                                   At::Float64=0.0, adaptive::Bool=false, CFL::Float64=0.5, 
-                                   poisson_mode::Symbol=:spectral, parallel_fft::Bool=false, kernel::KernelType=PeskinStandard())
+function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, 
+                                domain::DomainSpec, gr::GridSpec, dt::Float64,
+                                dissipation_model::DissipationModel=NoDissipation();
+                                At::Float64=0.0, 
+                                adaptive::Bool=false, 
+                                CFL::Float64=0.5, 
+                                poisson_mode::Symbol=:spectral, 
+                                parallel_fft::Bool=false, 
+                                kernel::KernelType=PeskinStandard())
+
     # velocities at t^n
     triXC = similar(eleGma, size(tri,1), 3); triYC = similar(triXC); triZC = similar(triXC)
     @inbounds for k in 1:3, t in 1:size(tri,1)
@@ -192,7 +222,8 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::Do
     # adaptive dt based on grid max speed if requested
     if adaptive
         dx, dy, _ = grid_spacing(domain, gr)
-        umax = max_grid_speed(eleGma, triXC, triYC, triZC, domain, gr; poisson_mode=poisson_mode, parallel_fft=parallel_fft)
+        umax = max_grid_speed(eleGma, triXC, triYC, triZC, domain, gr; 
+                            poisson_mode=poisson_mode, parallel_fft=parallel_fft)
         dt = CFL * min(dx, dy) / max(umax, 1e-12)
     end
     
@@ -201,6 +232,7 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::Do
         VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma, triXC, triYC, triZC, domain, gr, kernel)
         dx, dy, dz = grid_spacing(domain, gr)
         u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+
         if parallel_fft
             Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
         else
@@ -217,6 +249,7 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::Do
     xh = nodeX .+ 0.5 .* dt .* u1
     yh = nodeY .+ 0.5 .* dt .* v1
     zh = nodeZ .+ 0.5 .* dt .* w1
+
     # periodic wrap
     xh .= mod.(xh, domain.Lx)
     yh .= mod.(yh, domain.Ly)
@@ -247,6 +280,7 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, domain::Do
         VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma_mid, triXC, triYC, triZC, domain, gr, kernel)
         dx,dy,dz = grid_spacing(domain, gr)
         u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+        
         if parallel_fft
             Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
         else
