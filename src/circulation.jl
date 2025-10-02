@@ -133,6 +133,7 @@ function ele_gamma_from_node_circ(geom::TriangleGeometry, node_τ::AbstractMatri
     eleGma = Matrix{Float64}(undef, nt, 3)
     
     @inbounds for t in 1:nt
+        
         # Use cached edge vectors
         X12, Y12, Z12 = geom.edge_vectors[t,1,1], geom.edge_vectors[t,1,2], geom.edge_vectors[t,1,3]
         X23, Y23, Z23 = geom.edge_vectors[t,2,1], geom.edge_vectors[t,2,2], geom.edge_vectors[t,2,3]
@@ -160,6 +161,7 @@ end
 function transport_ele_gamma(eleGma_old::AbstractMatrix,
                              triXC_old::AbstractMatrix, triYC_old::AbstractMatrix, triZC_old::AbstractMatrix,
                              triXC_new::AbstractMatrix, triYC_new::AbstractMatrix, triZC_new::AbstractMatrix)
+
     τ = node_circulation_from_ele_gamma(triXC_old, triYC_old, triZC_old, eleGma_old)
     eleGma_new = ele_gamma_from_node_circ(τ, triXC_new, triYC_new, triZC_new)
     return eleGma_new
@@ -169,12 +171,15 @@ end
 function triangle_normals(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
     nt = size(triXC,1)
     N = zeros(Float64, nt, 3)
+
     @inbounds for t in 1:nt
         p0 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p1 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p2 = (triXC[t,3], triYC[t,3], triZC[t,3])
+
         r01 = (p1[1]-p0[1], p1[2]-p0[2], p1[3]-p0[3])
         r12 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
+
         nx = r01[2]*r12[3] - r01[3]*r12[2]
         ny = r12[1]*r01[3] - r12[3]*r01[1]
         nz = r01[1]*r12[2] - r01[2]*r12[1]
@@ -183,17 +188,23 @@ function triangle_normals(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::A
             nx,ny,nz = 0.0,0.0,1.0
             norm = 1.0
         end
+        
         nx/=norm; ny/=norm; nz/=norm
         if nz < 0.0
             nx = -nx; ny = -ny; nz = -nz
         end
+
         N[t,1]=nx; N[t,2]=ny; N[t,3]=nz
     end
     return N
 end
 
 # Baroclinic contribution to element vorticity over dt: dγ = [+2At*ny, -2At*nx, 0]*dt
-function baroclinic_ele_gamma(At::Float64, dt::Float64, triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
+function baroclinic_ele_gamma(At::Float64, dt::Float64, 
+                            triXC::AbstractMatrix, 
+                            triYC::AbstractMatrix, 
+                            triZC::AbstractMatrix)
+                            
     N = triangle_normals(triXC, triYC, triZC)
     nt = size(triXC,1)
     dG = zeros(Float64, nt, 3)
