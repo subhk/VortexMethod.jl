@@ -24,7 +24,9 @@ end
 TriangleGeometry(nt::Int) = TriangleGeometry(Float64, nt)
 
 # Fast triangle area using cross product (more numerically stable than Heron's formula)
-@inline function triangle_area_fast(p1::NTuple{3,T}, p2::NTuple{3,T}, p3::NTuple{3,T}) where T
+@inline function triangle_area_fast(p1::NTuple{3,T}, 
+                                    p2::NTuple{3,T}, 
+                                    p3::NTuple{3,T}) where T
     # Area = 0.5 * ||(p2-p1) × (p3-p1)||
     v1x, v1y, v1z = p2[1] - p1[1], p2[2] - p1[2], p2[3] - p1[3]
     v2x, v2y, v2z = p3[1] - p1[1], p3[2] - p1[2], p3[3] - p1[3]
@@ -38,7 +40,9 @@ end
 
 # Compute and cache triangle geometry
 function compute_triangle_geometry!(geom::TriangleGeometry{T}, 
-                                  triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix) where T
+                                triXC::AbstractMatrix, 
+                                triYC::AbstractMatrix, 
+                                triZC::AbstractMatrix) where T
     nt = size(triXC, 1)
     
     @inbounds for t in 1:nt
