@@ -25,8 +25,10 @@ function grid_vectors(domain::DomainSpec, gr::GridSpec)
     # For periodic FFT, grid should go from 0 to L*(1-1/N), not 0 to L
     x = range(0.0, domain.Lx * (1 - 1/gr.nx); length=gr.nx) |> collect
     y = range(0.0, domain.Ly * (1 - 1/gr.ny); length=gr.ny) |> collect
+
     # z is symmetric [-Lz, Lz] with periodic endpoints  
     z = range(-domain.Lz, domain.Lz * (1 - 1/gr.nz); length=gr.nz) |> collect
+
     return x, y, z
 end
 
@@ -37,6 +39,7 @@ end
 
 function grid_mesh(domain::DomainSpec, gr::GridSpec)
     x, y, z = grid_vectors(domain, gr)
+    
     # match python ordering: y3d, z3d, x3d = np.meshgrid(y, z, x)
     # We return x3d, y3d, z3d flattened to 1D for convenience
     x3d = Array{Float64}(undef, gr.ny, gr.nz, gr.nx)
