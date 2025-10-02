@@ -346,7 +346,7 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     VorX[:, end, :] .= VorX[:, 1, :]
     VorY[:, end, :] .= VorY[:, 1, :]
     VorZ[:, end, :] .= VorZ[:, 1, :]
-    
+
     VorX[:, :, end] .= VorX[:, :, 1]
     VorY[:, :, end] .= VorY[:, :, 1]
     VorZ[:, :, end] .= VorZ[:, :, 1]
@@ -355,9 +355,15 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
 end
 
 # Enhanced interpolation with kernel selection
-function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::Array{Float64,3}, gridUz::Array{Float64,3},
-                                              nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
-                                              domain::DomainSpec, gr::GridSpec, kernel::KernelType=PeskinStandard())
+function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, 
+                                            gridUy::Array{Float64,3}, 
+                                            gridUz::Array{Float64,3},
+                                            nodeX::AbstractVector, 
+                                            nodeY::AbstractVector, 
+                                            nodeZ::AbstractVector,
+                                            domain::DomainSpec, 
+                                            gr::GridSpec, 
+                                            kernel::KernelType=PeskinStandard())
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
@@ -367,10 +373,12 @@ function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::
     (dx,dy,dz) = grid_spacing(domain, gr)
     # Build flattened grid arrays and coordinates
     x,y,z = grid_vectors(domain, gr)
+
     coords = Vector{NTuple{3,Float64}}(undef, nx*ny*nz)
     flatUx = Vector{Float64}(undef, nx*ny*nz)
     flatUy = similar(flatUx)
     flatUz = similar(flatUx)
+
     idx = 1
     for k in 1:nz, j in 1:ny, i in 1:nx
         coords[idx] = (x[i], y[j], z[k])
@@ -381,7 +389,7 @@ function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::
     end
 
     delr = kernel_support_radius(kernel)
-    epsx,epsy,epsz = delr*dx, delr*dy, delr*dz
+    epsx, epsy, epsz = delr*dx, delr*dy, delr*dz
 
     # local node buffers
     N = length(nodeX)
@@ -423,9 +431,13 @@ function interpolate_node_velocity_kernel_mpi(gridUx::Array{Float64,3}, gridUy::
 end
 
 # Interpolate node velocities from grid (MPI parallel over nodes) - original function
-function interpolate_node_velocity_mpi(gridUx::Array{Float64,3}, gridUy::Array{Float64,3}, gridUz::Array{Float64,3},
-                                       nodeX::AbstractVector, nodeY::AbstractVector, nodeZ::AbstractVector,
-                                       domain::DomainSpec, gr::GridSpec)
+function interpolate_node_velocity_mpi(gridUx::Array{Float64,3}, 
+                                    gridUy::Array{Float64,3}, 
+                                    gridUz::Array{Float64,3},
+                                    nodeX::AbstractVector, 
+                                    nodeY::AbstractVector, 
+                                    nodeZ::AbstractVector,
+                                    domain::DomainSpec, gr::GridSpec)
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
