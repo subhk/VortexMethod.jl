@@ -473,3 +473,7 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
 end
 
 end # module
+
+using .RemeshAdvanced: MeshQuality, compute_mesh_quality, quality_based_remesh!,
+                       element_quality_metrics, anisotropic_remesh!,
+                       curvature_based_remesh!, flow_adaptive_remesh!

@@ -41,14 +41,14 @@ kernel_support_radius(k::AreaWeighting)  = k.delr
 
 # 1D kernel functions
 function kernel_1d(::PeskinStandard, r::Float64, h::Float64)::Float64
-    # Standard discrete delta function
+    # Standard 4-point Peskin discrete delta function
     x = abs(r) / h
     if x >= 2.0
         return 0.0
     elseif x <= 1.0
-        return (1 + cos(π*x)) / (2*h)
+        return (3 - 2*x + sqrt(1 + 4*x - 4*x^2)) / (8*h)
     else
-        return (1 + cos(π*x)) / (2*h)
+        return (5 - 2*x - sqrt(-7 + 12*x - 4*x^2)) / (8*h)
     end
 end
 

@@ -50,6 +50,9 @@ export DomainSpec, GridSpec,
 
 # circulation.jl - Circulation management and transport
        node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma,
+       triangle_normals, baroclinic_ele_gamma, TriangleGeometry, compute_triangle_geometry,
+       node_circulation_from_ele_gamma_mpi, ele_gamma_from_node_circ_mpi,
+       triangle_normals_mpi, baroclinic_ele_gamma_mpi, transport_ele_gamma_mpi,
 
 # dissipation.jl - Turbulence models and viscosity
        DissipationModel, NoDissipation, SmagorinskyModel, DynamicSmagorinsky,
@@ -87,11 +90,15 @@ export DomainSpec, GridSpec,
        grid_ke, gamma_ke,
 
 # particle_management.jl - Adaptive particle insertion/removal
-       insert_particles_periodic!, remove_particles_periodic!, 
+       insert_particles_periodic!, remove_particles_periodic!,
        compact_mesh!, adaptive_particle_control!,
        ParticleInsertionCriteria, ParticleRemovalCriteria,
        insert_vortex_blob_periodic!, remove_weak_vortices!,
        maintain_particle_count!, redistribute_particles_periodic!,
+       # MPI synchronized versions (Approach B: identical operations on all ranks)
+       insert_particles_periodic_mpi!, remove_particles_periodic_mpi!,
+       adaptive_particle_control_mpi!, maintain_particle_count_mpi!,
+       redistribute_particles_periodic_mpi!,
 
 # performance.jl - Performance monitoring and profiling
        @vortex_time, PerformanceCounters, reset_counters!, print_performance_report,
@@ -104,7 +111,7 @@ export DomainSpec, GridSpec,
 # soa_layout.jl - Structure of Arrays memory layout
        TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA,
        aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!,
-       soa_triangle_areas!, soa_circulation_solve!,
+       soa_triangle_areas!, soa_circulation_solve!, create_soa_layout,
 
 # cache_optimization.jl - Cache-aware algorithms
        TiledPoissonSolver, BlockedSpreadingKernel, CacheAwareMesh,

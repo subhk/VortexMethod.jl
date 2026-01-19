@@ -152,18 +152,14 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
         KZ = reshape(kz, nz,1,1)
         sym = KX.^2 .+ KY.^2 .+ KZ.^2
     elseif mode == :fd
-        # Discrete Laplacian symbol used by Python code
+        # Discrete Laplacian symbol: 2(cos(2πm/n) - 1) / h² for 3-point central difference
         mx = collect(0:nx-1); my = collect(0:ny-1); mz = collect(0:nz-1)
-        CX = reshape(cos.(2pi .* mx ./ nx) .- 1.0, 1,1,nx) ./ (dx^2)
-        CY = reshape(cos.(2pi .* my ./ ny) .- 1.0, 1,ny,1) ./ (dy^2)
-        CZ = reshape(cos.(2pi .* mz ./ nz) .- 1.0, nz,1,1) ./ (dz^2)
+        CX = reshape(2.0 .* (cos.(2pi .* mx ./ nx) .- 1.0), 1,1,nx) ./ (dx^2)
+        CY = reshape(2.0 .* (cos.(2pi .* my ./ ny) .- 1.0), 1,ny,1) ./ (dy^2)
+        CZ = reshape(2.0 .* (cos.(2pi .* mz ./ nz) .- 1.0), nz,1,1) ./ (dz^2)
         sym = CX .+ CY .+ CZ
     else
         error("Unknown Poisson mode: $mode (use :spectral or :fd)")
-    end
-
-    function solve_one(rhs)
-        F = rfft(rhs) # real-to-complex along last dim only would be wrong; do full fftn via FFTW.fft.
     end
 
     # Use full n-dimensional FFT
@@ -241,11 +237,11 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
         KZ = reshape(kz[local_range_z], length(local_range_z), 1, 1)
         sym = KX.^2 .+ KY.^2 .+ KZ.^2
     elseif mode == :fd
-        # Discrete Laplacian symbol for local ranges
+        # Discrete Laplacian symbol: 2(cos(2πm/n) - 1) / h² for 3-point central difference
         mx = collect(local_range_x .- 1); my = collect(local_range_y .- 1); mz = collect(local_range_z .- 1)
-        CX = reshape(cos.(2pi .* mx ./ nx) .- 1.0, 1, 1, length(mx)) ./ (dx^2)
-        CY = reshape(cos.(2pi .* my ./ ny) .- 1.0, 1, length(my), 1) ./ (dy^2)
-        CZ = reshape(cos.(2pi .* mz ./ nz) .- 1.0, length(mz), 1, 1) ./ (dz^2)
+        CX = reshape(2.0 .* (cos.(2pi .* mx ./ nx) .- 1.0), 1, 1, length(mx)) ./ (dx^2)
+        CY = reshape(2.0 .* (cos.(2pi .* my ./ ny) .- 1.0), 1, length(my), 1) ./ (dy^2)
+        CZ = reshape(2.0 .* (cos.(2pi .* mz ./ nz) .- 1.0), length(mz), 1, 1) ./ (dz^2)
         sym = CX .+ CY .+ CZ
     else
         error("Unknown Poisson mode: $mode (use :spectral or :fd)")
@@ -310,29 +306,26 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
     ldiv!(uy_local, fft_plan, V̂)
     ldiv!(uz_local, fft_plan, Ŵ)
     
-    # Gather results to global arrays (or keep distributed for further processing)
-    ux = zeros(Float64, nz, ny, nx)
-    uy = zeros(Float64, nz, ny, nx)
-    uz = zeros(Float64, nz, ny, nx)
-    
-    # Collect distributed results to rank 0 and broadcast
-    # This could be optimized to keep data distributed if downstream operations support it
+    # Gather results to global arrays using MPI.Allreduce
+    # Each rank writes its local portion to a global-sized array (zeros elsewhere),
+    # then Allreduce with SUM combines all the non-overlapping pieces
+    ux_local_global = zeros(Float64, nz, ny, nx)
+    uy_local_global = zeros(Float64, nz, ny, nx)
+    uz_local_global = zeros(Float64, nz, ny, nx)
+
+    # Each rank writes its local data to the appropriate region
+    ux_local_global[local_range_z, local_range_y, local_range_x] .= real.(ux_local)
+    uy_local_global[local_range_z, local_range_y, local_range_x] .= real.(uy_local)
+    uz_local_global[local_range_z, local_range_y, local_range_x] .= real.(uz_local)
+
+    # Combine all ranks' contributions (non-overlapping regions, so SUM works)
     ux_gathered = zeros(Float64, nz, ny, nx)
     uy_gathered = zeros(Float64, nz, ny, nx)
     uz_gathered = zeros(Float64, nz, ny, nx)
-    
-    # Simple gathering - in practice you'd use proper MPI collectives
-    rank = MPI.Comm_rank(comm)
-    if rank == 0
-        ux_gathered[local_range_z, local_range_y, local_range_x] .= real.(ux_local)
-        uy_gathered[local_range_z, local_range_y, local_range_x] .= real.(uy_local)
-        uz_gathered[local_range_z, local_range_y, local_range_x] .= real.(uz_local)
-    end
-    
-    # Broadcast final results
-    MPI.Bcast!(ux_gathered, 0, comm)
-    MPI.Bcast!(uy_gathered, 0, comm)
-    MPI.Bcast!(uz_gathered, 0, comm)
+
+    MPI.Allreduce!(ux_local_global, ux_gathered, MPI.SUM, comm)
+    MPI.Allreduce!(uy_local_global, uy_gathered, MPI.SUM, comm)
+    MPI.Allreduce!(uz_local_global, uz_gathered, MPI.SUM, comm)
     
     # Note: Periodic boundary conditions are handled automatically by FFT
     

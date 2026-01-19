@@ -184,11 +184,11 @@ function midpoint_periodic(x1, y1, z1, x2, y2, z2, domain::DomainSpec)
     zm = z1 + 0.5*dz
     
     # wrap back to domain ranges: x in [0,Lx), y in [0,Ly), z in [-Lz,+Lz]
-    xm = (xm % Lx)
-    ym = (ym % Ly)
+    xm = mod(xm, Lx)
+    ym = mod(ym, Ly)
     
     zshift = zm + domain.Lz
-    zshift = (zshift % (2*domain.Lz))
+    zshift = mod(zshift, 2*domain.Lz)
     zm = zshift - domain.Lz
     
     return xm, ym, zm
@@ -319,7 +319,7 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
         collapsed = false
         for (e, tlst) in emap
             a,b = e
-                if periodic_edge_length(nodeX,nodeY,nodeZ,a,b, domain) < ds_min
+            if periodic_edge_length(nodeX,nodeY,nodeZ,a,b, domain) < ds_min
                 # midpoint and new node
                 mx,my,mz = midpoint_periodic(nodeX[a],nodeY[a],nodeZ[a], nodeX[b],nodeY[b],nodeZ[b], domain)
                 push!(nodeX, mx); push!(nodeY, my); push!(nodeZ, mz)
@@ -368,7 +368,13 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
         @inbounds for t in 1:size(tri,1), k in 1:3
             tri[t,k] = old2new[tri[t,k]]
         end
-        nodeX[:] = nodeXnew; nodeY[:] = nodeYnew; nodeZ[:] = nodeZnew
+        # Resize and copy compacted node arrays
+        resize!(nodeX, length(nodeXnew))
+        resize!(nodeY, length(nodeYnew))
+        resize!(nodeZ, length(nodeZnew))
+        nodeX .= nodeXnew
+        nodeY .= nodeYnew
+        nodeZ .= nodeZnew
     end
     # Ensure all nodes are wrapped at the end
     wrap_nodes!(nodeX, nodeY, nodeZ, domain)
@@ -376,3 +382,6 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
 end
 
 end # module
+
+using .Remesh: detect_max_edge_length, detect_min_edge_length,
+               element_splitting!, edge_flip_small_edge!, remesh_pass!

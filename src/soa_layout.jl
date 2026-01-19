@@ -4,9 +4,9 @@ module SoALayout
 
 # Using built-in Julia SIMD capabilities
 
-export TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA, 
-       aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!, 
-       soa_triangle_areas!, soa_circulation_solve!
+export TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA,
+       aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!,
+       soa_triangle_areas!, soa_circulation_solve!, create_soa_layout
 
 # Structure of Arrays for triangle coordinates (better for SIMD)
 struct TriangleSoA{T<:AbstractFloat}
@@ -149,69 +149,121 @@ function soa_triangle_areas!(areas::Vector{T}, triangles::TriangleSoA{T}) where 
 end
 
 # Vectorized kernel evaluation optimized for SoA layout
-function vectorized_kernel_eval!(weights::AbstractVector{T}, 
+# Uses PeskinCosine kernel: (1 + cos(2πx/3)) / (3h) for |x| < 1.5h
+# Matches the PeskinCosine kernel from kernels.jl
+function vectorized_kernel_eval!(weights::AbstractVector{T},
                                  distances_x::AbstractVector{T},
-                                 distances_y::AbstractVector{T}, 
+                                 distances_y::AbstractVector{T},
                                  distances_z::AbstractVector{T},
                                  h::T) where T
     @assert length(weights) == length(distances_x) == length(distances_y) == length(distances_z)
-    
+
     # Use SIMD instructions for parallel kernel evaluation
     @inbounds @simd for i in eachindex(weights)
         # Compute normalized distances
         r_x = abs(distances_x[i]) / h
         r_y = abs(distances_y[i]) / h
         r_z = abs(distances_z[i]) / h
-        
-        # Peskin kernel evaluation (can be vectorized)
-        kernel_x = (r_x >= 2.0) ? 0.0 : (1.0 + cos(π * r_x)) / (2.0 * h)
-        kernel_y = (r_y >= 2.0) ? 0.0 : (1.0 + cos(π * r_y)) / (2.0 * h)
-        kernel_z = (r_z >= 2.0) ? 0.0 : (1.0 + cos(π * r_z)) / (2.0 * h)
-        
+
+        # PeskinCosine kernel evaluation (matches kernels.jl)
+        # Support radius: 1.5h, formula: (1 + cos(2πx/3)) / (3h)
+        kernel_x = (r_x >= T(1.5)) ? T(0) : (T(1) + cos(T(2) * T(π) * r_x / T(3))) / (T(3) * h)
+        kernel_y = (r_y >= T(1.5)) ? T(0) : (T(1) + cos(T(2) * T(π) * r_y / T(3))) / (T(3) * h)
+        kernel_z = (r_z >= T(1.5)) ? T(0) : (T(1) + cos(T(2) * T(π) * r_z / T(3))) / (T(3) * h)
+
         weights[i] = kernel_x * kernel_y * kernel_z
     end
 end
 
 # Cache-optimized circulation solver using SoA layout
-function soa_circulation_solve!(circulation::VorticitySoA{T}, 
+# Converts element circulation (Γ) to node circulation (τ) using least squares
+# Solves the 4x3 over-determined system: A * τ = b
+# where A contains edge vectors and b contains element gamma values
+# Uses normal equations: A'A * τ = A'b (analytically expanded for performance)
+function soa_circulation_solve!(circulation::VorticitySoA{T},
                                element_gamma::VorticitySoA{T},
                                triangles::TriangleSoA{T},
                                areas::AbstractVector{T}) where T
     n = triangles.n_triangles
     @assert n == circulation.n_elements == element_gamma.n_elements == length(areas)
-    
-    # Vectorized solution of circulation equations
-    # This processes multiple triangles simultaneously for better cache performance
-    
+
     # Process in blocks for better cache utilization
-    block_size = min(64, n)  # Process 64 triangles at a time
-    
+    block_size = min(64, n)
+
     for block_start in 1:block_size:n
         block_end = min(block_start + block_size - 1, n)
-        
+
         @inbounds for i in block_start:block_end
             # Edge vectors from SoA layout
-            x12 = triangles.x2[i] - triangles.x1[i]
-            y12 = triangles.y2[i] - triangles.y1[i]
-            z12 = triangles.z2[i] - triangles.z1[i]
-            
-            x23 = triangles.x3[i] - triangles.x2[i]
-            y23 = triangles.y3[i] - triangles.y2[i]
-            z23 = triangles.z3[i] - triangles.z2[i]
-            
-            x31 = triangles.x1[i] - triangles.x3[i]
-            y31 = triangles.y1[i] - triangles.y3[i]
-            z31 = triangles.z1[i] - triangles.z3[i]
-            
-            # Fast solve using analytical 4x3 system
-            # This avoids matrix allocations and uses optimized routines
-            area_inv = 1.0 / areas[i]
-            
-            # The circulation calculation simplified for SoA layout
-            # (This is a simplified version - full implementation would need proper 4x3 solve)
-            circulation.ωx[i] = element_gamma.ωx[i] * area_inv
-            circulation.ωy[i] = element_gamma.ωy[i] * area_inv  
-            circulation.ωz[i] = element_gamma.ωz[i] * area_inv
+            X₁₂ = triangles.x2[i] - triangles.x1[i]
+            Y₁₂ = triangles.y2[i] - triangles.y1[i]
+            Z₁₂ = triangles.z2[i] - triangles.z1[i]
+
+            X₂₃ = triangles.x3[i] - triangles.x2[i]
+            Y₂₃ = triangles.y3[i] - triangles.y2[i]
+            Z₂₃ = triangles.z3[i] - triangles.z2[i]
+
+            X₃₁ = triangles.x1[i] - triangles.x3[i]
+            Y₃₁ = triangles.y1[i] - triangles.y3[i]
+            Z₃₁ = triangles.z1[i] - triangles.z3[i]
+
+            # Element gamma (RHS of system)
+            Γ₁₂ = element_gamma.ωx[i]
+            Γ₂₃ = element_gamma.ωy[i]
+            Γ₃₁ = element_gamma.ωz[i]
+
+            # Solve 4x3 least squares system using normal equations: A'A * τ = A'b
+            # A = [X₁₂ Y₁₂ Z₁₂; X₂₃ Y₂₃ Z₂₃; X₃₁ Y₃₁ Z₃₁; 0 0 0]
+            # b = [Γ₁₂; Γ₂₃; Γ₃₁; 0]
+
+            # A'A (3x3 symmetric matrix)
+            a₁₁ = X₁₂*X₁₂ + X₂₃*X₂₃ + X₃₁*X₃₁
+            a₁₂ = X₁₂*Y₁₂ + X₂₃*Y₂₃ + X₃₁*Y₃₁
+            a₁₃ = X₁₂*Z₁₂ + X₂₃*Z₂₃ + X₃₁*Z₃₁
+            a₂₂ = Y₁₂*Y₁₂ + Y₂₃*Y₂₃ + Y₃₁*Y₃₁
+            a₂₃ = Y₁₂*Z₁₂ + Y₂₃*Z₂₃ + Y₃₁*Z₃₁
+            a₃₃ = Z₁₂*Z₁₂ + Z₂₃*Z₂₃ + Z₃₁*Z₃₁
+
+            # A'b (3x1 vector)
+            b₁ = X₁₂*Γ₁₂ + X₂₃*Γ₂₃ + X₃₁*Γ₃₁
+            b₂ = Y₁₂*Γ₁₂ + Y₂₃*Γ₂₃ + Y₃₁*Γ₃₁
+            b₃ = Z₁₂*Γ₁₂ + Z₂₃*Γ₂₃ + Z₃₁*Γ₃₁
+
+            # Solve 3x3 symmetric system using Cramer's rule
+            # det(A'A)
+            det = a₁₁*(a₂₂*a₃₃ - a₂₃*a₂₃) -
+                  a₁₂*(a₁₂*a₃₃ - a₂₃*a₁₃) +
+                  a₁₃*(a₁₂*a₂₃ - a₂₂*a₁₃)
+
+            # Regularization for near-singular matrices
+            if abs(det) < T(1e-14)
+                # Fallback to simple approximation
+                area_inv = T(1) / max(areas[i], T(1e-14))
+                circulation.ωx[i] = Γ₁₂ * area_inv
+                circulation.ωy[i] = Γ₂₃ * area_inv
+                circulation.ωz[i] = Γ₃₁ * area_inv
+            else
+                det_inv = T(1) / det
+
+                # Cofactors for τ₁ (replace first column with b)
+                τ₁ = det_inv * (b₁*(a₂₂*a₃₃ - a₂₃*a₂₃) -
+                                a₁₂*(b₂*a₃₃ - a₂₃*b₃) +
+                                a₁₃*(b₂*a₂₃ - a₂₂*b₃))
+
+                # Cofactors for τ₂ (replace second column with b)
+                τ₂ = det_inv * (a₁₁*(b₂*a₃₃ - a₂₃*b₃) -
+                                b₁*(a₁₂*a₃₃ - a₂₃*a₁₃) +
+                                a₁₃*(a₁₂*b₃ - b₂*a₁₃))
+
+                # Cofactors for τ₃ (replace third column with b)
+                τ₃ = det_inv * (a₁₁*(a₂₂*b₃ - b₂*a₂₃) -
+                                a₁₂*(a₁₂*b₃ - b₂*a₁₃) +
+                                b₁*(a₁₂*a₂₃ - a₂₂*a₁₃))
+
+                circulation.ωx[i] = τ₁
+                circulation.ωy[i] = τ₂
+                circulation.ωz[i] = τ₃
+            end
         end
     end
 end

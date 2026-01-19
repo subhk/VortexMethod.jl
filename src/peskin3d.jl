@@ -114,16 +114,6 @@ function find_elements_nearby(x,y,z, epsx,epsy,epsz, triC::AbstractMatrix)
     findall(maskx .& masky .& maskz)
 end
 
-# Periodic image helper: shift tri centroids and subcentroids by tile offsets
-function shifted_centroids(triC, subC, dx::Tuple{Float64,Float64})
-    Lx, Ly = dx
-    triC0 = copy(triC)
-    subC0 = copy(subC)
-    triC0[:,1] .+= Lx
-    subC0[:,:,1] .+= Lx
-    return triC0, subC0
-end
-
 # Core Peskin sum for a list of triangles (grid vorticity accumulation)
 function peskin_add_ele!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix, 
                     subC, triAreas, tri_list, coord, delr, eps)
@@ -215,29 +205,28 @@ function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas,
     end
 
     # E, W, N, S
-    (sx, sy, sz) = shifted!((+Lx, 0.0)); (sx, sy, sz) = shifted!((-Lx, 0.0))
-    (sx, sy, sz) = shifted!((0.0, +Ly)); (sx, sy, sz) = shifted!((0.0, -Ly))
+    (sx, sy, sz) = shifted((+Lx, 0.0)); (sx, sy, sz) = shifted((-Lx, 0.0))
+    (sx, sy, sz) = shifted((0.0, +Ly)); (sx, sy, sz) = shifted((0.0, -Ly))
 
     # Corners
-    (sx, sy, sz) = shifted!((+Lx,+Ly)); (sx, sy, sz) = shifted!((+Lx,-Ly))
-    (sx, sy, sz) = shifted!((-Lx,+Ly)); (sx, sy, sz) = shifted!((-Lx,-Ly))
+    (sx, sy, sz) = shifted((+Lx,+Ly)); (sx, sy, sz) = shifted((+Lx,-Ly))
+    (sx, sy, sz) = shifted((-Lx,+Ly)); (sx, sy, sz) = shifted((-Lx,-Ly))
     return sx, sy, sz
 end
 
 # MPI-parallel: spread element vorticity to grid with kernel selection
 function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
-                                        triXC::AbstractMatrix, 
-                                        triYC::AbstractMatrix, 
+                                        triXC::AbstractMatrix,
+                                        triYC::AbstractMatrix,
                                         triZC::AbstractMatrix,
-                                        domain::DomainSpec, 
-                                        gr::GridSpec, 
+                                        domain::DomainSpec,
+                                        gr::GridSpec,
                                         kernel::KernelType=PeskinStandard())
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     nprocs = MPI.Comm_size(comm)
 
-    nt = size(triXC,1)
     triC = triangle_centroids(triXC, triYC, triZC)
     subC = build_all_subcentroids(triXC, triYC, triZC)
     areas = triangle_areas(triXC, triYC, triZC)
@@ -248,7 +237,8 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
 
     coords = Vector{NTuple{3,Float64}}(undef, nx*ny*nz)
     idx = 1
-    for k in 1:nz, j in 1:ny, i in 1:nx
+    # Loop order: i varies slowest, k varies fastest to match reshape(nz,ny,nx) column-major
+    for i in 1:nx, j in 1:ny, k in 1:nz
         coords[idx] = (x[i], y[j], z[k]); idx+=1
     end
 
@@ -268,7 +258,7 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     global_buf = similar(local_buf)
     MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
 
-    # Reshape to (nz,ny,nx)
+    # Reshape to (nz,ny,nx) - column-major means nz varies fastest, matching loop order
     VorX = reshape(view(global_buf,:,1), nz, ny, nx)
     VorY = reshape(view(global_buf,:,2), nz, ny, nx)
     VorZ = reshape(view(global_buf,:,3), nz, ny, nx)
@@ -298,7 +288,6 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     rank = MPI.Comm_rank(comm)
     nprocs = MPI.Comm_size(comm)
 
-    nt = size(triXC,1)
     triC = triangle_centroids(triXC, triYC, triZC)
     subC = build_all_subcentroids(triXC, triYC, triZC)
     areas = triangle_areas(triXC, triYC, triZC)
@@ -309,10 +298,11 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     # Flatten grid in order (nz,ny,nx) as in python final reshape
     nx, ny, nz = gr.nx, gr.ny, gr.nz
 
-    # Build flattened coordinates in same order used later: we’ll use (k,j,i)
+    # Build flattened coordinates matching reshape(nz,ny,nx) column-major order
     coords = Vector{NTuple{3,Float64}}(undef, nx*ny*nz)
     idx = 1
-    for k in 1:nz, j in 1:ny, i in 1:nx
+    # Loop order: i varies slowest, k varies fastest to match reshape(nz,ny,nx)
+    for i in 1:nx, j in 1:ny, k in 1:nz
         coords[idx] = (x[i], y[j], z[k]); idx+=1
     end
 

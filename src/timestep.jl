@@ -1,5 +1,6 @@
 module TimeStepper
 
+using MPI
 using ..DomainImpl
 using ..Poisson3D
 using ..Peskin3D
@@ -326,4 +327,4 @@ end
 
 end # module
 
-using .TimeStepper: node_velocities, rk2_step!, rk2_step_with_dissipation!
+using .TimeStepper: node_velocities, rk2_step!, rk2_step_with_dissipation!, grid_velocity, make_velocity_sampler

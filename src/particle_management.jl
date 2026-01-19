@@ -5,12 +5,21 @@ module ParticleManagement
 
 using ..DomainImpl
 using ..Circulation
+using MPI
+using Random
 
-export insert_particles_periodic!, remove_particles_periodic!, 
+# MPI initialization helper (same pattern as peskin3d.jl and circulation.jl)
+init_mpi!() = (MPI.Initialized() || MPI.Init(); nothing)
+
+export insert_particles_periodic!, remove_particles_periodic!,
        compact_mesh!, adaptive_particle_control!,
        ParticleInsertionCriteria, ParticleRemovalCriteria,
        insert_vortex_blob_periodic!, remove_weak_vortices!,
-       maintain_particle_count!, redistribute_particles_periodic!
+       maintain_particle_count!, redistribute_particles_periodic!,
+       # MPI synchronized versions
+       insert_particles_periodic_mpi!, remove_particles_periodic_mpi!,
+       adaptive_particle_control_mpi!, maintain_particle_count_mpi!,
+       redistribute_particles_periodic_mpi!
 
 
 """
@@ -164,34 +173,42 @@ Remove particles based on criteria while maintaining domain periodicity and circ
 - `n_removed::Int`: Number of particles removed
 """
 function remove_particles_periodic!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                   tri::Matrix{Int}, 
-                                   eleGma::Matrix{Float64}, 
+                                   tri::Matrix{Int},
+                                   eleGma::Matrix{Float64},
                                    domain::DomainSpec,
                                    criteria::ParticleRemovalCriteria)
-    
+
     n_removed = 0
-    
+
     # Find particles to remove
     removal_candidates = find_removal_candidates_periodic(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
-    
-    # Sort by removal priority (weakest circulation first)
-    sort!(removal_candidates, by=x->x.circulation_magnitude)
-    
-    # Remove particles and update mesh
-    for candidate in removal_candidates
-        success = remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, candidate.node_index, domain)
-        if success
-            n_removed += 1
+
+    if isempty(removal_candidates)
+        return 0
+    end
+
+    # Extract node indices and sort in DESCENDING order
+    # This prevents index shifting from invalidating remaining indices
+    indices_to_remove = [c.node_index for c in removal_candidates]
+    sort!(indices_to_remove, rev=true)
+
+    # Remove particles from highest index to lowest
+    for node_idx in indices_to_remove
+        if node_idx > 0 && node_idx <= length(nodeX)
+            success = remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, node_idx, domain)
+            if success
+                n_removed += 1
+            end
         end
     end
-    
+
     # Compact mesh to remove unused nodes
     if n_removed > 0
         compact_mesh!(nodeX, nodeY, nodeZ, tri, eleGma)
         # Ensure periodicity after compaction
         wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     end
-    
+
     return n_removed
 end
 
@@ -346,19 +363,23 @@ end
 
 function find_removal_candidates_periodic(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
     candidates = RemovalCandidate[]
-    
+
     # Find nodes with weak circulation
     node_circulations = compute_node_circulations(tri, eleGma)
-    
+
+    if isempty(node_circulations)
+        return candidates
+    end
+
     for (i, circ) in enumerate(node_circulations)
         circ_mag = sqrt(circ[1]^2 + circ[2]^2 + circ[3]^2)
-        
+
         if circ_mag < criteria.weak_circulation_threshold
             priority = 1.0 / (circ_mag + 1e-12)  # Higher priority for weaker circulation
             push!(candidates, RemovalCandidate(i, circ_mag, priority))
         end
     end
-    
+
     return candidates
 end
 
@@ -798,20 +819,30 @@ end
 
 function compute_node_circulations(tri, eleGma)
     # Compute circulation at each node by averaging connected elements
-    node_count = maximum(tri)
+    if size(tri, 1) == 0 || all(tri .<= 0)
+        return Tuple{Float64,Float64,Float64}[]
+    end
+
+    node_count = maximum(max.(tri, 0))  # Ignore invalid (<=0) indices
+    if node_count == 0
+        return Tuple{Float64,Float64,Float64}[]
+    end
+
     node_circulations = [zeros(3) for _ in 1:node_count]
     node_counts = zeros(Int, node_count)
-    
+
     for t in 1:size(tri, 1)
         for k in 1:3
             node = tri[t, k]
-            for i in 1:3
-                node_circulations[node][i] += eleGma[t, i]
+            if node > 0 && node <= node_count  # Check for valid node index
+                for i in 1:3
+                    node_circulations[node][i] += eleGma[t, i]
+                end
+                node_counts[node] += 1
             end
-            node_counts[node] += 1
         end
     end
-    
+
     # Average
     for i in 1:node_count
         if node_counts[i] > 0
@@ -820,7 +851,7 @@ function compute_node_circulations(tri, eleGma)
             end
         end
     end
-    
+
     return [Tuple(nc) for nc in node_circulations]
 end
 
@@ -962,42 +993,50 @@ function remove_weakest_particles!(nodeX, nodeY, nodeZ, tri, eleGma, domain, n_e
     if n_excess <= 0 || length(nodeX) == 0
         return 0
     end
-    
+
     # Compute circulation magnitude for each node
     node_circulations = compute_node_circulations(tri, eleGma)
-    
+
+    if isempty(node_circulations)
+        return 0
+    end
+
     # Create list of (node_index, circulation_magnitude) pairs
     node_strengths = Tuple{Int, Float64}[]
     for (i, circ) in enumerate(node_circulations)
         circ_mag = sqrt(circ[1]^2 + circ[2]^2 + circ[3]^2)
         push!(node_strengths, (i, circ_mag))
     end
-    
+
     # Sort by circulation magnitude (weakest first)
     sort!(node_strengths, by=x->x[2])
-    
-    n_removed = 0
-    removed_indices = Int[]
-    
-    # Remove weakest particles
+
+    # Collect indices of particles to remove (up to n_excess weakest)
+    indices_to_remove = Int[]
     for (node_idx, _) in node_strengths
-        if n_removed >= n_excess
+        if length(indices_to_remove) >= n_excess
             break
         end
-        
-        if node_idx <= length(nodeX) && !(node_idx in removed_indices)
-            # Try to remove this particle
+        if node_idx > 0 && node_idx <= length(nodeX)
+            push!(indices_to_remove, node_idx)
+        end
+    end
+
+    # Sort indices in DESCENDING order to remove from highest to lowest
+    # This prevents index shifting from invalidating remaining indices
+    sort!(indices_to_remove, rev=true)
+
+    n_removed = 0
+    for node_idx in indices_to_remove
+        # Check index is still valid (in case of earlier failures)
+        if node_idx <= length(nodeX)
             success = remove_particle_from_mesh!(nodeX, nodeY, nodeZ, tri, eleGma, node_idx, domain)
             if success
-                push!(removed_indices, node_idx)
                 n_removed += 1
-                
-                # Adjust indices for remaining particles (since removal shifts indices)
-                # Note: remove_particle_from_mesh! already handles index shifting
             end
         end
     end
-    
+
     return n_removed
 end
 
@@ -1226,10 +1265,373 @@ function adaptive_particle_control!(nodeX::Vector{Float64}, nodeY::Vector{Float6
     end
 end
 
+# =============================================================================
+# MPI Synchronized Versions (Approach B: All ranks execute identical operations)
+# =============================================================================
+#
+# These functions implement MPI-compatible particle management using synchronized
+# operations. The key principle is that ALL ranks must:
+#   1. Have identical input data (positions, connectivity, circulation)
+#   2. Execute identical deterministic operations
+#   3. Obtain identical results without explicit communication
+#
+# Requirements:
+#   - Input arrays must be identical across all MPI ranks before calling
+#   - All operations are deterministic (no rank-dependent random numbers)
+#   - Optional barriers verify synchronization in debug mode
+#
+# Usage pattern:
+#   # Ensure all ranks have identical data via broadcast or identical initialization
+#   MPI.Barrier(MPI.COMM_WORLD)  # Optional sync point
+#   n_inserted = insert_particles_periodic_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
+#   # All ranks now have identical results
+# =============================================================================
+
+"""
+    insert_particles_periodic_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria; verify_sync=false)
+
+MPI-synchronized particle insertion. All ranks execute identical operations.
+
+# Requirements
+- All input arrays must be identical across all MPI ranks
+- All operations are deterministic
+
+# Arguments
+- Same as `insert_particles_periodic!`
+- `verify_sync::Bool=false`: If true, verify synchronization with barriers (debug mode)
+
+# Returns
+- `n_inserted::Int`: Number of particles inserted (identical on all ranks)
+"""
+function insert_particles_periodic_mpi!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                        tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
+                                        criteria::ParticleInsertionCriteria;
+                                        verify_sync::Bool=false,
+                                        vorticity_field=nothing)
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+
+    # Optional synchronization barrier for debugging
+    if verify_sync
+        MPI.Barrier(comm)
+    end
+
+    # All ranks execute identical insertion operations
+    # The algorithm is deterministic: same input → same output
+    n_inserted = insert_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria;
+                                            vorticity_field=vorticity_field)
+
+    # Optional verification that all ranks got the same result
+    if verify_sync
+        MPI.Barrier(comm)
+        rank = MPI.Comm_rank(comm)
+        n_inserted_all = MPI.Allgather(n_inserted, comm)
+        if !all(n_inserted_all .== n_inserted_all[1])
+            if rank == 0
+                @warn "MPI desynchronization detected in insert_particles_periodic_mpi!: $n_inserted_all"
+            end
+        end
+    end
+
+    return n_inserted
+end
+
+"""
+    remove_particles_periodic_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria; verify_sync=false)
+
+MPI-synchronized particle removal. All ranks execute identical operations.
+
+# Requirements
+- All input arrays must be identical across all MPI ranks
+- All operations are deterministic
+
+# Arguments
+- Same as `remove_particles_periodic!`
+- `verify_sync::Bool=false`: If true, verify synchronization with barriers (debug mode)
+
+# Returns
+- `n_removed::Int`: Number of particles removed (identical on all ranks)
+"""
+function remove_particles_periodic_mpi!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                        tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
+                                        criteria::ParticleRemovalCriteria;
+                                        verify_sync::Bool=false)
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+
+    if verify_sync
+        MPI.Barrier(comm)
+    end
+
+    # All ranks execute identical removal operations
+    n_removed = remove_particles_periodic!(nodeX, nodeY, nodeZ, tri, eleGma, domain, criteria)
+
+    if verify_sync
+        MPI.Barrier(comm)
+        rank = MPI.Comm_rank(comm)
+        n_removed_all = MPI.Allgather(n_removed, comm)
+        if !all(n_removed_all .== n_removed_all[1])
+            if rank == 0
+                @warn "MPI desynchronization detected in remove_particles_periodic_mpi!: $n_removed_all"
+            end
+        end
+    end
+
+    return n_removed
+end
+
+"""
+    maintain_particle_count_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain, target_count, tolerance; verify_sync=false)
+
+MPI-synchronized particle count maintenance. All ranks execute identical operations.
+
+# Arguments
+- Same as `maintain_particle_count!`
+- `verify_sync::Bool=false`: If true, verify synchronization with barriers
+"""
+function maintain_particle_count_mpi!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                      tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec,
+                                      target_count::Int, tolerance::Float64=0.1;
+                                      verify_sync::Bool=false)
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+
+    if verify_sync
+        MPI.Barrier(comm)
+    end
+
+    n_change = maintain_particle_count!(nodeX, nodeY, nodeZ, tri, eleGma, domain, target_count, tolerance)
+
+    if verify_sync
+        MPI.Barrier(comm)
+        rank = MPI.Comm_rank(comm)
+        n_change_all = MPI.Allgather(n_change, comm)
+        if !all(n_change_all .== n_change_all[1])
+            if rank == 0
+                @warn "MPI desynchronization detected in maintain_particle_count_mpi!: $n_change_all"
+            end
+        end
+    end
+
+    return n_change
+end
+
+"""
+    redistribute_particles_periodic_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain; seed=12345, verify_sync=false)
+
+MPI-synchronized particle redistribution with deterministic random seed.
+
+Unlike the non-MPI version, this function uses a synchronized random seed to ensure
+all ranks produce identical random perturbations for particle positions.
+
+# Arguments
+- Same as `redistribute_particles_periodic!`
+- `seed::Int=12345`: Random seed for deterministic behavior across ranks
+- `verify_sync::Bool=false`: If true, verify synchronization with barriers
+
+# Returns
+- Final particle count (identical on all ranks)
+"""
+function redistribute_particles_periodic_mpi!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                              tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec;
+                                              seed::Int=12345,
+                                              verify_sync::Bool=false)
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+
+    if verify_sync
+        MPI.Barrier(comm)
+    end
+
+    if length(nodeX) < 4
+        wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+        return length(nodeX)
+    end
+
+    # Use synchronized random seed for deterministic behavior
+    rng = MersenneTwister(seed)
+
+    # Grid-based density analysis (deterministic)
+    grid_nx, grid_ny, grid_nz = 8, 8, 8
+    dx = domain.Lx / grid_nx
+    dy = domain.Ly / grid_ny
+    dz = 2 * domain.Lz / grid_nz
+
+    grid_counts = zeros(Int, grid_nx, grid_ny, grid_nz)
+    particle_assignments = zeros(Int, length(nodeX))
+
+    for p in 1:length(nodeX)
+        i = min(grid_nx, max(1, Int(ceil(nodeX[p] / dx))))
+        j = min(grid_ny, max(1, Int(ceil(nodeY[p] / dy))))
+        k = min(grid_nz, max(1, Int(ceil((nodeZ[p] + domain.Lz) / dz))))
+        grid_counts[i, j, k] += 1
+        particle_assignments[p] = (k-1) * grid_nx * grid_ny + (j-1) * grid_nx + i
+    end
+
+    target_density = length(nodeX) / (grid_nx * grid_ny * grid_nz)
+    density_tolerance = 0.5
+
+    overcrowded_cells = Int[]
+    underpopulated_cells = Int[]
+
+    for i in 1:grid_nx, j in 1:grid_ny, k in 1:grid_nz
+        cell_id = (k-1) * grid_nx * grid_ny + (j-1) * grid_nx + i
+        density = grid_counts[i, j, k]
+
+        if density > target_density * (1 + density_tolerance)
+            push!(overcrowded_cells, cell_id)
+        elseif density < target_density * (1 - density_tolerance)
+            push!(underpopulated_cells, cell_id)
+        end
+    end
+
+    n_redistributed = 0
+
+    for overcrowded_cell in overcrowded_cells
+        if isempty(underpopulated_cells)
+            break
+        end
+
+        particles_in_cell = Int[]
+        for p in 1:length(nodeX)
+            if particle_assignments[p] == overcrowded_cell
+                push!(particles_in_cell, p)
+            end
+        end
+
+        if length(particles_in_cell) <= 1
+            continue
+        end
+
+        n_to_move = min(length(particles_in_cell) ÷ 2, length(underpopulated_cells))
+
+        for m in 1:n_to_move
+            if isempty(underpopulated_cells) || isempty(particles_in_cell)
+                break
+            end
+
+            node_circulations = compute_node_circulations(tri, eleGma)
+            particle_to_move = particles_in_cell[1]
+
+            if length(particles_in_cell) > 1
+                min_circulation = Inf
+                for p in particles_in_cell
+                    if p <= length(node_circulations)
+                        circ = node_circulations[p]
+                        circ_mag = sqrt(circ[1]^2 + circ[2]^2 + circ[3]^2)
+                        if circ_mag < min_circulation
+                            min_circulation = circ_mag
+                            particle_to_move = p
+                        end
+                    end
+                end
+            end
+
+            target_cell = underpopulated_cells[1]
+
+            target_k = (target_cell - 1) ÷ (grid_nx * grid_ny) + 1
+            target_j = ((target_cell - 1) % (grid_nx * grid_ny)) ÷ grid_nx + 1
+            target_i = ((target_cell - 1) % grid_nx) + 1
+
+            # Use synchronized RNG for deterministic perturbations
+            new_x = (target_i - 0.5 + 0.2 * (rand(rng) - 0.5)) * dx
+            new_y = (target_j - 0.5 + 0.2 * (rand(rng) - 0.5)) * dy
+            new_z = (target_k - 0.5 + 0.2 * (rand(rng) - 0.5)) * dz - domain.Lz
+
+            new_x, new_y, new_z = wrap_point(new_x, new_y, new_z, domain)
+
+            nodeX[particle_to_move] = new_x
+            nodeY[particle_to_move] = new_y
+            nodeZ[particle_to_move] = new_z
+
+            filter!(p -> p != particle_to_move, particles_in_cell)
+            particle_assignments[particle_to_move] = target_cell
+            n_redistributed += 1
+
+            target_cell_count = count(p -> particle_assignments[p] == target_cell, 1:length(nodeX))
+            if target_cell_count >= target_density * (1 - density_tolerance)
+                filter!(c -> c != target_cell, underpopulated_cells)
+            end
+        end
+    end
+
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+
+    if verify_sync
+        MPI.Barrier(comm)
+        rank = MPI.Comm_rank(comm)
+        count_all = MPI.Allgather(length(nodeX), comm)
+        if !all(count_all .== count_all[1])
+            if rank == 0
+                @warn "MPI desynchronization detected in redistribute_particles_periodic_mpi!: $count_all"
+            end
+        end
+    end
+
+    return length(nodeX)
+end
+
+"""
+    adaptive_particle_control_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain; kwargs...)
+
+MPI-synchronized adaptive particle control. All ranks execute identical operations.
+
+# Arguments
+- Same as `adaptive_particle_control!`
+- `verify_sync::Bool=false`: If true, verify synchronization with barriers
+
+# Returns
+- Net change in particle count (identical on all ranks)
+"""
+function adaptive_particle_control_mpi!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                        tri::Matrix{Int}, eleGma::Matrix{Float64}, domain::DomainSpec;
+                                        target_count::Union{Nothing,Int}=nothing,
+                                        tolerance::Float64=0.1,
+                                        insert_criteria::ParticleInsertionCriteria=ParticleInsertionCriteria(),
+                                        removal_criteria::ParticleRemovalCriteria=ParticleRemovalCriteria(),
+                                        verify_sync::Bool=false)
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+
+    if verify_sync
+        MPI.Barrier(comm)
+    end
+
+    if target_count !== nothing
+        n_change = maintain_particle_count_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain,
+                                                target_count, tolerance; verify_sync=verify_sync)
+    else
+        before = length(nodeX)
+        insert_particles_periodic_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain, insert_criteria;
+                                       verify_sync=verify_sync)
+        remove_particles_periodic_mpi!(nodeX, nodeY, nodeZ, tri, eleGma, domain, removal_criteria;
+                                       verify_sync=verify_sync)
+        after = length(nodeX)
+        n_change = after - before
+    end
+
+    if verify_sync
+        MPI.Barrier(comm)
+        rank = MPI.Comm_rank(comm)
+        n_change_all = MPI.Allgather(n_change, comm)
+        if !all(n_change_all .== n_change_all[1])
+            if rank == 0
+                @warn "MPI desynchronization detected in adaptive_particle_control_mpi!: $n_change_all"
+            end
+        end
+    end
+
+    return n_change
+end
+
 end # module
 
-using .ParticleManagement: insert_particles_periodic!, remove_particles_periodic!, 
+using .ParticleManagement: insert_particles_periodic!, remove_particles_periodic!,
                           compact_mesh!, adaptive_particle_control!,
                           ParticleInsertionCriteria, ParticleRemovalCriteria,
                           insert_vortex_blob_periodic!, remove_weak_vortices!,
-                          maintain_particle_count!, redistribute_particles_periodic!
+                          maintain_particle_count!, redistribute_particles_periodic!,
+                          # MPI versions
+                          insert_particles_periodic_mpi!, remove_particles_periodic_mpi!,
+                          adaptive_particle_control_mpi!, maintain_particle_count_mpi!,
+                          redistribute_particles_periodic_mpi!
