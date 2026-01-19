@@ -23,11 +23,13 @@ default_grid()   = GridSpec(25, 50, 2*50-1) # mirrors python utility_3d_paral._S
 
 function grid_vectors(domain::DomainSpec, gr::GridSpec)
     # For periodic FFT, grid should go from 0 to L*(1-1/N), not 0 to L
+    # This gives N evenly spaced points with step L/N
     x = range(0.0, domain.Lx * (1 - 1/gr.nx); length=gr.nx) |> collect
     y = range(0.0, domain.Ly * (1 - 1/gr.ny); length=gr.ny) |> collect
 
-    # z is symmetric [-Lz, Lz] with periodic endpoints  
-    z = range(-domain.Lz, domain.Lz * (1 - 1/gr.nz); length=gr.nz) |> collect
+    # z is symmetric [-Lz, Lz) with period 2*Lz
+    # Need step = 2*Lz/nz, so last point = Lz - 2*Lz/nz = Lz*(1 - 2/nz)
+    z = range(-domain.Lz, domain.Lz * (1 - 2/gr.nz); length=gr.nz) |> collect
 
     return x, y, z
 end

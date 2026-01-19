@@ -52,7 +52,8 @@ function filter_width(dx::Float64, dy::Float64, dz::Float64, element_area::Float
     return max(grid_filter, element_filter)
 end
 
-# Compute strain rate tensor magnitude
+# Compute strain rate tensor magnitude (utility for advanced models)
+# Currently used internally; exported for diagnostic purposes
 function strain_rate_magnitude(dudx::Float64, dudy::Float64, dudz::Float64,
                               dvdx::Float64, dvdy::Float64, dvdz::Float64,
                               dwdx::Float64, dwdy::Float64, dwdz::Float64)::Float64
@@ -69,7 +70,8 @@ function strain_rate_magnitude(dudx::Float64, dudy::Float64, dudz::Float64,
     return sqrt(2 * (S11^2 + S22^2 + S33^2 + 2*(S12^2 + S13^2 + S23^2)))
 end
 
-# Compute vorticity magnitude
+# Compute vorticity magnitude from velocity gradients (utility for advanced models)
+# Currently used internally; exported for diagnostic purposes
 function vorticity_magnitude(dudx::Float64, dudy::Float64, dudz::Float64,
                            dvdx::Float64, dvdy::Float64, dvdz::Float64,
                            dwdx::Float64, dwdy::Float64, dwdz::Float64)
@@ -142,11 +144,13 @@ function apply_dissipation!(model::DynamicSmagorinsky, eleGma::AbstractMatrix,
                           domain::DomainSpec, gr::GridSpec, dt::Float64)
     nt = size(eleGma, 1)
     dx, dy, dz = grid_spacing(domain, gr)
-    
-    # Compute dynamic Smagorinsky coefficient
-    total_strain = 0.0
-    total_dissipation = 0.0
-    
+
+    # Compute area-weighted vorticity statistics for dynamic coefficient
+    # Using dimensionally consistent intermittency-based scaling
+    total_area = 0.0
+    weighted_vort = 0.0      # sum(|ω| * A)
+    weighted_vort_sq = 0.0   # sum(|ω|^2 * A)
+
     @inbounds for t in 1:nt
         # Element geometry
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
@@ -158,18 +162,27 @@ function apply_dissipation!(model::DynamicSmagorinsky, eleGma::AbstractMatrix,
 
         cross = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
         area = 0.5 * sqrt(cross[1]^2 + cross[2]^2 + cross[3]^2)
-        
-        Delta = filter_width(dx, dy, dz, area)
+
         vorticity_mag = sqrt(eleGma[t,1]^2 + eleGma[t,2]^2 + eleGma[t,3]^2)
-        
-        total_strain += vorticity_mag * area
-        total_dissipation += vorticity_mag^3 * area
+
+        total_area += area
+        weighted_vort += vorticity_mag * area
+        weighted_vort_sq += vorticity_mag^2 * area
     end
-    
-    # Dynamic coefficient
-    Cs_dynamic = total_dissipation > 0 ? sqrt(total_strain / total_dissipation) : model.Cs_base
-    Cs_dynamic = min(max(Cs_dynamic, 0.01), 0.5)  # Clamp to reasonable range
-    
+
+    # Compute dimensionless intermittency factor I = ω_mean / ω_rms
+    # I ∈ (0, 1]: I=1 for uniform field, I<1 for intermittent field
+    if total_area > 0 && weighted_vort_sq > 0
+        omega_mean = weighted_vort / total_area
+        omega_rms = sqrt(weighted_vort_sq / total_area)
+        intermittency = omega_mean / (omega_rms + eps())
+        # Scale coefficient: higher intermittency (concentrated vorticity) -> higher dissipation
+        Cs_dynamic = model.Cs_base * (2.0 - intermittency)
+    else
+        Cs_dynamic = model.Cs_base
+    end
+    Cs_dynamic = clamp(Cs_dynamic, 0.01, 0.5)  # Clamp to reasonable range
+
     # Apply dissipation with dynamic coefficient
     smagorinsky_model = SmagorinskyModel(Cs_dynamic)
 

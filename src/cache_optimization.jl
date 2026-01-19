@@ -20,16 +20,20 @@ const INTERPOLATION_TILE_SIZE = 128  # For interpolation (fits in L3)
 
 # Cache-aware tiled Poisson solver
 struct TiledPoissonSolver{T<:AbstractFloat}
-    # Pre-allocated tile buffers to minimize allocation overhead
-    tile_buffer_1::Array{T,3}
-    tile_buffer_2::Array{T,3}
-    tile_buffer_3::Array{T,3}
-    
+    # Pre-allocated tile buffers for input vorticity
+    tile_input_1::Array{T,3}
+    tile_input_2::Array{T,3}
+    tile_input_3::Array{T,3}
+    # Pre-allocated tile buffers for output curl (separate to avoid overwriting input)
+    tile_output_1::Array{T,3}
+    tile_output_2::Array{T,3}
+    tile_output_3::Array{T,3}
+
     # Tile dimensions
     tile_x::Int
     tile_y::Int
     tile_z::Int
-    
+
     # Grid dimensions
     nx::Int
     ny::Int
@@ -41,8 +45,11 @@ function TiledPoissonSolver(::Type{T}, nx::Int, ny::Int, nz::Int; tile_size::Int
     tile_x = min(tile_size, nx)
     tile_y = min(tile_size, ny)
     tile_z = min(tile_size, nz)
-    
+
     TiledPoissonSolver{T}(
+        Array{T}(undef, tile_z, tile_y, tile_x),
+        Array{T}(undef, tile_z, tile_y, tile_x),
+        Array{T}(undef, tile_z, tile_y, tile_x),
         Array{T}(undef, tile_z, tile_y, tile_x),
         Array{T}(undef, tile_z, tile_y, tile_x),
         Array{T}(undef, tile_z, tile_y, tile_x),
@@ -76,21 +83,21 @@ function tiled_curl_computation!(solver::TiledPoissonSolver{T},
     end
 end
 
-function process_curl_tile!(solver::TiledPoissonSolver{T}, 
+function process_curl_tile!(solver::TiledPoissonSolver{T},
                            u_rhs::Array{T,3}, v_rhs::Array{T,3}, w_rhs::Array{T,3},
                            VorX::Array{T,3}, VorY::Array{T,3}, VorZ::Array{T,3},
                            i_range, j_range, k_range, dx::T, dy::T, dz::T) where T
-    
-    # Load tile data into cache-friendly buffers
-    tile_vorx = solver.tile_buffer_1
-    tile_vory = solver.tile_buffer_2 
-    tile_vorz = solver.tile_buffer_3
-    
+
+    # Load tile data into cache-friendly input buffers
+    tile_vorx = solver.tile_input_1
+    tile_vory = solver.tile_input_2
+    tile_vorz = solver.tile_input_3
+
     tile_nz, tile_ny, tile_nx = length(k_range), length(j_range), length(i_range)
-    
+
     # Copy tile data (this loads into cache)
     @inbounds for (kk, k) in enumerate(k_range)
-        for (jj, j) in enumerate(j_range)  
+        for (jj, j) in enumerate(j_range)
             for (ii, i) in enumerate(i_range)
                 tile_vorx[kk, jj, ii] = VorX[k, j, i]
                 tile_vory[kk, jj, ii] = VorY[k, j, i]
@@ -98,37 +105,49 @@ function process_curl_tile!(solver::TiledPoissonSolver{T},
             end
         end
     end
-    
-    # Compute derivatives on tile (data is hot in cache)
-    compute_tile_derivatives!(solver, tile_vorx, tile_vory, tile_vorz, dx, dy, dz)
-    
+
+    # Compute derivatives on tile (reads from input buffers, writes to output buffers)
+    compute_tile_derivatives!(solver, dx, dy, dz)
+
     # Write results back to main arrays
     write_tile_results!(u_rhs, v_rhs, w_rhs, solver, i_range, j_range, k_range)
 end
 
-function compute_tile_derivatives!(solver::TiledPoissonSolver{T},
-                                  tile_vorx::Array{T,3}, tile_vory::Array{T,3}, tile_vorz::Array{T,3},
-                                  dx::T, dy::T, dz::T) where T
+function compute_tile_derivatives!(solver::TiledPoissonSolver{T}, dx::T, dy::T, dz::T) where T
+    # Read from input buffers, write to output buffers (avoids overwriting data being read)
+    tile_vorx = solver.tile_input_1
+    tile_vory = solver.tile_input_2
+    tile_vorz = solver.tile_input_3
+    tile_u_rhs = solver.tile_output_1
+    tile_v_rhs = solver.tile_output_2
+    tile_w_rhs = solver.tile_output_3
+
     tile_nz, tile_ny, tile_nx = size(tile_vorx)
-    
+
+    # Initialize output boundaries to zero
+    fill!(tile_u_rhs, zero(T))
+    fill!(tile_v_rhs, zero(T))
+    fill!(tile_w_rhs, zero(T))
+
     # Compute finite differences within tile (optimal cache usage)
+    # Read from input, write to separate output to avoid data corruption
     @inbounds for k in 2:tile_nz-1
         for j in 2:tile_ny-1
             for i in 2:tile_nx-1
-                # Central differences (4th order when possible)
+                # Central differences
                 dVorY_dz = (tile_vory[k+1,j,i] - tile_vory[k-1,j,i]) / (2*dz)
                 dVorZ_dy = (tile_vorz[k,j+1,i] - tile_vorz[k,j-1,i]) / (2*dy)
-                
+
                 dVorX_dz = (tile_vorx[k+1,j,i] - tile_vorx[k-1,j,i]) / (2*dz)
                 dVorZ_dx = (tile_vorz[k,j,i+1] - tile_vorz[k,j,i-1]) / (2*dx)
-                
+
                 dVorX_dy = (tile_vorx[k,j+1,i] - tile_vorx[k,j-1,i]) / (2*dy)
                 dVorY_dx = (tile_vory[k,j,i+1] - tile_vory[k,j,i-1]) / (2*dx)
-                
-                # Store curl in tile buffers (reusing memory)
-                tile_vorx[k,j,i] = -(dVorZ_dy - dVorY_dz)  # u_rhs
-                tile_vory[k,j,i] = -(dVorX_dz - dVorZ_dx)  # v_rhs
-                tile_vorz[k,j,i] = -(dVorY_dx - dVorX_dy)  # w_rhs
+
+                # Store curl in output buffers (separate from input)
+                tile_u_rhs[k,j,i] = -(dVorZ_dy - dVorY_dz)
+                tile_v_rhs[k,j,i] = -(dVorX_dz - dVorZ_dx)
+                tile_w_rhs[k,j,i] = -(dVorY_dx - dVorX_dy)
             end
         end
     end
@@ -136,13 +155,13 @@ end
 
 function write_tile_results!(u_rhs::Array{T,3}, v_rhs::Array{T,3}, w_rhs::Array{T,3},
                            solver::TiledPoissonSolver{T}, i_range, j_range, k_range) where T
-    # Write computed results back (streaming write pattern)
+    # Write computed results from output buffers back to main arrays
     @inbounds for (kk, k) in enumerate(k_range)
         for (jj, j) in enumerate(j_range)
             for (ii, i) in enumerate(i_range)
-                u_rhs[k,j,i] = solver.tile_buffer_1[kk,jj,ii]
-                v_rhs[k,j,i] = solver.tile_buffer_2[kk,jj,ii]
-                w_rhs[k,j,i] = solver.tile_buffer_3[kk,jj,ii]
+                u_rhs[k,j,i] = solver.tile_output_1[kk,jj,ii]
+                v_rhs[k,j,i] = solver.tile_output_2[kk,jj,ii]
+                w_rhs[k,j,i] = solver.tile_output_3[kk,jj,ii]
             end
         end
     end
@@ -262,33 +281,87 @@ end
 end
 
 @inline function compute_kernel_weight(dx::T, dy::T, dz::T, hx::T, hy::T, hz::T) where T
-    # Fast Peskin kernel evaluation
+    # Fast Peskin cosine kernel evaluation (support 1.5h, consistent with rest of codebase)
+    # Formula: (1 + cos(2πr/3)) / (3h) for |r| < 1.5h
     rx, ry, rz = abs(dx) / hx, abs(dy) / hy, abs(dz) / hz
-    
-    kx = (rx >= 2.0) ? 0.0 : (1.0 + cos(π * rx)) / (2.0 * hx)
-    ky = (ry >= 2.0) ? 0.0 : (1.0 + cos(π * ry)) / (2.0 * hy)
-    kz = (rz >= 2.0) ? 0.0 : (1.0 + cos(π * rz)) / (2.0 * hz)
-    
+
+    kx = (rx >= T(1.5)) ? T(0) : (T(1) + cos(T(2) * T(π) * rx / T(3))) / (T(3) * hx)
+    ky = (ry >= T(1.5)) ? T(0) : (T(1) + cos(T(2) * T(π) * ry / T(3))) / (T(3) * hy)
+    kz = (rz >= T(1.5)) ? T(0) : (T(1) + cos(T(2) * T(π) * rz / T(3))) / (T(3) * hz)
+
     return kx * ky * kz
 end
 
-# Cache-aware mesh representation
+# Cache-aware mesh representation for optimized spatial traversal
+# Note: This struct requires pre-computed spatial data structures.
+# Use CacheAwareMesh constructor to build from triangle mesh data.
 struct CacheAwareMesh{T<:AbstractFloat}
     # Spatially sorted data for better cache locality
     sorted_triangles::Vector{Int}            # Triangle indices sorted by spatial location
     spatial_bounds::Matrix{T}               # [triangle_id, (xmin,xmax,ymin,ymax,zmin,zmax)]
-    
+
     # Hierarchical grid for fast neighbor finding
     grid_cells::Dict{NTuple{3,Int}, Vector{Int}}  # grid_cell -> triangle_list
     grid_resolution::NTuple{3,Int}
-    
+
     # Cache-optimized triangle data
     triangle_centroids::Matrix{T}           # [triangle_id, xyz] - sorted by spatial location
     triangle_areas::Vector{T}               # Sorted by triangle_id order
-    
+
     # Pre-computed neighbor lists for cache prefetching
     neighbor_lists::Vector{Vector{Int}}     # [triangle_id] -> neighbor_triangle_ids
 end
+
+# Constructor to build CacheAwareMesh from triangle mesh
+function CacheAwareMesh(::Type{T}, triXC::Matrix{T}, triYC::Matrix{T}, triZC::Matrix{T},
+                        grid_resolution::NTuple{3,Int}) where T
+    nt = size(triXC, 1)
+
+    # Compute centroids
+    centroids = Matrix{T}(undef, nt, 3)
+    @inbounds for t in 1:nt
+        centroids[t, 1] = (triXC[t,1] + triXC[t,2] + triXC[t,3]) / 3
+        centroids[t, 2] = (triYC[t,1] + triYC[t,2] + triYC[t,3]) / 3
+        centroids[t, 3] = (triZC[t,1] + triZC[t,2] + triZC[t,3]) / 3
+    end
+
+    # Compute spatial bounds for each triangle
+    bounds = Matrix{T}(undef, nt, 6)
+    @inbounds for t in 1:nt
+        bounds[t, 1] = min(triXC[t,1], triXC[t,2], triXC[t,3])  # xmin
+        bounds[t, 2] = max(triXC[t,1], triXC[t,2], triXC[t,3])  # xmax
+        bounds[t, 3] = min(triYC[t,1], triYC[t,2], triYC[t,3])  # ymin
+        bounds[t, 4] = max(triYC[t,1], triYC[t,2], triYC[t,3])  # ymax
+        bounds[t, 5] = min(triZC[t,1], triZC[t,2], triZC[t,3])  # zmin
+        bounds[t, 6] = max(triZC[t,1], triZC[t,2], triZC[t,3])  # zmax
+    end
+
+    # Compute triangle areas
+    areas = Vector{T}(undef, nt)
+    @inbounds for t in 1:nt
+        e1 = (triXC[t,2]-triXC[t,1], triYC[t,2]-triYC[t,1], triZC[t,2]-triZC[t,1])
+        e2 = (triXC[t,3]-triXC[t,1], triYC[t,3]-triYC[t,1], triZC[t,3]-triZC[t,1])
+        cx = e1[2]*e2[3] - e1[3]*e2[2]
+        cy = e1[3]*e2[1] - e1[1]*e2[3]
+        cz = e1[1]*e2[2] - e1[2]*e2[1]
+        areas[t] = T(0.5) * sqrt(cx^2 + cy^2 + cz^2)
+    end
+
+    # Sort triangles by spatial location (simple Z-order based on centroid)
+    sorted_indices = sortperm(1:nt, by=t -> centroids[t,1] + centroids[t,2] + centroids[t,3])
+
+    # Build grid cells (empty for now - can be populated on demand)
+    grid_cells = Dict{NTuple{3,Int}, Vector{Int}}()
+
+    # Initialize empty neighbor lists
+    neighbor_lists = [Int[] for _ in 1:nt]
+
+    CacheAwareMesh{T}(sorted_indices, bounds, grid_cells, grid_resolution,
+                      centroids, areas, neighbor_lists)
+end
+
+CacheAwareMesh(triXC::Matrix{Float64}, triYC::Matrix{Float64}, triZC::Matrix{Float64},
+               grid_resolution::NTuple{3,Int}) = CacheAwareMesh(Float64, triXC, triYC, triZC, grid_resolution)
 
 # Hierarchical grid traversal for cache-friendly particle-grid operations
 function hierarchical_grid_traversal(operation_func::Function, grid::Array{T,3}, 

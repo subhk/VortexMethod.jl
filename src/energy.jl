@@ -7,7 +7,8 @@ using ..Peskin3D
 export grid_ke, gamma_ke
 
 function grid_ke(Ux::Array{Float64,3}, Uy::Array{Float64,3}, Uz::Array{Float64,3}, domain::DomainSpec, gr::GridSpec)
-    dx,dy,dz = (domain.Lx/(gr.nx-1), domain.Ly/(gr.ny-1), (2*domain.Lz)/(gr.nz-1))
+    # Use grid_spacing for periodic domain (step = L/n, not L/(n-1))
+    dx, dy, dz = grid_spacing(domain, gr)
     KE = 0.5 * sum(Ux.^2 .+ Uy.^2 .+ Uz.^2) * dx * dy * dz
     return KE
 end
@@ -27,3 +28,5 @@ function gamma_ke(eleGma::AbstractMatrix,
 end
 
 end # module
+
+using .Energy: grid_ke, gamma_ke
