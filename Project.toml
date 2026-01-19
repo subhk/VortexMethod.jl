@@ -1,7 +1,7 @@
 name = "VortexMethod"
 uuid = "d0bfb0ea-6286-496d-8bb4-f6dc2a72891a"
 authors = ["Subhajit Kar <subhajitkar19@gmail.com>"]
-version = "1.0.2"
+version = "1.0.3"
 
 [deps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
