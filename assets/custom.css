@@ -1,0 +1,974 @@
+/* VortexMethod.jl Custom Documentation Styles - Enhanced */
+
+/* ============================================
+   Web Fonts
+   ============================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ============================================
+   Color Palette (Scientific Blue-Cyan Theme)
+   ============================================ */
+:root {
+    --primary-color: #2563eb;
+    --primary-dark: #1d4ed8;
+    --primary-light: #3b82f6;
+    --primary-lighter: #60a5fa;
+    --accent-color: #0891b2;
+    --accent-light: #22d3ee;
+    --success-color: #059669;
+    --success-light: #10b981;
+    --warning-color: #d97706;
+    --warning-light: #f59e0b;
+    --danger-color: #dc2626;
+    --danger-light: #ef4444;
+    --info-color: #0284c7;
+    --info-light: #0ea5e9;
+
+    --bg-light: #f8fafc;
+    --bg-code: #f1f5f9;
+    --bg-card: #ffffff;
+    --border-color: #e2e8f0;
+    --border-light: #f1f5f9;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+
+    --gradient-primary: linear-gradient(135deg, #2563eb 0%, #0891b2 100%);
+    --gradient-accent: linear-gradient(135deg, #0891b2 0%, #22d3ee 100%);
+    --gradient-subtle: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
+    --gradient-card: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.15);
+}
+
+/* ============================================
+   Base Typography
+   ============================================ */
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+article {
+    line-height: 1.8;
+    color: var(--text-primary);
+    max-width: 100%;
+}
+
+article p {
+    margin-bottom: 1.5rem;
+    letter-spacing: -0.01em;
+}
+
+/* ============================================
+   Headings with Decorative Elements
+   ============================================ */
+article h1 {
+    font-family: 'Inter', sans-serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-top: 0;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    position: relative;
+    letter-spacing: -0.025em;
+}
+
+article h1::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 80px;
+    height: 4px;
+    background: var(--gradient-primary);
+    border-radius: 2px;
+}
+
+article h2 {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 3rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--border-color);
+    letter-spacing: -0.02em;
+}
+
+article h3 {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    letter-spacing: -0.015em;
+}
+
+article h4 {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+}
+
+/* ============================================
+   Code Blocks with Enhanced Styling
+   ============================================ */
+article pre {
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 1.5rem;
+    overflow-x: auto;
+    margin: 2rem 0;
+    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    position: relative;
+}
+
+article pre::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    width: 12px;
+    height: 12px;
+    background: #ef4444;
+    border-radius: 50%;
+    box-shadow: 20px 0 0 #f59e0b, 40px 0 0 #22c55e;
+}
+
+article pre code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+    font-size: 0.875rem;
+    line-height: 1.7;
+    color: #e2e8f0;
+    display: block;
+    padding-top: 1rem;
+}
+
+article code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+    font-size: 0.85em;
+    background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+    padding: 0.2em 0.5em;
+    border-radius: 6px;
+    color: var(--primary-dark);
+    border: 1px solid #bae6fd;
+    font-weight: 500;
+}
+
+/* ============================================
+   Math Blocks with Premium Styling
+   ============================================ */
+article .MathJax_Display,
+article mjx-container[display="true"] {
+    background: var(--gradient-subtle);
+    border-left: 5px solid var(--primary-color);
+    padding: 1.5rem 2rem;
+    margin: 2rem 0;
+    border-radius: 0 12px 12px 0;
+    overflow-x: auto;
+    box-shadow: var(--shadow-md);
+    position: relative;
+}
+
+article mjx-container[display="true"]::before {
+    content: 'EQUATION';
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    background: var(--gradient-primary);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.05em;
+}
+
+article mjx-container:not([display="true"]) {
+    color: var(--primary-dark);
+}
+
+/* ============================================
+   Tables with Modern Design
+   ============================================ */
+article table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 2rem 0;
+    font-size: 0.95rem;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
+}
+
+article table thead {
+    background: var(--gradient-primary);
+    color: white;
+}
+
+article table th {
+    padding: 1rem 1.25rem;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    border-bottom: none;
+}
+
+article table td {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--bg-card);
+    transition: background 0.2s ease;
+}
+
+article table tbody tr:nth-child(even) td {
+    background-color: var(--bg-light);
+}
+
+article table tbody tr:hover td {
+    background-color: #dbeafe;
+}
+
+article table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* First column emphasis */
+article table td:first-child {
+    font-weight: 500;
+    color: var(--primary-dark);
+}
+
+/* ============================================
+   Admonitions with Card Design
+   ============================================ */
+.admonition {
+    border-radius: 12px;
+    padding: 0;
+    margin: 2rem 0;
+    border: none;
+    box-shadow: var(--shadow-md);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admonition:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.admonition-header {
+    font-weight: 600;
+    padding: 0.875rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.admonition-body {
+    padding: 1rem 1.25rem 1.25rem;
+    background: white;
+}
+
+.admonition-body p:last-child {
+    margin-bottom: 0;
+}
+
+/* Info admonition */
+.admonition.info {
+    border-left: 4px solid var(--info-color);
+}
+
+.admonition.info .admonition-header {
+    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
+    color: white;
+}
+
+.admonition.info .admonition-header::before {
+    content: 'i';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    font-style: italic;
+    font-weight: 700;
+}
+
+/* Note admonition */
+.admonition.note {
+    border-left: 4px solid var(--accent-color);
+}
+
+.admonition.note .admonition-header {
+    background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+    color: white;
+}
+
+.admonition.note .admonition-header::before {
+    content: '📝';
+    font-size: 1rem;
+}
+
+/* Tip admonition */
+.admonition.tip {
+    border-left: 4px solid var(--success-color);
+}
+
+.admonition.tip .admonition-header {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    color: white;
+}
+
+.admonition.tip .admonition-header::before {
+    content: '💡';
+    font-size: 1rem;
+}
+
+/* Warning admonition */
+.admonition.warning {
+    border-left: 4px solid var(--warning-color);
+}
+
+.admonition.warning .admonition-header {
+    background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+    color: white;
+}
+
+.admonition.warning .admonition-header::before {
+    content: '⚠️';
+    font-size: 1rem;
+}
+
+/* Danger admonition */
+.admonition.danger {
+    border-left: 4px solid var(--danger-color);
+}
+
+.admonition.danger .admonition-header {
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    color: white;
+}
+
+.admonition.danger .admonition-header::before {
+    content: '🚨';
+    font-size: 1rem;
+}
+
+/* ============================================
+   Blockquotes
+   ============================================ */
+article blockquote {
+    border-left: 4px solid var(--accent-color);
+    background: var(--gradient-subtle);
+    padding: 1.25rem 1.75rem;
+    margin: 2rem 0;
+    border-radius: 0 12px 12px 0;
+    color: var(--text-secondary);
+    font-style: italic;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+}
+
+article blockquote::before {
+    content: '"';
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    font-size: 4rem;
+    color: var(--accent-color);
+    opacity: 0.2;
+    font-family: Georgia, serif;
+    line-height: 1;
+}
+
+article blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* ============================================
+   Lists with Custom Bullets
+   ============================================ */
+article ul {
+    margin: 1.5rem 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+article ul li {
+    margin-bottom: 0.75rem;
+    line-height: 1.7;
+    padding-left: 1.75rem;
+    position: relative;
+}
+
+article ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.6em;
+    width: 8px;
+    height: 8px;
+    background: var(--gradient-primary);
+    border-radius: 50%;
+}
+
+article ol {
+    margin: 1.5rem 0;
+    padding-left: 0;
+    list-style: none;
+    counter-reset: ol-counter;
+}
+
+article ol li {
+    margin-bottom: 0.75rem;
+    line-height: 1.7;
+    padding-left: 2.5rem;
+    position: relative;
+    counter-increment: ol-counter;
+}
+
+article ol li::before {
+    content: counter(ol-counter);
+    position: absolute;
+    left: 0;
+    top: 0.1em;
+    width: 24px;
+    height: 24px;
+    background: var(--gradient-primary);
+    color: white;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+article li > ul, article li > ol {
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Nested list styling */
+article ul ul li::before {
+    background: var(--accent-color);
+    width: 6px;
+    height: 6px;
+}
+
+/* ============================================
+   Links with Animated Underline
+   ============================================ */
+article a {
+    color: var(--primary-color);
+    text-decoration: none;
+    position: relative;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+article a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--gradient-primary);
+    transition: width 0.3s ease;
+}
+
+article a:hover {
+    color: var(--primary-dark);
+}
+
+article a:hover::after {
+    width: 100%;
+}
+
+/* ============================================
+   Images and Figures
+   ============================================ */
+article img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+    margin: 2rem auto;
+    display: block;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+article img:hover {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-xl);
+}
+
+article figure {
+    margin: 2.5rem 0;
+    text-align: center;
+}
+
+article figcaption {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 1rem;
+    font-style: italic;
+    padding: 0 1rem;
+}
+
+/* ============================================
+   Sidebar / Navigation
+   ============================================ */
+.docs-sidebar {
+    background: linear-gradient(180deg, var(--bg-light) 0%, #ffffff 100%);
+    border-right: 1px solid var(--border-color);
+}
+
+.docs-sidebar .docs-logo {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.docs-sidebar .docs-logo img {
+    border-radius: 12px;
+    box-shadow: var(--shadow-md);
+}
+
+.docs-menu {
+    padding: 1rem;
+}
+
+.docs-menu a {
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    padding: 0.625rem 1rem;
+    margin: 0.25rem 0;
+    display: block;
+    font-weight: 500;
+}
+
+.docs-menu a:hover {
+    background: var(--gradient-primary);
+    color: white !important;
+    transform: translateX(4px);
+}
+
+.docs-menu a.is-active {
+    background: var(--gradient-primary);
+    color: white !important;
+    font-weight: 600;
+    box-shadow: var(--shadow-md);
+}
+
+/* Menu section headers */
+.docs-menu .menu-label {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1rem 1rem 0.5rem;
+}
+
+/* ============================================
+   Search Box
+   ============================================ */
+.docs-search > input {
+    border-radius: 10px;
+    border: 2px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.docs-search > input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1), var(--shadow-md);
+}
+
+/* ============================================
+   API Documentation
+   ============================================ */
+.docstring {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    margin: 2rem 0;
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+    transition: box-shadow 0.2s ease;
+}
+
+.docstring:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+.docstring header {
+    background: var(--gradient-subtle);
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.docstring header a.docstring-binding {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--primary-dark);
+    font-size: 1.05rem;
+}
+
+.docstring section {
+    padding: 1.25rem;
+}
+
+.docstring .docstring-category {
+    background: var(--gradient-primary);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.25rem 0.625rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ============================================
+   Footer
+   ============================================ */
+footer.footer {
+    background: var(--gradient-subtle);
+    border-top: 1px solid var(--border-color);
+    padding: 2rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+footer.footer a {
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+/* ============================================
+   Definition Lists
+   ============================================ */
+article dl {
+    margin: 2rem 0;
+    background: var(--bg-light);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+article dt {
+    font-weight: 600;
+    color: var(--primary-dark);
+    margin-top: 1rem;
+    font-size: 1.05rem;
+}
+
+article dt:first-child {
+    margin-top: 0;
+}
+
+article dd {
+    margin-left: 1.5rem;
+    margin-top: 0.5rem;
+    color: var(--text-secondary);
+    padding-left: 1rem;
+    border-left: 3px solid var(--border-color);
+}
+
+/* ============================================
+   Horizontal Rules
+   ============================================ */
+article hr {
+    border: none;
+    height: 3px;
+    background: var(--gradient-primary);
+    margin: 3rem 0;
+    border-radius: 2px;
+    opacity: 0.3;
+}
+
+/* ============================================
+   Selection Highlighting
+   ============================================ */
+::selection {
+    background: rgba(37, 99, 235, 0.2);
+    color: var(--text-primary);
+}
+
+/* ============================================
+   Custom Scrollbar (WebKit)
+   ============================================ */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-light);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, var(--primary-light) 0%, var(--primary-color) 100%);
+    border-radius: 5px;
+    border: 2px solid var(--bg-light);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-dark);
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+@media screen and (max-width: 1024px) {
+    article h1 {
+        font-size: 2rem;
+    }
+
+    article h2 {
+        font-size: 1.5rem;
+    }
+
+    article h3 {
+        font-size: 1.25rem;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    article h1 {
+        font-size: 1.75rem;
+    }
+
+    article h2 {
+        font-size: 1.375rem;
+        margin-top: 2rem;
+    }
+
+    article h3 {
+        font-size: 1.125rem;
+    }
+
+    article pre {
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1.5rem -1rem;
+        border-radius: 0;
+    }
+
+    article pre code {
+        font-size: 0.8rem;
+    }
+
+    article table {
+        font-size: 0.85rem;
+        display: block;
+        overflow-x: auto;
+    }
+
+    article table th,
+    article table td {
+        padding: 0.625rem 0.875rem;
+    }
+
+    .admonition {
+        margin: 1.5rem 0;
+    }
+
+    article ul li, article ol li {
+        padding-left: 1.5rem;
+    }
+
+    article ol li {
+        padding-left: 2rem;
+    }
+
+    article ol li::before {
+        width: 20px;
+        height: 20px;
+        font-size: 0.7rem;
+    }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+@media print {
+    article pre {
+        background: #f5f5f5 !important;
+        color: #333 !important;
+        border: 1px solid #ddd;
+        box-shadow: none;
+    }
+
+    article pre code {
+        color: #333 !important;
+    }
+
+    article a {
+        color: inherit;
+        text-decoration: underline;
+    }
+
+    article a::after {
+        display: none;
+    }
+
+    .docs-sidebar {
+        display: none;
+    }
+
+    .admonition {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+
+    article img {
+        box-shadow: none;
+    }
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+article > * {
+    animation: fadeIn 0.4s ease-out;
+}
+
+/* Staggered animation for list items */
+article ul li, article ol li {
+    animation: fadeIn 0.4s ease-out;
+    animation-fill-mode: both;
+}
+
+article ul li:nth-child(1), article ol li:nth-child(1) { animation-delay: 0.05s; }
+article ul li:nth-child(2), article ol li:nth-child(2) { animation-delay: 0.1s; }
+article ul li:nth-child(3), article ol li:nth-child(3) { animation-delay: 0.15s; }
+article ul li:nth-child(4), article ol li:nth-child(4) { animation-delay: 0.2s; }
+article ul li:nth-child(5), article ol li:nth-child(5) { animation-delay: 0.25s; }
+
+/* ============================================
+   Special Components
+   ============================================ */
+
+/* Feature cards */
+.feature-box {
+    background: var(--gradient-card);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    padding: 2rem;
+    margin: 2rem 0;
+    box-shadow: var(--shadow-md);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.feature-box:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-xl);
+}
+
+.feature-box h4 {
+    color: var(--primary-dark);
+    margin-top: 0;
+    margin-bottom: 1rem;
+}
+
+/* Equation numbering */
+.equation-label {
+    float: right;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+/* Key terms */
+strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+em {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Badge styles */
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.badge-primary {
+    background: var(--gradient-primary);
+    color: white;
+}
+
+.badge-success {
+    background: linear-gradient(135deg, var(--success-color) 0%, var(--success-light) 100%);
+    color: white;
+}
+
+.badge-warning {
+    background: linear-gradient(135deg, var(--warning-color) 0%, var(--warning-light) 100%);
+    color: white;
+}
+
+/* ============================================
+   Syntax Highlighting Enhancements
+   ============================================ */
+article pre .hljs-keyword { color: #c678dd; }
+article pre .hljs-string { color: #98c379; }
+article pre .hljs-number { color: #d19a66; }
+article pre .hljs-comment { color: #5c6370; font-style: italic; }
+article pre .hljs-function { color: #61afef; }
+article pre .hljs-built_in { color: #e5c07b; }
+article pre .hljs-type { color: #e5c07b; }
+article pre .hljs-params { color: #abb2bf; }
+article pre .hljs-literal { color: #56b6c2; }
