@@ -1,6 +1,8 @@
 # Theory Overview
 
-This package implements a 3D Lagrangian vortex sheet method based on the numerical methods developed in [Stock (2006)](https://resolver.caltech.edu/CaltechETD:etd-05312006-165837). The core ideas are:
+> **This package implements a 3D Lagrangian vortex sheet method based on the numerical methods developed in [Stock (2006)](https://resolver.caltech.edu/CaltechETD:etd-05312006-165837).**
+
+The core ideas are:
 
 - Vorticity is carried on a moving, triangulated sheet (Lagrangian elements). Each triangular element stores scalar-valued circulations on its edges, which can be converted to vortex sheet strength or total vorticity.
 - To compute velocities, element vorticity is spread to a regular 3D grid using a smooth, compactly-supported kernel. The resulting grid vorticity field is converted to a velocity field by solving a Poisson equation via FFTs.
@@ -109,7 +111,16 @@ When the total vorticity is planar to the triangular element, the same total vor
 
 ## Mathematical Pipeline
 
-The complete algorithm consists of five stages executed every time step:
+!!! info "Algorithm Overview"
+    The complete algorithm consists of five stages executed every time step, forming a Lagrangian-Eulerian-Lagrangian cycle.
+
+| Stage | Operation | Description |
+|:-----:|-----------|-------------|
+| **1** | Spreading | Lagrangian → Eulerian vorticity transfer |
+| **2** | Curl RHS | Compute right-hand side for Poisson equation |
+| **3** | Poisson Solve | FFT-based spectral inversion |
+| **4** | Interpolation | Eulerian → Lagrangian velocity transfer |
+| **5** | Time Step | RK2 integration with optional physics |
 
 ### 1. Spreading (Lagrangian → Eulerian)
 
@@ -205,15 +216,21 @@ A smoothing kernel with variable radius ``\varepsilon``:
 ### Kernel Selection Guidelines
 
 | Kernel | Support | Accuracy | Speed | Smoothness | Best For |
-|--------|---------|----------|-------|------------|----------|
+|:-------|:--------|:---------|:------|:-----------|:---------|
 | Area-Weighting | 2Δx | 1st | Fastest | Low | Quick tests |
-| M4' | 4Δx | 3rd | Moderate | Good | Production runs |
+| **M4'** | **4Δx** | **3rd** | **Moderate** | **Good** | **Production runs** |
 | Peskin (ε=2) | 4Δx | 1st | Moderate | Excellent | Sensitive flows |
 | Peskin (ε=3) | 6Δx | 1st | Slower | Best | High-quality visualization |
 
-The M4' kernel provides the best accuracy-to-cost ratio for most simulations. Use larger Peskin radii when smooth vorticity fields are essential.
+!!! tip "Recommended Kernel"
+    The **M4' kernel** provides the best accuracy-to-cost ratio for most simulations. Use larger Peskin radii when smooth vorticity fields are essential.
 
-## Remeshing notions (see “Remeshing” page for details)
+---
+
+## Remeshing Notions
+
+!!! note "See Also"
+    For detailed algorithms, see the [Remeshing](remeshing.md) page.
 
 - Lagrangian mesh quality degrades over time as nodes move and the sheet rolls up. Two complementary paths are implemented:
   1) Baseline length/flip/collapse pass (simple and fast), and

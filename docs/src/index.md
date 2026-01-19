@@ -4,32 +4,40 @@ CurrentModule = VortexMethod
 
 # VortexMethod.jl
 
-A Julia implementation of a 3D Lagrangian vortex sheet method for simulating inviscid, incompressible flows with density interfaces.
+> **A high-performance Julia implementation of the 3D Lagrangian vortex sheet method for simulating inviscid, incompressible flows with density interfaces.**
+
+---
 
 ## Overview
 
 This package implements the regularized vortex sheet method developed in [Stock (2006)](https://resolver.caltech.edu/CaltechETD:etd-05312006-165837). Key features:
 
-- **Lagrangian vortex sheets:** Vorticity carried on triangulated surfaces with edge-based circulation discretization
-- **Vortex-in-Cell (VIC):** Fast O(N log N) velocity computation via FFT-based Poisson solvers
-- **Adaptive remeshing:** Edge splitting and node merging to maintain mesh quality
-- **Baroclinic effects:** Vorticity generation at density interfaces (Rayleigh–Taylor, Richtmyer–Meshkov)
-- **Sub-filter dissipation:** LES-style Smagorinsky models for turbulent flows
-- **MPI parallelization:** Scalable spreading, interpolation, and communication
+| | Feature | Description |
+|:---:|---------|-------------|
+| **1** | **Lagrangian Vortex Sheets** | Vorticity carried on triangulated surfaces with edge-based circulation discretization |
+| **2** | **Vortex-in-Cell (VIC)** | Fast O(N log N) velocity computation via FFT-based Poisson solvers |
+| **3** | **Adaptive Remeshing** | Edge splitting and node merging to maintain mesh quality |
+| **4** | **Baroclinic Effects** | Vorticity generation at density interfaces (Rayleigh-Taylor, Richtmyer-Meshkov) |
+| **5** | **Sub-filter Dissipation** | LES-style Smagorinsky models for turbulent flows |
+| **6** | **MPI Parallelization** | Scalable spreading, interpolation, and communication |
+
+---
 
 ## Documentation Structure
 
 | Page | Description |
-|------|-------------|
-| [Theory](theory.md) | Governing equations, element discretization, interpolation kernels |
-| [Boundary Conditions](boundary_conditions.md) | Periodic, open, and wall boundary treatments |
-| [Baroclinic Effects](baroclinic.md) | Density discontinuities and vorticity generation |
-| [Dissipation Models](dissipation.md) | Sub-filter scale dissipation for LES |
-| [Remeshing](remeshing.md) | Edge splitting, node merging, quality metrics |
-| [Parallelization](parallelization.md) | MPI implementation details |
-| [Validation](validation.md) | Test cases and comparison with theory |
-| [Usage](usage.md) | Getting started and workflow examples |
-| [API](api.md) | Function reference |
+|:-----|:------------|
+| [**Theory**](theory.md) | Governing equations, element discretization, interpolation kernels |
+| [**Boundary Conditions**](boundary_conditions.md) | Periodic, open, and wall boundary treatments |
+| [**Baroclinic Effects**](baroclinic.md) | Density discontinuities and vorticity generation |
+| [**Dissipation Models**](dissipation.md) | Sub-filter scale dissipation for LES |
+| [**Remeshing**](remeshing.md) | Edge splitting, node merging, quality metrics |
+| [**Parallelization**](parallelization.md) | MPI implementation details |
+| [**Validation**](validation.md) | Test cases and comparison with theory |
+| [**Usage**](usage.md) | Getting started and workflow examples |
+| [**API**](api.md) | Function reference |
+
+---
 
 ## Quick Start
 
@@ -59,10 +67,17 @@ end
 !!! note "MPI Support"
     For parallel execution, launch with `mpirun -n <nprocs> julia --project your_script.jl`
 
+---
+
 ## Key References
 
-- Stock, M. J. (2006). *A regularized inviscid vortex sheet method for three dimensional flows with density interfaces*. Ph.D. Thesis, California Institute of Technology.
-- Cottet, G.-H., & Koumoutsakos, P. D. (2000). *Vortex Methods: Theory and Practice*. Cambridge University Press.
+> **Primary Reference:**
+> Stock, M. J. (2006). *A regularized inviscid vortex sheet method for three dimensional flows with density interfaces*. Ph.D. Thesis, California Institute of Technology.
+
+> **Additional Reading:**
+> Cottet, G.-H., & Koumoutsakos, P. D. (2000). *Vortex Methods: Theory and Practice*. Cambridge University Press.
+
+---
 
 ```@index
 ```
