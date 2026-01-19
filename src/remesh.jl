@@ -5,18 +5,35 @@ export detect_max_edge_length, detect_min_edge_length,
 
 using ..DomainImpl
 
-function detect_max_edge_length(triXC, triYC, triZC, ds_max::Float64)
+# Minimum image convention for periodic boundaries
+@inline min_image(d::Float64, L::Float64) = begin
+    if L <= 0; return d; end
+    d1 = d
+    if d1 >  L/2; d1 -= L; end
+    if d1 < -L/2; d1 += L; end
+    d1
+end
+
+function detect_max_edge_length(triXC, triYC, triZC, ds_max::Float64; domain::DomainSpec=default_domain())
     nt = size(triXC,1)
     maxlen = 0.0
     maxidx = -1
+    Lx = domain.Lx
+    Ly = domain.Ly
+    Lz2 = 2*domain.Lz
     @inbounds for t in 1:nt
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
 
-        e12 = sqrt((p1[1]-p2[1])^2 + (p1[2]-p2[2])^2 + (p1[3]-p2[3])^2)
-        e23 = sqrt((p2[1]-p3[1])^2 + (p2[2]-p3[2])^2 + (p2[3]-p3[3])^2)
-        e31 = sqrt((p3[1]-p1[1])^2 + (p3[2]-p1[2])^2 + (p3[3]-p1[3])^2)
+        # Use minimum image convention for periodic boundaries
+        dx12 = min_image(p1[1]-p2[1], Lx); dy12 = min_image(p1[2]-p2[2], Ly); dz12 = min_image(p1[3]-p2[3], Lz2)
+        dx23 = min_image(p2[1]-p3[1], Lx); dy23 = min_image(p2[2]-p3[2], Ly); dz23 = min_image(p2[3]-p3[3], Lz2)
+        dx31 = min_image(p3[1]-p1[1], Lx); dy31 = min_image(p3[2]-p1[2], Ly); dz31 = min_image(p3[3]-p1[3], Lz2)
+
+        e12 = sqrt(dx12*dx12 + dy12*dy12 + dz12*dz12)
+        e23 = sqrt(dx23*dx23 + dy23*dy23 + dz23*dz23)
+        e31 = sqrt(dx31*dx31 + dy31*dy31 + dz31*dz31)
 
         el = max(e12, e23, e31)
         if el > maxlen
@@ -30,18 +47,26 @@ function detect_max_edge_length(triXC, triYC, triZC, ds_max::Float64)
     end
 end
 
-function detect_min_edge_length(triXC, triYC, triZC, ds_min::Float64)
+function detect_min_edge_length(triXC, triYC, triZC, ds_min::Float64; domain::DomainSpec=default_domain())
     nt = size(triXC,1)
     minlen = Inf
     minidx = -1
+    Lx = domain.Lx
+    Ly = domain.Ly
+    Lz2 = 2*domain.Lz
     @inbounds for t in 1:nt
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])
         p2 = (triXC[t,2], triYC[t,2], triZC[t,2])
         p3 = (triXC[t,3], triYC[t,3], triZC[t,3])
 
-        e12 = sqrt((p1[1]-p2[1])^2 + (p1[2]-p2[2])^2 + (p1[3]-p2[3])^2)
-        e23 = sqrt((p2[1]-p3[1])^2 + (p2[2]-p3[2])^2 + (p2[3]-p3[3])^2)
-        e31 = sqrt((p3[1]-p1[1])^2 + (p3[2]-p1[2])^2 + (p3[3]-p1[3])^2)
+        # Use minimum image convention for periodic boundaries
+        dx12 = min_image(p1[1]-p2[1], Lx); dy12 = min_image(p1[2]-p2[2], Ly); dz12 = min_image(p1[3]-p2[3], Lz2)
+        dx23 = min_image(p2[1]-p3[1], Lx); dy23 = min_image(p2[2]-p3[2], Ly); dz23 = min_image(p2[3]-p3[3], Lz2)
+        dx31 = min_image(p3[1]-p1[1], Lx); dy31 = min_image(p3[2]-p1[2], Ly); dz31 = min_image(p3[3]-p1[3], Lz2)
+
+        e12 = sqrt(dx12*dx12 + dy12*dy12 + dz12*dz12)
+        e23 = sqrt(dx23*dx23 + dy23*dy23 + dz23*dz23)
+        e31 = sqrt(dx31*dx31 + dy31*dy31 + dz31*dz31)
 
         el = min(e12, min(e23, e31))
         if el < minlen
@@ -141,21 +166,6 @@ function edge_map(tri::Array{Int,2})
     end
 
     return m
-end
-
-@inline function edge_length(nodeX, nodeY, nodeZ, a::Int, b::Int)
-    dx = nodeX[a] - nodeX[b]; 
-    dy = nodeY[a] - nodeY[b]; 
-    dz = nodeZ[a] - nodeZ[b]
-    return sqrt(dx*dx+dy*dy+dz*dz)
-end
-
-@inline min_image(d::Float64, L::Float64) = begin
-    if L <= 0; return d; end
-    d1 = d
-    if d1 >  L/2; d1 -= L; end
-    if d1 < -L/2; d1 += L; end
-    d1
 end
 
 function periodic_edge_length(nodeX, nodeY, nodeZ, a::Int,b::Int, domain::DomainSpec)

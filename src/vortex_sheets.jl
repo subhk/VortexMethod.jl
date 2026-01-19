@@ -5,6 +5,7 @@ module VortexSheets
 
 using ..DomainImpl
 using ..Kernels
+using ..RemeshAdvanced: element_quality_metrics_periodic
 using LinearAlgebra
 
 export VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet, 
@@ -322,8 +323,8 @@ function detect_sheet_rollup(sheet::LagrangianSheet; vorticity_threshold::Float6
 end
 
 # Smooth local curvature
-function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int, 
-                            smoothing_factor::Float64, domain::DomainSpec=nothing)
+function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int,
+                            smoothing_factor::Float64, domain::Union{DomainSpec,Nothing}=nothing)
     # Find neighboring nodes
     neighbors = find_node_neighbors(sheet, node_idx)
     
@@ -353,7 +354,7 @@ function smooth_local_curvature!(sheet::LagrangianSheet, node_idx::Int,
         if domain === nothing
             sheet.nodes[node_idx, :] = newp
         else
-            xw, yw, zw = VortexMethod.wrap_point(newp[1], newp[2], newp[3], domain)
+            xw, yw, zw = wrap_point(newp[1], newp[2], newp[3], domain)
             sheet.nodes[node_idx, 1] = xw; sheet.nodes[node_idx, 2] = yw; sheet.nodes[node_idx, 3] = zw
         end
     end
@@ -405,8 +406,9 @@ function check_sheet_reconnection!(sheet::LagrangianSheet, reconnection_distance
 end
 
 # Perform sheet reconnection
-function reconnect_sheet_nodes!(sheet::LagrangianSheet, node1::Int, node2::Int, domain::DomainSpec=nothing)
-    # Simple reconnection: merge the two nodes
+function reconnect_sheet_nodes!(sheet::LagrangianSheet, node1::Int, node2::Int, domain::Union{DomainSpec,Nothing}=nothing)
+    # Simple reconnection: merge the two nodes by moving node1 to midpoint
+    # Note: strength is element-based (per triangle), not node-based, so we don't merge it here
     if domain === nothing
         merge_pos = 0.5 * (sheet.nodes[node1, :] + sheet.nodes[node2, :])
     else
@@ -416,17 +418,24 @@ function reconnect_sheet_nodes!(sheet::LagrangianSheet, node1::Int, node2::Int, 
         if domain.Ly > 0; dy -= domain.Ly*round(dy/domain.Ly); end
         if domain.Lz > 0; dz -= 2*domain.Lz*round(dz/(2*domain.Lz)); end
         mx, my, mz = p1[1] + 0.5*dx, p1[2] + 0.5*dy, p1[3] + 0.5*dz
-        xw, yw, zw = VortexMethod.wrap_point(mx, my, mz, domain)
+        xw, yw, zw = wrap_point(mx, my, mz, domain)
         merge_pos = [xw, yw, zw]
     end
-    merge_strength = 0.5 * (sheet.strength[node1, :] + sheet.strength[node2, :])
     merge_age = 0.5 * (sheet.age[node1] + sheet.age[node2])
-    
-    # Update first node with merged values
+
+    # Update first node with merged position and age
     sheet.nodes[node1, :] = merge_pos
-    sheet.strength[node1, :] = merge_strength
     sheet.age[node1] = merge_age
-    
+
+    # Remap connectivity: replace all references to node2 with node1
+    for t in 1:size(sheet.connectivity, 1)
+        for k in 1:3
+            if sheet.connectivity[t, k] == node2
+                sheet.connectivity[t, k] = node1
+            end
+        end
+    end
+
     # Mark second node for removal (simplified approach)
     sheet.interface_markers[node2] = false
 end
@@ -513,7 +522,7 @@ function compute_mesh_quality_sheet(sheet::LagrangianSheet, domain::DomainSpec)
         p3 = tuple(sheet.nodes[v3, :]...)
         
         # Use periodic minimum-image quality metrics from RemeshAdvanced module
-        quality = VortexMethod.RemeshAdvanced.element_quality_metrics_periodic(p1, p2, p3, domain)
+        quality = element_quality_metrics_periodic(p1, p2, p3, domain)
         qualities[t] = quality.jacobian_quality
     end
     
@@ -522,7 +531,7 @@ end
 
 end # module
 
-using .VortexSheets: VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet, 
-                     HybridSheet, evolve_sheet!, track_sheet_interface!, 
+using .VortexSheets: VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet,
+                     HybridSheet, evolve_sheet!, track_sheet_interface!,
                      compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
-                     reconnect_sheet_nodes!, adaptive_sheet_tracking!
+                     reconnect_sheet_nodes!, adaptive_sheet_tracking!, compute_mesh_quality_sheet

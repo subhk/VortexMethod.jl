@@ -7,7 +7,7 @@ using ..DomainImpl
 using LinearAlgebra
 
 export MeshQuality, compute_mesh_quality, quality_based_remesh!,
-       element_quality_metrics, anisotropic_remesh!, 
+       element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
        curvature_based_remesh!, flow_adaptive_remesh!
 
 # Mesh quality metrics structure
@@ -159,7 +159,7 @@ function compute_mesh_quality(triXC::AbstractMatrix, triYC::AbstractMatrix, triZ
 end
 
 # Quality-based remeshing decision
-function should_refine_element(quality::MeshQuality; 
+function should_refine_element(quality::MeshQuality;
                               max_aspect_ratio::Float64=4.0,
                               max_skewness::Float64=0.8,
                               min_angle_quality::Float64=0.3,
@@ -168,6 +168,65 @@ function should_refine_element(quality::MeshQuality;
             quality.skewness > max_skewness ||
             quality.angle_quality < min_angle_quality ||
             quality.jacobian_quality < min_jacobian_quality)
+end
+
+# Quality-based remeshing: refine elements with poor quality metrics
+function quality_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                               tri::Array{Int,2}, domain::DomainSpec;
+                               max_aspect_ratio::Float64=4.0,
+                               max_skewness::Float64=0.8,
+                               min_angle_quality::Float64=0.3,
+                               min_jacobian_quality::Float64=0.3,
+                               max_elements::Int=50000)
+    nt = size(tri, 1)
+
+    # Build triangle coordinate arrays
+    triXC = Array{Float64}(undef, nt, 3)
+    triYC = Array{Float64}(undef, nt, 3)
+    triZC = Array{Float64}(undef, nt, 3)
+    @inbounds for k in 1:3, t in 1:nt
+        v = tri[t,k]
+        triXC[t,k] = nodeX[v]
+        triYC[t,k] = nodeY[v]
+        triZC[t,k] = nodeZ[v]
+    end
+
+    # Compute quality metrics using periodic boundary handling
+    qualities = compute_mesh_quality(triXC, triYC, triZC, domain)
+
+    # Mark elements for refinement based on quality thresholds
+    elements_to_refine = Int[]
+    @inbounds for t in 1:nt
+        if should_refine_element(qualities[t];
+                                 max_aspect_ratio=max_aspect_ratio,
+                                 max_skewness=max_skewness,
+                                 min_angle_quality=min_angle_quality,
+                                 min_jacobian_quality=min_jacobian_quality)
+            push!(elements_to_refine, t)
+        end
+        # Check element limit
+        if length(elements_to_refine) * 3 + nt >= max_elements
+            break
+        end
+    end
+
+    # Sort in reverse to refine high indices first (maintains index validity)
+    sort!(elements_to_refine, rev=true)
+
+    # Refine marked elements
+    changed = false
+    for ele_idx in elements_to_refine
+        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, domain)
+        changed = true
+        nt = size(tri, 1)
+        if nt >= max_elements
+            break
+        end
+    end
+
+    # Ensure all nodes are wrapped at the end
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+    return tri, changed
 end
 
 # Enhanced 1-to-4 splitting with quality preservation
@@ -261,7 +320,7 @@ function anisotropic_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nod
     end
     
     # enforce periodic wrap for safety
-    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     return tri, changed
 end
 
@@ -340,7 +399,7 @@ function curvature_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64},
         nt = size(tri, 1)
     end
     
-    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     return tri, changed
 end
 
@@ -468,12 +527,12 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         nt = size(tri, 1)
     end
     
-    VortexMethod.wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     return tri, changed
 end
 
 end # module
 
 using .RemeshAdvanced: MeshQuality, compute_mesh_quality, quality_based_remesh!,
-                       element_quality_metrics, anisotropic_remesh!,
+                       element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
                        curvature_based_remesh!, flow_adaptive_remesh!

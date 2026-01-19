@@ -7,7 +7,6 @@ export save_checkpoint!, load_latest_checkpoint,
        series_times, load_series_snapshot, load_series_nearest_time,
        find_series_files, get_series_info
 
-using Dates
 using Printf
 using JLD2
 using ..DomainImpl
@@ -101,14 +100,38 @@ function save_checkpoint_jld2!(dir::AbstractString, time::Real,
 end
 
 function load_latest_jld2(dir::AbstractString)
-    
     isdir(dir) || error("Checkpoint directory not found: \"$dir\"")
-    
-    files = sort(filter(f->endswith(f, ".jld2"), readdir(dir)))
 
+    files = filter(f -> endswith(f, ".jld2"), readdir(dir))
     isempty(files) && error("No JLD2 checkpoints in \"$dir\"")
 
-    return load_checkpoint_jld2(joinpath(dir, files[end]))
+    # Sort by numeric suffix to handle chkpt_1, chkpt_2, ..., chkpt_10 correctly
+    # Extract numbers from filenames and sort numerically
+    file_numbers = Tuple{Int, String}[]
+    files_without_numbers = String[]
+
+    for f in files
+        # Try to extract a number from the filename (handles various patterns)
+        m = match(r"(\d+)\.jld2$", f)
+        if m !== nothing
+            num = parse(Int, m.captures[1])
+            push!(file_numbers, (num, f))
+        else
+            push!(files_without_numbers, f)
+        end
+    end
+
+    # If we have numbered files, use the one with the highest number
+    if !isempty(file_numbers)
+        sort!(file_numbers, by=x->x[1])
+        latest_file = file_numbers[end][2]
+    else
+        # Fall back to alphabetical sort for files without numbers
+        sort!(files_without_numbers)
+        latest_file = files_without_numbers[end]
+    end
+
+    return load_checkpoint_jld2(joinpath(dir, latest_file))
 end
 
 function load_checkpoint_jld2(path::AbstractString)
@@ -307,7 +330,10 @@ function save_state_timeseries!(file::AbstractString, time::Real,
                                 domain=nothing, grid=nothing, dt=nothing, CFL=nothing, adaptive=nothing,
                                 poisson_mode=nothing, remesh_every=nothing, save_interval=nothing, ar_max=nothing,
                                 step=nothing, max_snapshots::Int=1000, params_extra=NamedTuple())
-    mkpath(dirname(file))
+    dir = dirname(file)
+    if !isempty(dir)
+        mkpath(dir)
+    end
     
     # Determine the correct file to use with rollover logic
     actual_file = determine_series_file(file, max_snapshots)

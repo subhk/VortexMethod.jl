@@ -64,10 +64,12 @@ export DomainSpec, GridSpec,
        grid_velocity, make_velocity_sampler,
 
 # remesh.jl - Basic remeshing operations
-       MeshQuality, compute_mesh_quality, quality_based_remesh!,
+       detect_max_edge_length, detect_min_edge_length,
+       element_splitting!, edge_flip_small_edge!, remesh_pass!,
 
 # remesh_advanced.jl - Advanced remeshing with flow adaptation
-       element_quality_metrics, anisotropic_remesh!,
+       MeshQuality, compute_mesh_quality, quality_based_remesh!,
+       element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
        curvature_based_remesh!, flow_adaptive_remesh!,
 
 # poisson_advanced.jl - Advanced Poisson solvers
@@ -78,7 +80,8 @@ export DomainSpec, GridSpec,
 # vortex_sheets.jl - Vortex sheet tracking and evolution
        VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet,
        HybridSheet, evolve_sheet!, track_sheet_interface!,
-       compute_sheet_curvature, detect_sheet_rollup, adaptive_sheet_tracking!,
+       compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
+       reconnect_sheet_nodes!, adaptive_sheet_tracking!, compute_mesh_quality_sheet,
 
 # checkpoint.jl - JLD2-based checkpointing and time series
        save_checkpoint!, save_checkpoint_jld2!, load_latest_checkpoint,
