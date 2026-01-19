@@ -17,6 +17,9 @@ makedocs(;
     pages=[
         "Home" => "index.md",
         "Theory" => "theory.md",
+        "Boundary Conditions" => "boundary_conditions.md",
+        "Baroclinic Effects" => "baroclinic.md",
+        "Dissipation Models" => "dissipation.md",
         "Remeshing" => "remeshing.md",
         "Parallelization" => "parallelization.md",
         "Validation" => "validation.md",

@@ -2,9 +2,61 @@
 CurrentModule = VortexMethod
 ```
 
-# VortexMethod
+# VortexMethod.jl
 
-Documentation for [VortexMethod](https://github.com/subhk/VortexMethod.jl).
+A Julia implementation of a 3D Lagrangian vortex sheet method for simulating inviscid, incompressible flows with density interfaces.
+
+## Overview
+
+This package implements the regularized vortex sheet method developed in [Stock (2006)](https://resolver.caltech.edu/CaltechETD:etd-05312006-165837). Key features:
+
+- **Lagrangian vortex sheets:** Vorticity carried on triangulated surfaces with edge-based circulation discretization
+- **Vortex-in-Cell (VIC):** Fast O(N log N) velocity computation via FFT-based Poisson solvers
+- **Adaptive remeshing:** Edge splitting and node merging to maintain mesh quality
+- **Baroclinic effects:** Vorticity generation at density interfaces (Rayleigh–Taylor, Richtmyer–Meshkov)
+- **Sub-filter dissipation:** LES-style Smagorinsky models for turbulent flows
+- **MPI parallelization:** Scalable spreading, interpolation, and communication
+
+## Documentation Structure
+
+| Page | Description |
+|------|-------------|
+| [Theory](theory.md) | Governing equations, element discretization, interpolation kernels |
+| [Boundary Conditions](boundary_conditions.md) | Periodic, open, and wall boundary treatments |
+| [Baroclinic Effects](baroclinic.md) | Density discontinuities and vorticity generation |
+| [Dissipation Models](dissipation.md) | Sub-filter scale dissipation for LES |
+| [Remeshing](remeshing.md) | Edge splitting, node merging, quality metrics |
+| [Parallelization](parallelization.md) | MPI implementation details |
+| [Validation](validation.md) | Test cases and comparison with theory |
+| [Usage](usage.md) | Getting started and workflow examples |
+| [API](api.md) | Function reference |
+
+## Quick Start
+
+```julia
+using VortexMethod
+
+# Define domain and grid
+domain = DomainSpec(1.0, 1.0, 4.0)  # Lx, Ly, Lz
+gr = GridSpec(64, 64, 256)          # nx, ny, nz
+
+# Initialize sheet (nodes and triangles)
+nodeX, nodeY, nodeZ, tri = create_initial_sheet(...)
+eleGma = initialize_vortex_strength(tri, ...)
+
+# Time stepping with MPI
+dt = 0.01
+for step in 1:nsteps
+    rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt)
+    remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; domain)
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+end
+```
+
+## Key References
+
+- Stock, M. J. (2006). *A regularized inviscid vortex sheet method for three dimensional flows with density interfaces*. Ph.D. Thesis, California Institute of Technology.
+- Cottet, G.-H., & Koumoutsakos, P. D. (2000). *Vortex Methods: Theory and Practice*. Cambridge University Press.
 
 ```@index
 ```
