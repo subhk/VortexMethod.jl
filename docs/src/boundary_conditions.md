@@ -4,6 +4,9 @@ This page describes the treatment of boundary conditions for the vortex-in-cell 
 
 ## Overview
 
+!!! info "Boundary Condition Categories"
+    Flow simulations fall under two categories based on their boundaries: **internal** flows (bounded by walls) and **external** flows (periodic or extending to infinity).
+
 Flow simulations fall under two categories based on their boundaries:
 
 | Type | Boundary Conditions | Applications |
@@ -18,6 +21,9 @@ The Poisson solver (HW3CRT/FFT) supports Dirichlet, Neumann, or periodic boundar
 Periodic boundary conditions are commonly used to mimic free-space or to study spatially-developing instabilities.
 
 ### Element Treatment
+
+!!! warning "Straddling Elements"
+    Because we use triangular elements with connectivity, extra care is required when elements "straddle" a periodic boundary. Failing to handle these correctly leads to incorrect vorticity spreading and interpolation.
 
 Because we use triangular elements with connectivity, extra care is required when elements "straddle" a periodic boundary:
 
@@ -63,6 +69,9 @@ wrap_nodes!(nodeX, nodeY, nodeZ, domain)
 
 ## Open (Free-Space) Boundaries
 
+!!! note "Complexity"
+    Open boundaries allow vorticity to influence the flow beyond the computational domain. Implementation is more complex than periodic boundaries because boundary values must be computed from the interior vorticity field.
+
 Open boundaries allow vorticity to influence the flow beyond the computational domain. Implementation is more complex than periodic boundaries.
 
 ### Dirichlet Boundary Values
@@ -90,6 +99,9 @@ where ``\phi`` is a scalar velocity potential computed on the boundary.
 Elements crossing open boundaries require special handling—either removing them or using absorbing layers. Current simulations are designed to avoid this situation.
 
 ## Wall Boundaries (Slip)
+
+!!! tip "High-Reynolds-Number Approximation"
+    For high-Reynolds-number flows, wall-generated vorticity stays within a thin boundary layer, allowing slip-wall treatment. This avoids resolving the viscous sublayer while maintaining correct inviscid behavior.
 
 For high-Reynolds-number flows, wall-generated vorticity stays within a thin boundary layer, allowing slip-wall treatment.
 

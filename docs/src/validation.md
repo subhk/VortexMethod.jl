@@ -4,6 +4,9 @@ This page describes validation test cases and comparisons with analytical soluti
 
 ## Element Discretization Tests
 
+!!! info "Fundamental Validation"
+    These tests verify the core discretization properties: conservation of circulation and correct handling of vortex stretching and dilatation terms.
+
 ### Stretch Parallel to Vorticity
 
 A flat vortex sheet with ``\boldsymbol{\gamma}(t=0) = 1.0\hat{\mathbf{j}}`` is subjected to an artificial velocity field causing stretch parallel to the vorticity direction.
@@ -23,6 +26,9 @@ A flat vortex sheet with ``\boldsymbol{\gamma}(t=0) = 1.0\hat{\mathbf{i}}`` expe
 This test verifies that the method handles transverse strain—something neither standard vortex filament nor vortex particle methods can easily account for.
 
 ## Vortex Ring Circulation Conservation
+
+!!! tip "Canonical Test Case"
+    The vortex ring provides an excellent test of circulation conservation because the analytical solution is known and the geometry exercises both stretching and curvature.
 
 ### Setup
 
@@ -49,6 +55,9 @@ The vortex ring circulation is computed as:
 - Different midpoint methods (geometric, spline, cylindrical) should all conserve circulation
 
 ## Baroclinic Validation (Rayleigh–Taylor)
+
+!!! note "Linear Theory Comparison"
+    These tests compare numerical results against analytical linear stability theory. Agreement validates the baroclinic source term implementation.
 
 ### Stable Oscillation
 
@@ -77,6 +86,9 @@ For heavier fluid above (``A < 0``):
 - Regularization effect: longer periods (stable) and smaller growth rates (unstable) than theory
 
 ## Kelvin–Helmholtz Instability
+
+!!! warning "Regularization Effects"
+    The regularization parameter ``\\delta^*`` significantly affects roll-up behavior. Higher resolution (smaller ``\\delta^*``) produces sharper roll-up but requires finer grids.
 
 ### 2D Periodic Shear Layer
 

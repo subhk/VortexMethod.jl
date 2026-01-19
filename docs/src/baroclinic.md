@@ -4,6 +4,9 @@ This page describes the treatment of density discontinuities and baroclinic vort
 
 ## Physical Background
 
+!!! info "Baroclinic Vorticity Generation"
+    When a density interface exists in a flow under acceleration (gravity or otherwise), vorticity is generated at the interface. This **baroclinic** mechanism drives important instabilities like Rayleigh–Taylor and Richtmyer–Meshkov.
+
 When a density interface exists in a flow under acceleration (gravity or otherwise), vorticity is generated at the interface. This **baroclinic** mechanism drives important instabilities:
 
 - **Rayleigh–Taylor instability:** Heavy fluid over light fluid under gravity
@@ -11,6 +14,9 @@ When a density interface exists in a flow under acceleration (gravity or otherwi
 - **Kelvin–Helmholtz with stratification:** Shear layer with stabilizing/destabilizing buoyancy
 
 ## Boussinesq Approximation
+
+!!! note "Small Density Differences"
+    The Boussinesq approximation assumes density differences are small (``|A| \ll 1``), so inertia is dominated by the mean density while buoyancy depends on the density difference.
 
 In the Boussinesq limit (small density differences), the baroclinic source term in the vortex sheet strength equation is:
 
@@ -126,6 +132,9 @@ magnification(t) = cosh(t * √(2π))
 
 ### Convergence
 
+!!! tip "Kernel Selection"
+    The M4' kernel provides the lowest errors for baroclinic validation. Area-weighting and Peskin kernels show approximately first-order convergence.
+
 The method shows approximately first-order convergence to analytical limits, with the M4' kernel providing lowest errors. Regularization causes:
 - Longer oscillation periods than theory (smoother = slower)
 - Smaller unstable growth rates than theory (regularization damps peaks)
@@ -159,6 +168,9 @@ n = \frac{ik\,\Delta u\,(\rho_2 - \rho_1)}{2(\rho_1 + \rho_2)} + \sqrt{\frac{k^2
 ```
 
 ### Stability Criterion
+
+!!! warning "Richardson Number"
+    At the critical Richardson number ``Ri_c = 1/4``, the shear layer transitions from stable to unstable. Below this value, shear dominates buoyancy.
 
 The interface is unstable when:
 

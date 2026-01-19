@@ -33,6 +33,9 @@ This package implements the regularized vortex sheet method developed in [Stock 
 
 ## Quick Start
 
+!!! tip "Getting Started"
+    Make sure to run `julia --project -e 'using Pkg; Pkg.instantiate()'` before your first use.
+
 ```julia
 using VortexMethod
 
@@ -52,6 +55,9 @@ for step in 1:nsteps
     wrap_nodes!(nodeX, nodeY, nodeZ, domain)
 end
 ```
+
+!!! note "MPI Support"
+    For parallel execution, launch with `mpirun -n <nprocs> julia --project your_script.jl`
 
 ## Key References
 

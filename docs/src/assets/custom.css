@@ -1,0 +1,493 @@
+/* VortexMethod.jl Custom Documentation Styles */
+
+/* ============================================
+   Color Palette (Blue-based scientific theme)
+   ============================================ */
+:root {
+    --primary-color: #2563eb;
+    --primary-dark: #1d4ed8;
+    --primary-light: #3b82f6;
+    --accent-color: #0891b2;
+    --success-color: #059669;
+    --warning-color: #d97706;
+    --danger-color: #dc2626;
+    --info-color: #0284c7;
+
+    --bg-light: #f8fafc;
+    --bg-code: #f1f5f9;
+    --border-color: #e2e8f0;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+}
+
+/* ============================================
+   Typography Improvements
+   ============================================ */
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+}
+
+article {
+    line-height: 1.75;
+    color: var(--text-primary);
+}
+
+article p {
+    margin-bottom: 1.25rem;
+}
+
+/* Headings */
+article h1 {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: var(--primary-dark);
+    border-bottom: 3px solid var(--primary-color);
+    padding-bottom: 0.75rem;
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+article h2 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0.5rem;
+    margin-top: 2.5rem;
+    margin-bottom: 1.25rem;
+}
+
+article h3 {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+}
+
+article h4 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+/* ============================================
+   Code Blocks
+   ============================================ */
+article pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.25rem;
+    overflow-x: auto;
+    margin: 1.5rem 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+article pre code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+article code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
+    font-size: 0.875em;
+    background: var(--bg-code);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    color: var(--primary-dark);
+}
+
+/* ============================================
+   Math Blocks
+   ============================================ */
+article .MathJax_Display,
+article mjx-container[display="true"] {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border-left: 4px solid var(--primary-color);
+    padding: 1.25rem 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0 8px 8px 0;
+    overflow-x: auto;
+}
+
+/* Inline math styling */
+article mjx-container:not([display="true"]) {
+    color: var(--primary-dark);
+}
+
+/* ============================================
+   Tables
+   ============================================ */
+article table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin: 1.5rem 0;
+    font-size: 0.95rem;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+article table thead {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+    color: white;
+}
+
+article table th {
+    padding: 0.875rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+}
+
+article table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+article table tbody tr:nth-child(even) {
+    background-color: var(--bg-light);
+}
+
+article table tbody tr:hover {
+    background-color: #e0f2fe;
+}
+
+article table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* ============================================
+   Blockquotes / Admonitions
+   ============================================ */
+article blockquote {
+    border-left: 4px solid var(--accent-color);
+    background: linear-gradient(90deg, #ecfeff 0%, #f8fafc 100%);
+    padding: 1rem 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0 8px 8px 0;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+article blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* Documenter.jl admonitions */
+.admonition {
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1.5rem 0;
+    border-left: 4px solid;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.admonition.info {
+    background: linear-gradient(90deg, #e0f2fe 0%, #f8fafc 100%);
+    border-left-color: var(--info-color);
+}
+
+.admonition.warning {
+    background: linear-gradient(90deg, #fef3c7 0%, #fffbeb 100%);
+    border-left-color: var(--warning-color);
+}
+
+.admonition.danger {
+    background: linear-gradient(90deg, #fee2e2 0%, #fef2f2 100%);
+    border-left-color: var(--danger-color);
+}
+
+.admonition.tip {
+    background: linear-gradient(90deg, #d1fae5 0%, #f0fdf4 100%);
+    border-left-color: var(--success-color);
+}
+
+.admonition-header {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* ============================================
+   Lists
+   ============================================ */
+article ul, article ol {
+    margin: 1rem 0 1.5rem 0;
+    padding-left: 1.75rem;
+}
+
+article li {
+    margin-bottom: 0.5rem;
+    line-height: 1.7;
+}
+
+article li > ul, article li > ol {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Definition lists */
+article dl {
+    margin: 1.5rem 0;
+}
+
+article dt {
+    font-weight: 600;
+    color: var(--primary-dark);
+    margin-top: 1rem;
+}
+
+article dd {
+    margin-left: 1.5rem;
+    margin-top: 0.25rem;
+    color: var(--text-secondary);
+}
+
+/* ============================================
+   Links
+   ============================================ */
+article a {
+    color: var(--primary-color);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+article a:hover {
+    color: var(--primary-dark);
+    border-bottom-color: var(--primary-color);
+}
+
+/* ============================================
+   Images and Figures
+   ============================================ */
+article img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin: 1.5rem auto;
+    display: block;
+}
+
+article figure {
+    margin: 2rem 0;
+    text-align: center;
+}
+
+article figcaption {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 0.75rem;
+    font-style: italic;
+}
+
+/* ============================================
+   Sidebar / Navigation
+   ============================================ */
+.docs-sidebar {
+    background: var(--bg-light);
+    border-right: 1px solid var(--border-color);
+}
+
+.docs-sidebar .docs-logo img {
+    border-radius: 8px;
+}
+
+.docs-menu a {
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.docs-menu a:hover {
+    background: var(--primary-color);
+    color: white !important;
+}
+
+.docs-menu a.is-active {
+    background: var(--primary-dark);
+    color: white !important;
+    font-weight: 600;
+}
+
+/* ============================================
+   Search
+   ============================================ */
+.docs-search > input {
+    border-radius: 8px;
+    border: 2px solid var(--border-color);
+    transition: border-color 0.2s ease;
+}
+
+.docs-search > input:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* ============================================
+   API Documentation
+   ============================================ */
+.docstring {
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin: 1.5rem 0;
+    overflow: hidden;
+}
+
+.docstring header {
+    background: linear-gradient(135deg, var(--bg-light) 0%, var(--bg-code) 100%);
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.docstring header a.docstring-binding {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-weight: 600;
+    color: var(--primary-dark);
+}
+
+.docstring section {
+    padding: 1rem;
+}
+
+/* ============================================
+   Footer
+   ============================================ */
+footer.footer {
+    background: var(--bg-light);
+    border-top: 1px solid var(--border-color);
+    padding: 1.5rem;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+@media screen and (max-width: 768px) {
+    article h1 {
+        font-size: 1.75rem;
+    }
+
+    article h2 {
+        font-size: 1.5rem;
+    }
+
+    article h3 {
+        font-size: 1.25rem;
+    }
+
+    article pre {
+        padding: 1rem;
+        font-size: 0.85rem;
+    }
+
+    article table {
+        font-size: 0.85rem;
+    }
+
+    article table th,
+    article table td {
+        padding: 0.5rem 0.75rem;
+    }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+@media print {
+    article pre {
+        background: white;
+        border: 1px solid #ccc;
+    }
+
+    article a {
+        color: inherit;
+        text-decoration: underline;
+    }
+
+    .docs-sidebar {
+        display: none;
+    }
+}
+
+/* ============================================
+   Special Classes for Content
+   ============================================ */
+
+/* Feature boxes */
+.feature-box {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.feature-box h4 {
+    color: var(--primary-dark);
+    margin-top: 0;
+}
+
+/* Equation numbering hint */
+.equation-label {
+    float: right;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* Key term highlighting */
+strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+em {
+    color: var(--text-secondary);
+}
+
+/* Horizontal rule */
+article hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+    margin: 2.5rem 0;
+}
+
+/* Selection highlighting */
+::selection {
+    background: rgba(37, 99, 235, 0.2);
+    color: var(--text-primary);
+}
+
+/* Scrollbar styling (WebKit) */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-light);
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}

@@ -9,7 +9,10 @@ makedocs(;
     sitename="VortexMethod.jl",
     format=Documenter.HTML(;
         edit_link="main",
-        assets=String[],
+        assets=["assets/custom.css"],
+        collapselevel=2,
+        sidebar_sitename=true,
+        prettyurls=get(ENV, "CI", nothing) == "true",
     ),
     # Relax CI to avoid failing on missing docs/cross-refs for now
     warnonly=true,

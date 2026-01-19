@@ -4,6 +4,9 @@ This page describes the sub-filter scale (SFS) dissipation models for Large Eddy
 
 ## Motivation
 
+!!! info "Why Sub-Filter Dissipation?"
+    In regularized vortex methods, the finite support of interpolation kernels acts as an implicit filter. Sub-filter scale motions are not resolved and must be modeled to prevent unphysical energy buildup.
+
 In regularized vortex methods, the finite support of interpolation kernels acts as an implicit filter. Sub-filter scale motions are not resolved and their effects must be modeled to:
 
 1. Provide energy dissipation at small scales
@@ -19,6 +22,9 @@ The filtered vorticity evolution equation with SFS dissipation:
 ```
 
 ### Eddy Viscosity
+
+!!! note "Smagorinsky Constant"
+    The model constant ``c_T \approx 0.15`` is derived from analysis of isotropic turbulence. Values between 0.1–0.2 are commonly used depending on the flow configuration.
 
 The turbulent (eddy) viscosity is computed from the filtered rate-of-strain:
 
@@ -160,6 +166,9 @@ model = MixedScaleModel(c_strain=0.1, c_vorticity=0.1)
 
 ## Filter Width Selection
 
+!!! tip "Matching Kernel Support"
+    The filter width ``\delta`` should match the regularization scale of your chosen interpolation kernel. Using a mismatched filter width can lead to under- or over-dissipation.
+
 The filter width ``\delta`` should match the regularization scale:
 
 | Kernel | Recommended ``\delta`` |
@@ -174,6 +183,9 @@ Using ``\delta`` smaller than the kernel support can cause under-dissipation; la
 ## Effect on Simulations
 
 ### Without SFS Dissipation
+
+!!! warning "Energy Buildup"
+    Without dissipation, energy accumulates at the grid scale, leading to unphysical noise and potentially unstable simulations.
 
 - Enstrophy can grow unboundedly
 - Small-scale "noise" develops

@@ -6,7 +6,12 @@ This package implements a 3D Lagrangian vortex sheet method based on the numeric
 - To compute velocities, element vorticity is spread to a regular 3D grid using a smooth, compactly-supported kernel. The resulting grid vorticity field is converted to a velocity field by solving a Poisson equation via FFTs.
 - Grid velocities are interpolated back to the Lagrangian nodes. Time integration moves nodes forward and updates element strengths consistent with conserved circulation and optional baroclinic sources or subfilter dissipation.
 
+---
+
 ## Governing Equations
+
+!!! info "Key Physical Insight"
+    Unlike standard vorticity methods, the vortex sheet formulation includes an **in-sheet dilatation term** that accounts for area changes of the sheet. This allows circulation (not just vorticity) to be the primary conserved quantity.
 
 ### Vortex Sheet Strength Evolution
 
@@ -33,7 +38,8 @@ The equivalent equation for circulation (which notably contains no vortex stretc
 \frac{D\Gamma}{Dt} = 2A\left(\frac{D\phi}{Dt} - \frac{1}{2}|\mathbf{u}|^2 + \frac{1}{8}|\Delta\mathbf{u}|^2 - \mathbf{g}\cdot\mathbf{x}\right)
 ```
 
-This depends only on the existence of density discontinuities—circulation is conserved in homogeneous, inviscid flow.
+!!! tip "Conservation Property"
+    In **homogeneous** (``A = 0``), **inviscid** flow, circulation is exactly conserved: ``D\Gamma/Dt = 0``. This is the fundamental reason for using circulation-based discretization.
 
 ### Kinematic Velocity Equation
 
@@ -45,7 +51,12 @@ The velocity field is related to the vorticity field through:
 
 This vector Poisson equation is solved on a regular grid using FFT-based spectral methods.
 
+---
+
 ## Element Discretization
+
+!!! note "Why Triangles?"
+    Triangular elements provide a flexible, unstructured representation of arbitrarily-shaped vortex sheets. Unlike vortex filaments or particles, triangles can naturally represent **both** stretching along vorticity **and** transverse strain.
 
 ### Triangular Elements with Edge Circulations
 
@@ -91,7 +102,14 @@ When setting edge circulations from a given total vorticity, the following overc
 
 When the total vorticity is planar to the triangular element, the same total vorticity can be recovered. If not planar, the vorticity is reoriented to lie in the element plane.
 
+!!! warning "Non-Planar Vorticity"
+    When the desired vorticity is not in the plane of the triangle, the solver will project it onto the element plane. This is physically correct for a thin vortex sheet but means that out-of-plane vorticity components cannot be exactly represented on a single element.
+
+---
+
 ## Mathematical Pipeline
+
+The complete algorithm consists of five stages executed every time step:
 
 ### 1. Spreading (Lagrangian → Eulerian)
 
@@ -125,7 +143,12 @@ The same family of kernels interpolates grid velocity back to node positions wit
 
 Two-stage RK2 with optional dissipation models. Adaptive ``\Delta t`` via CFL-like condition using maximum grid speed. Baroclinic sources update element vorticity between stages.
 
+---
+
 ## Interpolation Kernels
+
+!!! info "Role of Kernels"
+    The interpolation kernel serves as a **regularization** of the singular Biot-Savart integral. Larger kernel support produces smoother fields but at higher computational cost. The kernel also acts as an implicit **low-pass filter** for LES-style simulations.
 
 The kernel module (`VortexMethod.Kernels`) provides interchangeable, compactly supported weighting functions. Most 3D rectangular interpolation methods are tensor products of 1D functions:
 

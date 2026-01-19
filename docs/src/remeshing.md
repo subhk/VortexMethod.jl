@@ -4,6 +4,9 @@ The sheet mesh must maintain resolution and element quality as it deforms under 
 
 ## Why Remeshing is Essential
 
+!!! info "Mesh Quality Degradation"
+    The proposed discretization method has ideal conservation properties under planar strain. However, in real flows the mesh degrades as elements stretch, fold, and rotate with the Lagrangian motion.
+
 The proposed discretization method has ideal conservation properties under planar strain—even if triangle nodes become separated beyond the grid scale. However, in real flows:
 
 1. Vortex sheets fold and roll up
@@ -36,6 +39,9 @@ At every time step:
 This produces a valid connected mesh with no under-resolved regions.
 
 ### Midpoint Selection Methods
+
+!!! tip "Choosing a Midpoint Method"
+    Use **geometric midpoint** for volume conservation, **cubic spline** for curved surfaces, and **cylindrical projection** for roll-up regions where accuracy in high-curvature areas is critical.
 
 Three methods for positioning new nodes:
 
@@ -84,6 +90,9 @@ where ``d`` is computed from the angle between normals and the projected edge le
 
 ### Circulation Assignment to Split Elements
 
+!!! warning "Non-Coplanar Children"
+    When using spline or cylindrical midpoints, child elements are not coplanar. Special care is needed to preserve circulation during the split operation.
+
 When splitting an edge, the child elements must receive appropriate vortex sheet strength. For **coplanar** children:
 
 ```math
@@ -106,6 +115,9 @@ For **non-coplanar** children (spline/cylindrical midpoints):
 Inputs are derived from grid spacing: `ds_max ≈ O(max(dx,dy))`, `ds_min ≈ O(0.05 max(dx,dy))`.
 
 ## Node Merging Algorithm
+
+!!! note "Complementary to Splitting"
+    Edge splitting alone can produce numerous thin, low-quality triangles. Node merging simplifies the mesh by combining close node pairs, maintaining element quality.
 
 Edge splitting alone can produce numerous thin, low-quality triangles. Node merging simplifies the mesh by combining close node pairs.
 
@@ -171,6 +183,9 @@ Any single criterion marks an element for refinement. Refinement uses 1→4 spli
 - `anisotropic_remesh!`: probes a supplied `velocity_field(x,y,z)` and refines where gradients are strong.
 
 ## Conservation of circulation across remesh
+
+!!! tip "Circulation Conservation"
+    Remeshing preserves discrete circulation by computing node circulations from the old mesh and reconstructing element circulations on the new geometry.
 
 We compute node circulations from `eleGma` on the old mesh, then reconstruct `eleGma` on the new geometry:
 

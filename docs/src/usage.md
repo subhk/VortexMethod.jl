@@ -2,6 +2,9 @@
 
 ## Installation
 
+!!! tip "First-Time Setup"
+    Make sure to instantiate the project before your first use to download all dependencies.
+
 ```
 julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
@@ -28,6 +31,9 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 
 ## Minimal workflow
 
+!!! info "Basic Simulation Loop"
+    A typical simulation involves: initialize mesh → time step → remesh → checkpoint → repeat.
+
 1. Build or load a triangulated sheet (node arrays + `tri` connectivity). Initialize `eleGma` (nt×3).
 2. Compute node velocities and advance with `rk2_step!` (or the variant with dissipation).
 3. Periodically remesh using the baseline or advanced methods. Preserve circulation via `node_circulation_from_ele_gamma` and `ele_gamma_from_node_circ`.
@@ -46,6 +52,9 @@ tri_new, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
 ```
 
 ## Periodicity and particle management
+
+!!! warning "Always Wrap Nodes"
+    After inserting, deleting, or moving nodes manually, always call `wrap_nodes!` to ensure positions remain within the periodic domain.
 
 - After inserting, deleting, or moving nodes manually, call `wrap_nodes!` to keep positions in-range.
 - Use `wrap_point` for single updates (e.g., after reconnection).
