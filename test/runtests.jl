@@ -12,9 +12,13 @@ for file in test_files_to_clean
 end
 
 @testset "VortexMethod.jl" begin
+    include("test_interface.jl")
     include("test_domain.jl")
     include("test_poisson.jl")
     include("test_remesh.jl")
     include("test_checkpoint.jl")
     include("test_particle_management.jl")
+    include("test_stock_regressions.jl")
+    include("test_parallel_fft.jl")
+    include("test_performance.jl")
 end

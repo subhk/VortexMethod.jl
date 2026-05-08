@@ -100,8 +100,10 @@ for it in 1:nsteps
     end
     ARmax = max_aspect_ratio(triXC, triYC, triZC, domain)
     if it % remesh_every == 0
-        nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-        tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; domain=domain, ar_max=ar_max)
+        tri, eleGma, changed = VortexMethod.Remesh.remesh_pass!(
+            nodeX, nodeY, nodeZ, tri, eleGma, ds_max, ds_min;
+            domain=domain, ar_max=ar_max,
+        )
         if changed
             nt = size(tri,1)
             triXC = Array{Float64}(undef, nt, 3); triYC = similar(triXC); triZC = similar(triXC)
@@ -109,7 +111,6 @@ for it in 1:nsteps
                 v = tri[t,k]
                 triXC[t,k] = nodeX[v]; triYC[t,k] = nodeY[v]; triZC[t,k] = nodeZ[v]
             end
-            eleGma = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
         end
     end
     if rank == 0 && it % 5 == 0

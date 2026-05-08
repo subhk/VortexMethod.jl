@@ -2,6 +2,17 @@
 
 This page lists the main user-facing entry points. See docstrings and source for details.
 
+## High-level simulation interface
+
+- Topologies: `Periodic`, `Bounded`, `Flat`
+- `RectilinearGrid(; size, x=(0,1), y=(0,1), z=(-1,1), extent=nothing, topology=(Periodic, Periodic, Periodic))`
+  currently validates periodic topology for the FFT-based solver path.
+- `VortexSheetModel(; grid, sheet_size=(16,16), circulation=(0,1,0), amp=1e-2, kwargs...)`
+- `set!(model; circulation=...)` or `set!(model; Γ=...)`
+- `time_step!(model, Δt; kwargs...)`
+- `Simulation(model; Δt, stop_iteration=nothing, stop_time=Inf)`
+- `run!(simulation)`
+
 ## Domain and grid
 
 - `DomainSpec(Lx,Ly,Lz)`, `GridSpec(nx,ny,nz)`
@@ -29,8 +40,10 @@ This page lists the main user-facing entry points. See docstrings and source for
 `VortexMethod.Poisson3D`:
 
 - `curl_rhs_centered(VorX,VorY,VorZ, dx,dy,dz)`
+- `curl_rhs_centered!(workspace, u_rhs,v_rhs,w_rhs, VorX,VorY,VorZ, dx,dy,dz)`
 - `poisson_velocity_fft(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
 - `poisson_velocity_fft_mpi(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
+- `poisson_velocity_pencil_fft(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
 
 `VortexMethod.PoissonAdvanced`:
 
@@ -59,14 +72,17 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 `VortexMethod.Remesh`:
 
-- `remesh_pass!(nodeX,nodeY,nodeZ, tri, ds_max, ds_min; domain, ...)`
+- `remesh_pass!(nodeX,nodeY,nodeZ, tri, eleGma, ds_max, ds_min; domain, ...)`
+  returns `(tri_new, eleGma_new, changed)`
 - Utilities: `detect_max_edge_length`, `detect_min_edge_length`
 
 `VortexMethod.RemeshAdvanced`:
 
 - `compute_mesh_quality(triXC,triYC,triZC, domain)` (periodic) and variants
-- `flow_adaptive_remesh!(nodeX,nodeY,nodeZ, tri, velocity_field, domain; thresholds...)`
-- `curvature_based_remesh!(...)`, `anisotropic_remesh!(...)`, periodic-aware
+- `flow_adaptive_remesh!(nodeX,nodeY,nodeZ, tri, eleGma, velocity_field, domain; thresholds...)`
+  returns `(tri_new, eleGma_new, changed)`
+- `curvature_based_remesh!(nodeX,nodeY,nodeZ, tri, eleGma, domain; thresholds...)`
+  returns `(tri_new, eleGma_new, changed)`
 
 ## Vortex sheets
 
@@ -81,6 +97,6 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 `VortexMethod.Checkpoint`:
 
-- Single-snapshot: `save_checkpoint!` (CSV), `save_checkpoint_mat!` (MAT), `save_checkpoint_jld2!` (JLD2)
+- Single-snapshot: `save_checkpoint!`, `save_checkpoint_jld2!`
 - Time series (JLD2): `save_state_timeseries!`, `series_times`, `load_series_snapshot`, `load_series_nearest_time`
 - Helpers: `mesh_stats(...)` with periodic overload when `domain` is provided

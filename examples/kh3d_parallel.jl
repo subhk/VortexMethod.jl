@@ -252,9 +252,10 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
         # Remeshing with performance monitoring
         if it % remesh_every == 0
             remesh_start = time()
-            nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-            tri, changed = VortexMethod.Remesh.remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; 
-                                                           domain=domain, ar_max=ar_max)
+            tri, eleGma, changed = VortexMethod.Remesh.remesh_pass!(
+                nodeX, nodeY, nodeZ, tri, eleGma, ds_max, ds_min;
+                domain=domain, ar_max=ar_max,
+            )
             if changed
                 nt = size(tri, 1)
                 triXC = Array{Float64}(undef, nt, 3)
@@ -266,7 +267,6 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
                     triYC[t,k] = nodeY[v] 
                     triZC[t,k] = nodeZ[v]
                 end
-                eleGma = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
             end
             remesh_time = time() - remesh_start
             log_timing!(monitor, :remesh, remesh_time)

@@ -13,6 +13,8 @@ include("circulation.jl")
 include("dissipation.jl")
 # Time integration routines
 include("timestep.jl")
+# High-level user-facing interface
+include("interface.jl")
 # Remeshing and advanced solvers
 include("remesh.jl")
 include("remesh_advanced.jl")
@@ -33,6 +35,8 @@ include("cache_optimization.jl")
 export DomainSpec, GridSpec,
        default_domain, default_grid,
        wrap_point, wrap_nodes!,
+       periodic_delta, unwrap_triangle, periodic_centroid,
+       periodic_triangle_area, periodic_shifts,
 
 # kernels.jl - Interpolation kernels and spreading functions  
        KernelType, PeskinStandard, PeskinCosine, M4Prime, AreaWeighting,
@@ -62,6 +66,10 @@ export DomainSpec, GridSpec,
 # timestep.jl - Time integration and velocity computation
        node_velocities, rk2_step!, rk2_step_with_dissipation!,
        grid_velocity, make_velocity_sampler,
+
+# interface.jl - High-level user-facing API
+       Periodic, Bounded, Flat, RectilinearGrid, Clock, VortexSheetModel,
+       Simulation, set!, time_step!, run!,
 
 # remesh.jl - Basic remeshing operations
        detect_max_edge_length, detect_min_edge_length,

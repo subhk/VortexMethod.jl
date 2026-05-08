@@ -4,11 +4,107 @@
 module RemeshAdvanced
 
 using ..DomainImpl
-using LinearAlgebra
 
 export MeshQuality, compute_mesh_quality, quality_based_remesh!,
        element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
        curvature_based_remesh!, flow_adaptive_remesh!
+
+@inline function smart_midpoint(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                a::Int, b::Int, domain::DomainSpec)
+    dx = nodeX[a] - nodeX[b]
+    dy = nodeY[a] - nodeY[b]
+    dz = nodeZ[a] - nodeZ[b]
+
+    if domain.Lx > 0; dx = dx - domain.Lx * round(dx/domain.Lx); end
+    if domain.Ly > 0; dy = dy - domain.Ly * round(dy/domain.Ly); end
+    if domain.Lz > 0; dz = dz - 2*domain.Lz * round(dz/(2*domain.Lz)); end
+
+    mx = mod(nodeX[a] - 0.5 * dx, domain.Lx)
+    my = mod(nodeY[a] - 0.5 * dy, domain.Ly)
+    mz = mod(nodeZ[a] - 0.5 * dz + domain.Lz, 2*domain.Lz) - domain.Lz
+    return mx, my, mz
+end
+
+function push_midpoint!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                        a::Int, b::Int, domain::DomainSpec)
+    mx, my, mz = smart_midpoint(nodeX, nodeY, nodeZ, a, b, domain)
+    push!(nodeX, mx)
+    push!(nodeY, my)
+    push!(nodeZ, mz)
+    return length(nodeX)
+end
+
+function split_refinements_batch!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                  tri::Array{Int,2}, eleGma::AbstractMatrix,
+                                  elements_to_refine::Vector{Int}, split_count::Int,
+                                  domain::DomainSpec)
+    nt = size(tri, 1)
+    gamma_cols = size(eleGma, 2)
+    tri_work = Array{Int}(undef, nt + 3 * split_count, 3)
+    eleGma_work = Array{Float64}(undef, nt + 3 * split_count, gamma_cols)
+    @views tri_work[1:nt, :] .= tri
+    @views eleGma_work[1:nt, :] .= eleGma
+    sizehint!(nodeX, length(nodeX) + 3 * split_count)
+    sizehint!(nodeY, length(nodeY) + 3 * split_count)
+    sizehint!(nodeZ, length(nodeZ) + 3 * split_count)
+
+    append_row = nt
+    @inbounds for i in 1:split_count
+        ele_idx = elements_to_refine[i]
+        v1, v2, v3 = tri_work[ele_idx, 1], tri_work[ele_idx, 2], tri_work[ele_idx, 3]
+
+        mid12 = push_midpoint!(nodeX, nodeY, nodeZ, v1, v2, domain)
+        mid23 = push_midpoint!(nodeX, nodeY, nodeZ, v2, v3, domain)
+        mid31 = push_midpoint!(nodeX, nodeY, nodeZ, v3, v1, domain)
+
+        tri_work[ele_idx, 1] = v1
+        tri_work[ele_idx, 2] = mid12
+        tri_work[ele_idx, 3] = mid31
+
+        tri_work[append_row + 1, 1] = mid12
+        tri_work[append_row + 1, 2] = v2
+        tri_work[append_row + 1, 3] = mid23
+        tri_work[append_row + 2, 1] = mid31
+        tri_work[append_row + 2, 2] = mid23
+        tri_work[append_row + 2, 3] = v3
+        tri_work[append_row + 3, 1] = mid12
+        tri_work[append_row + 3, 2] = mid23
+        tri_work[append_row + 3, 3] = mid31
+
+        for k in 1:gamma_cols
+            γ = eleGma_work[ele_idx, k]
+            eleGma_work[append_row + 1, k] = γ
+            eleGma_work[append_row + 2, k] = γ
+            eleGma_work[append_row + 3, k] = γ
+        end
+
+        append_row += 3
+    end
+
+    return tri_work, eleGma_work
+end
+
+function apply_split_refinements!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
+                                  tri::Array{Int,2}, eleGma::AbstractMatrix,
+                                  elements_to_refine::Vector{Int},
+                                  domain::DomainSpec, max_elements::Int)
+    size(eleGma, 1) == size(tri, 1) ||
+        throw(DimensionMismatch("eleGma row count $(size(eleGma, 1)) does not match triangle count $(size(tri, 1))"))
+
+    if isempty(elements_to_refine) || size(tri, 1) + 3 > max_elements
+        wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+        return tri, eleGma, false
+    end
+
+    sort!(elements_to_refine, rev=true)
+    split_count = min(length(elements_to_refine), max(0, (max_elements - size(tri, 1)) ÷ 3))
+    split_count > 0 || return tri, eleGma, false
+    tri_work, eleGma_work = split_refinements_batch!(
+        nodeX, nodeY, nodeZ, tri, eleGma, elements_to_refine, split_count, domain,
+    )
+    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
+    return tri_work, eleGma_work, true
+end
 
 # Mesh quality metrics structure
 struct MeshQuality
@@ -170,17 +266,14 @@ function should_refine_element(quality::MeshQuality;
             quality.jacobian_quality < min_jacobian_quality)
 end
 
-# Quality-based remeshing: refine elements with poor quality metrics
 function quality_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                               tri::Array{Int,2}, domain::DomainSpec;
+                               tri::Array{Int,2}, eleGma::AbstractMatrix, domain::DomainSpec;
                                max_aspect_ratio::Float64=4.0,
                                max_skewness::Float64=0.8,
                                min_angle_quality::Float64=0.3,
                                min_jacobian_quality::Float64=0.3,
                                max_elements::Int=50000)
     nt = size(tri, 1)
-
-    # Build triangle coordinate arrays
     triXC = Array{Float64}(undef, nt, 3)
     triYC = Array{Float64}(undef, nt, 3)
     triZC = Array{Float64}(undef, nt, 3)
@@ -191,10 +284,7 @@ function quality_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         triZC[t,k] = nodeZ[v]
     end
 
-    # Compute quality metrics using periodic boundary handling
     qualities = compute_mesh_quality(triXC, triYC, triZC, domain)
-
-    # Mark elements for refinement based on quality thresholds
     elements_to_refine = Int[]
     @inbounds for t in 1:nt
         if should_refine_element(qualities[t];
@@ -204,134 +294,73 @@ function quality_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
                                  min_jacobian_quality=min_jacobian_quality)
             push!(elements_to_refine, t)
         end
-        # Check element limit
         if length(elements_to_refine) * 3 + nt >= max_elements
             break
         end
     end
 
-    # Sort in reverse to refine high indices first (maintains index validity)
-    sort!(elements_to_refine, rev=true)
-
-    # Refine marked elements
-    changed = false
-    for ele_idx in elements_to_refine
-        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, domain)
-        changed = true
-        nt = size(tri, 1)
-        if nt >= max_elements
-            break
-        end
-    end
-
-    # Ensure all nodes are wrapped at the end
-    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
-    return tri, changed
+    return apply_split_refinements!(nodeX, nodeY, nodeZ, tri, eleGma,
+                                    elements_to_refine, domain, max_elements)
 end
 
 # Enhanced 1-to-4 splitting with quality preservation
 function quality_split_triangle!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                                 tri::Array{Int,2}, ele_idx::Int, domain::DomainSpec)
     v1, v2, v3 = tri[ele_idx,1], tri[ele_idx,2], tri[ele_idx,3]
-    p1 = (nodeX[v1], nodeY[v1], nodeZ[v1])
-    p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
-    p3 = (nodeX[v3], nodeY[v3], nodeZ[v3])
-    
-    # Smart midpoint placement considering periodicity and quality
-    function smart_midpoint(pa::NTuple{3,Float64}, pb::NTuple{3,Float64})
-        # Use minimum image convention for periodic domains
-        dx = pa[1] - pb[1]
-        dy = pa[2] - pb[2] 
-        dz = pa[3] - pb[3]
-        
-        # Apply minimum image
-        if domain.Lx > 0; dx = dx - domain.Lx * round(dx/domain.Lx); end
-        if domain.Ly > 0; dy = dy - domain.Ly * round(dy/domain.Ly); end
-        if domain.Lz > 0; dz = dz - 2*domain.Lz * round(dz/(2*domain.Lz)); end
-        
-        # Midpoint in minimum image space
-        mx = pa[1] - 0.5 * dx
-        my = pa[2] - 0.5 * dy
-        mz = pa[3] - 0.5 * dz
-        
-        # Wrap back to domain
-        mx = mod(mx, domain.Lx)
-        my = mod(my, domain.Ly)
-        mz = mod(mz + domain.Lz, 2*domain.Lz) - domain.Lz
-        
-        return (mx, my, mz)
-    end
-    
-    # Create edge midpoints
-    m12 = smart_midpoint(p1, p2)
-    m23 = smart_midpoint(p2, p3)
-    m31 = smart_midpoint(p3, p1)
-    
-    # Add new nodes
-    push!(nodeX, m12[1]); push!(nodeY, m12[2]); push!(nodeZ, m12[3]); mid12 = length(nodeX)
-    push!(nodeX, m23[1]); push!(nodeY, m23[2]); push!(nodeZ, m23[3]); mid23 = length(nodeX)
-    push!(nodeX, m31[1]); push!(nodeY, m31[2]); push!(nodeZ, m31[3]); mid31 = length(nodeX)
+    mid12 = push_midpoint!(nodeX, nodeY, nodeZ, v1, v2, domain)
+    mid23 = push_midpoint!(nodeX, nodeY, nodeZ, v2, v3, domain)
+    mid31 = push_midpoint!(nodeX, nodeY, nodeZ, v3, v1, domain)
     
     # Replace original triangle and add three new ones
     tri[ele_idx, :] .= (v1, mid12, mid31)
     tri_new = Array{Int}(undef, 3, 3)
-    tri_new[1,:] = (mid12, v2, mid23)
-    tri_new[2,:] = (mid31, mid23, v3)
-    tri_new[3,:] = (mid12, mid23, mid31)  # Central triangle
+    tri_new[1,:] .= (mid12, v2, mid23)
+    tri_new[2,:] .= (mid31, mid23, v3)
+    tri_new[3,:] .= (mid12, mid23, mid31)  # Central triangle
     
     return vcat(tri, tri_new)
 end
 
 # Anisotropic remeshing based on flow gradients
 function anisotropic_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                           tri::Array{Int,2}, velocity_field::Function, domain::DomainSpec;
+                           tri::Array{Int,2}, eleGma::AbstractMatrix,
+                           velocity_field::Function, domain::DomainSpec;
                            refinement_threshold::Float64=0.1, max_elements::Int=50000)
     nt = size(tri, 1)
     elements_to_refine = Int[]
-    
+
     @inbounds for t in 1:nt
         v1, v2, v3 = tri[t,1], tri[t,2], tri[t,3]
-        # Centroid
         cx = (nodeX[v1] + nodeX[v2] + nodeX[v3]) / 3
         cy = (nodeY[v1] + nodeY[v2] + nodeY[v3]) / 3
         cz = (nodeZ[v1] + nodeZ[v2] + nodeZ[v3]) / 3
-        
-        # Compute velocity gradient tensor at centroid
+
         h = 1e-6
         u_center = velocity_field(cx, cy, cz)
         u_dx = velocity_field(cx+h, cy, cz)
         u_dy = velocity_field(cx, cy+h, cz)
         u_dz = velocity_field(cx, cy, cz+h)
-        
-        # Gradient magnitude
-        grad_mag = norm([(u_dx[1]-u_center[1])/h, (u_dy[1]-u_center[1])/h, (u_dz[1]-u_center[1])/h])
-        
+        du_dx = (u_dx[1] - u_center[1]) / h
+        du_dy = (u_dy[1] - u_center[1]) / h
+        du_dz = (u_dz[1] - u_center[1]) / h
+        grad_mag = sqrt(du_dx^2 + du_dy^2 + du_dz^2)
+
         if grad_mag > refinement_threshold && nt < max_elements
             push!(elements_to_refine, t)
         end
     end
-    
-    # Refine marked elements
-    changed = false
-    for ele_idx in reverse(elements_to_refine)  # Reverse to maintain indices
-        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, domain)
-        changed = true
-        nt = size(tri, 1)
-    end
-    
-    # enforce periodic wrap for safety
-    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
-    return tri, changed
+
+    return apply_split_refinements!(nodeX, nodeY, nodeZ, tri, eleGma,
+                                    elements_to_refine, domain, max_elements)
 end
 
 # Curvature-based refinement for vortex sheet tracking
 function curvature_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                                tri::Array{Int,2}, domain::DomainSpec;
+                                tri::Array{Int,2}, eleGma::AbstractMatrix, domain::DomainSpec;
                                 curvature_threshold::Float64=1.0, max_elements::Int=50000)
     nt = size(tri, 1)
     elements_to_refine = Int[]
-    
-    # Build edge-to-triangle connectivity
+
     edge_map = Dict{Tuple{Int,Int}, Vector{Int}}()
     @inbounds for t in 1:nt
         v1, v2, v3 = tri[t,1], tri[t,2], tri[t,3]
@@ -344,15 +373,13 @@ function curvature_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64},
             end
         end
     end
-    
-    # Compute curvature for each triangle
+
     @inbounds for t in 1:nt
         v1, v2, v3 = tri[t,1], tri[t,2], tri[t,3]
         p1 = (nodeX[v1], nodeY[v1], nodeZ[v1])
         p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
         p3 = (nodeX[v3], nodeY[v3], nodeZ[v3])
-        
-        # Normal vector
+
         e1 = (p2[1]-p1[1], p2[2]-p1[2], p2[3]-p1[3])
         e2 = (p3[1]-p1[1], p3[2]-p1[2], p3[3]-p1[3])
         normal = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
@@ -360,14 +387,12 @@ function curvature_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64},
         if normal_mag > 0
             normal = (normal[1]/normal_mag, normal[2]/normal_mag, normal[3]/normal_mag)
         end
-        
-        # Estimate curvature from neighboring triangles
+
         max_angle_diff = 0.0
         for (a,b) in ((v1,v2), (v2,v3), (v3,v1))
             edge = a < b ? (a,b) : (b,a)
             if haskey(edge_map, edge) && length(edge_map[edge]) == 2
                 neighbor_t = edge_map[edge][1] == t ? edge_map[edge][2] : edge_map[edge][1]
-                # Compute neighbor normal
                 nv1, nv2, nv3 = tri[neighbor_t,1], tri[neighbor_t,2], tri[neighbor_t,3]
                 np1 = (nodeX[nv1], nodeY[nv1], nodeZ[nv1])
                 np2 = (nodeX[nv2], nodeY[nv2], nodeZ[nv2])
@@ -378,38 +403,28 @@ function curvature_based_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64},
                 nnormal_mag = sqrt(nnormal[1]^2 + nnormal[2]^2 + nnormal[3]^2)
                 if nnormal_mag > 0
                     nnormal = (nnormal[1]/nnormal_mag, nnormal[2]/nnormal_mag, nnormal[3]/nnormal_mag)
-                    # Angle between normals
                     dot_product = normal[1]*nnormal[1] + normal[2]*nnormal[2] + normal[3]*nnormal[3]
                     angle_diff = acos(clamp(abs(dot_product), 0.0, 1.0))
                     max_angle_diff = max(max_angle_diff, angle_diff)
                 end
             end
         end
-        
+
         if max_angle_diff > curvature_threshold && nt < max_elements
             push!(elements_to_refine, t)
         end
     end
-    
-    # Refine marked elements
-    changed = false
-    for ele_idx in reverse(elements_to_refine)
-        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, domain)
-        changed = true
-        nt = size(tri, 1)
-    end
-    
-    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
-    return tri, changed
+
+    return apply_split_refinements!(nodeX, nodeY, nodeZ, tri, eleGma,
+                                    elements_to_refine, domain, max_elements)
 end
 
 # Flow-adaptive remeshing combining multiple criteria
 function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
-                              tri::Array{Int,2}, velocity_field::Function, domain::DomainSpec;
-                              # legacy weighted-score kwargs (kept for compatibility; ignored by threshold logic)
-                              quality_weight::Float64=0.3, gradient_weight::Float64=0.4, 
+                              tri::Array{Int,2}, eleGma::AbstractMatrix,
+                              velocity_field::Function, domain::DomainSpec;
+                              quality_weight::Float64=0.3, gradient_weight::Float64=0.4,
                               curvature_weight::Float64=0.3, refinement_threshold::Float64=0.5,
-                              # hard thresholds aligned with thesis-style criteria
                               max_aspect_ratio::Float64=3.0,
                               max_skewness::Float64=0.8,
                               min_angle_quality::Float64=0.4,
@@ -418,11 +433,8 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
                               curvature_threshold::Float64=0.6,
                               max_elements::Int=50000)
     nt = size(tri, 1)
-    refinement_scores = zeros(Float64, nt)
-    
-    # Build triangle coordinates
     triXC = Array{Float64}(undef, nt, 3)
-    triYC = Array{Float64}(undef, nt, 3) 
+    triYC = Array{Float64}(undef, nt, 3)
     triZC = Array{Float64}(undef, nt, 3)
     @inbounds for k in 1:3, t in 1:nt
         v = tri[t,k]
@@ -430,11 +442,9 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         triYC[t,k] = nodeY[v]
         triZC[t,k] = nodeZ[v]
     end
-    
-    # Compute mesh quality scores (periodic minimum-image)
+
     qualities = compute_mesh_quality(triXC, triYC, triZC, domain)
-    
-    # Build edge-to-triangle connectivity once (for curvature)
+
     edge_map = Dict{Tuple{Int,Int}, Vector{Int}}()
     @inbounds for t in 1:nt
         v1, v2, v3 = tri[t,1], tri[t,2], tri[t,3]
@@ -453,13 +463,11 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         v1, v2, v3 = tri[t,1], tri[t,2], tri[t,3]
         q = qualities[t]
 
-        # Thesis-style quality thresholds
         refine_quality = (q.aspect_ratio > max_aspect_ratio ||
                           q.skewness > max_skewness ||
                           q.angle_quality < min_angle_quality ||
                           q.jacobian_quality < min_jacobian_quality)
 
-        # Gradient-based threshold at centroid
         cx = (nodeX[v1] + nodeX[v2] + nodeX[v3]) / 3
         cy = (nodeY[v1] + nodeY[v2] + nodeY[v3]) / 3
         cz = (nodeZ[v1] + nodeZ[v2] + nodeZ[v3]) / 3
@@ -468,18 +476,15 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
         u_dx = velocity_field(cx+h, cy, cz)
         u_dy = velocity_field(cx, cy+h, cz)
         u_dz = velocity_field(cx, cy, cz+h)
-        # Full velocity gradient Frobenius norm ||∇U||_F
         ux = (u_dx[1]-u_center[1])/h; vx = (u_dx[2]-u_center[2])/h; wx = (u_dx[3]-u_center[3])/h
         uy = (u_dy[1]-u_center[1])/h; vy = (u_dy[2]-u_center[2])/h; wy = (u_dy[3]-u_center[3])/h
         uz = (u_dz[1]-u_center[1])/h; vz = (u_dz[2]-u_center[2])/h; wz = (u_dz[3]-u_center[3])/h
         grad_mag = sqrt(ux^2 + vx^2 + wx^2 + uy^2 + vy^2 + wy^2 + uz^2 + vz^2 + wz^2)
         refine_gradient = grad_mag > grad_threshold
 
-        # Curvature from neighboring face normal variation
         p1 = (nodeX[v1], nodeY[v1], nodeZ[v1])
         p2 = (nodeX[v2], nodeY[v2], nodeZ[v2])
         p3 = (nodeX[v3], nodeY[v3], nodeZ[v3])
-        # Minimum-image edge vectors for curvature (periodic)
         e1 = (_minimg(p2[1]-p1[1], domain.Lx), _minimg(p2[2]-p1[2], domain.Ly), _minimg(p2[3]-p1[3], 2*domain.Lz))
         e2 = (_minimg(p3[1]-p1[1], domain.Lx), _minimg(p3[2]-p1[2], domain.Ly), _minimg(p3[3]-p1[3], 2*domain.Lz))
         n  = (e1[2]*e2[3] - e1[3]*e2[2], e1[3]*e2[1] - e1[1]*e2[3], e1[1]*e2[2] - e1[2]*e2[1])
@@ -516,19 +521,9 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
             break
         end
     end
-    
-    # Sort in reverse for stability (refine high indices first)
-    sort!(elements_to_refine, rev=true)
-    
-    changed = false
-    for ele_idx in elements_to_refine[1:min(length(elements_to_refine), max_elements - nt)]
-        tri = quality_split_triangle!(nodeX, nodeY, nodeZ, tri, ele_idx, domain)
-        changed = true
-        nt = size(tri, 1)
-    end
-    
-    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
-    return tri, changed
+
+    return apply_split_refinements!(nodeX, nodeY, nodeZ, tri, eleGma,
+                                    elements_to_refine, domain, max_elements)
 end
 
 end # module

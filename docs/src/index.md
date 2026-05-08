@@ -27,6 +27,7 @@ This package implements the regularized vortex sheet method developed in [Stock 
 
 | Page | Description |
 |:-----|:------------|
+| [**Codebase Structure**](codebase.md) | Source layout, solver pipeline, tests, and where to add new code |
 | [**Theory**](theory.md) | Governing equations, element discretization, interpolation kernels |
 | [**Boundary Conditions**](boundary_conditions.md) | Periodic, open, and wall boundary treatments |
 | [**Baroclinic Effects**](baroclinic.md) | Density discontinuities and vorticity generation |
@@ -47,21 +48,19 @@ This package implements the regularized vortex sheet method developed in [Stock 
 ```julia
 using VortexMethod
 
-# Define domain and grid
-domain = DomainSpec(1.0, 1.0, 4.0)  # Lx, Ly, Lz
-gr = GridSpec(64, 64, 256)          # nx, ny, nz
+grid = RectilinearGrid(size=(32, 32, 63),
+                       x=(0.0, 1.0),
+                       y=(0.0, 1.0),
+                       z=(-1.0, 1.0),
+                       topology=(Periodic, Periodic, Periodic))
 
-# Initialize sheet (nodes and triangles)
-nodeX, nodeY, nodeZ, tri = create_initial_sheet(...)
-eleGma = initialize_vortex_strength(tri, ...)
+model = VortexSheetModel(; grid,
+                         sheet_size=(32, 32),
+                         circulation=(0.0, 1.0, 0.0),
+                         amp=1e-2)
 
-# Time stepping with MPI
-dt = 0.01
-for step in 1:nsteps
-    rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt)
-    remesh_pass!(nodeX, nodeY, nodeZ, tri, ds_max, ds_min; domain)
-    wrap_nodes!(nodeX, nodeY, nodeZ, domain)
-end
+simulation = Simulation(model; Δt=1e-3, stop_iteration=10)
+run!(simulation)
 ```
 
 !!! note "MPI Support"
@@ -88,7 +87,10 @@ Modules = [VortexMethod]
 
 ## Notes on Remeshing and Metrics
 
-- Periodic metrics: Advanced remeshing and sheet quality now use periodic, minimum-image geometry in x/y and symmetric in z ([-Lz,Lz]).
+- Periodic metrics: Advanced remeshing and sheet quality use periodic,
+  minimum-image geometry in all periodic directions.
+- Circulation-aware remeshing: topology-changing paths accept and return
+  `eleGma`, so element circulation is carried through splits and merges.
 - Thresholds (defaults):
   - max_aspect_ratio=3.0, max_skewness=0.8
   - min_angle_quality=0.4, min_jacobian_quality=0.4

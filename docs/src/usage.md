@@ -9,16 +9,17 @@
 julia --project -e 'using Pkg; Pkg.instantiate()'
 ```
 
-## Running examples with MPI
+## Running examples
 
 ```
-mpirun -n 4 julia --project examples/simple3d.jl
+julia --project examples/simple3d.jl
 mpirun -n 4 julia --project examples/kh3d.jl
 mpirun -n 4 julia --project examples/advanced_kh3d.jl
 ```
 
 ## Core API
 
+- High-level interface: `RectilinearGrid`, `VortexSheetModel`, `Simulation`, `set!`, `time_step!`, `run!`
 - Domain/grid: `DomainSpec(Lx,Ly,Lz)`, `GridSpec(nx,ny,nz)`, `default_domain()`, `default_grid()`
 - Periodic helpers: `wrap_point(x,y,z, domain)`, `wrap_nodes!(nodeX,nodeY,nodeZ, domain)`
 - Spreading/interpolation (MPI): `spread_vorticity_to_grid_mpi`, `interpolate_node_velocity_mpi`
@@ -32,20 +33,35 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 ## Minimal workflow
 
 !!! info "Basic Simulation Loop"
-    A typical simulation involves: initialize mesh → time step → remesh → checkpoint → repeat.
+    A typical simulation involves: initialize mesh -> time step -> remesh -> checkpoint -> repeat.
 
-1. Build or load a triangulated sheet (node arrays + `tri` connectivity). Initialize `eleGma` (nt×3).
-2. Compute node velocities and advance with `rk2_step!` (or the variant with dissipation).
-3. Periodically remesh using the baseline or advanced methods. Preserve circulation via `node_circulation_from_ele_gamma` and `ele_gamma_from_node_circ`.
-4. Save checkpoints regularly (rank 0) via `save_state!` or `save_state_timeseries!`.
+For the high-level interface:
+
+```julia
+using VortexMethod
+
+grid = RectilinearGrid(size=(32, 32, 63), x=(0, 1), y=(0, 1), z=(-1, 1))
+model = VortexSheetModel(; grid, sheet_size=(32, 32), circulation=(0, 1, 0))
+simulation = Simulation(model; Δt=1e-3, stop_iteration=10)
+run!(simulation)
+```
+
+For direct array control:
+
+1. Build or load a triangulated sheet with node arrays, `tri` connectivity, and
+   `eleGma` element circulation with shape `nt x 3`.
+2. Compute node velocities and advance with `rk2_step!` or
+   `rk2_step_with_dissipation!`.
+3. Periodically remesh using the baseline or advanced methods. These functions
+   accept `eleGma` and return updated connectivity plus updated circulation.
+4. Save checkpoints regularly via `save_state!` or `save_state_timeseries!`.
 
 ## Advanced remeshing recipe
 
 ```
-Ux,Uy,Uz = grid_velocity(eleGma, triXC, triYC, triZC, domain, gr)
 vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr)
-tri_new, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
-    nodeX, nodeY, nodeZ, tri, vel, domain;
+tri_new, eleGma_new, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
+    nodeX, nodeY, nodeZ, tri, eleGma, vel, domain;
     max_aspect_ratio=3.0, min_angle_quality=0.4, min_jacobian_quality=0.4,
     max_skewness=0.8, grad_threshold=0.2, curvature_threshold=0.6,
 )

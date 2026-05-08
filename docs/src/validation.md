@@ -150,9 +150,7 @@ OUTPUT_PNG=docs/src/assets/ke_series.png \
 julia --project examples/plot_series_ke.jl
 ```
 
-Then reference it here:
-
-![](assets/ke_series.png)
+Expected asset path: `docs/src/assets/ke_series.png`.
 
 ## Extracting figures from the thesis (optional)
 
@@ -179,8 +177,6 @@ After saving, include figures in the appropriate pages (Theory/Remeshing/Paralle
 - 3.19 → docs/src/assets/fig_3_19.png (Theory/Parallelization)
 - 3.26 → docs/src/assets/fig_3_26.png (Remeshing)
 - 3.52 → docs/src/assets/fig_3_52.png (Remeshing)
-
-![](assets/fig_1_23.png)
 
 ### Direct page extraction (user-provided pages)
 
@@ -226,8 +222,6 @@ OUTPUT_PNG=docs/src/assets/snapshot_gamma.png \
 julia --project examples/plot_snapshot_gamma.jl
 ```
 
-Then include it here:
-
-![](assets/snapshot_gamma.png)
+Expected asset path: `docs/src/assets/snapshot_gamma.png`.
 
 If you share the thesis figure numbers/pages to include (and captions), we’ll add them directly to the relevant sections with proper references.

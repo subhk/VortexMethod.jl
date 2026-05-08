@@ -1,45 +1,24 @@
-# Minimal example: uniform vortex sheet on a lifted square, periodic domain
+# Minimal high-level interface example.
 
 using VortexMethod
-using MPI
 using Printf
 
-domain = default_domain()
-gr = default_grid()
+grid = RectilinearGrid(size=(8, 8, 7),
+                       x=(0.0, 1.0),
+                       y=(0.0, 1.0),
+                       z=(-1.0, 1.0),
+                       topology=(Periodic, Periodic, Periodic))
 
-init_mpi!()
-comm = MPI.COMM_WORLD
-rank = MPI.Comm_rank(comm)
+model = VortexSheetModel(; grid,
+                         sheet_size=(5, 5),
+                         circulation=(0.0, 1.0, 0.0),
+                         amp=0.0)
 
-# Build a simple two-triangle square in 3D at z=0
-triXC = [0.25 0.75 0.25;
-         0.75 0.75 0.25]
-triYC = [0.25 0.25 0.75;
-         0.25 0.75 0.75]
-triZC = [0.00 0.00 0.00;
-         0.00 0.00 0.00]
+simulation = Simulation(model; Δt=0.0, stop_iteration=1)
+run!(simulation)
 
-nt = size(triXC,1)
-eleGma = zeros(Float64, nt, 3)
-eleGma[:,2] .= 1.0 # vorticity aligned with y like python init
+println("Grid: ", grid)
+println("Model iteration: ", model.clock.iteration)
+println("Model time: ", @sprintf("%.4e", model.clock.time))
+println("Elements: ", size(model.tri, 1))
 
-VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
-
-dx,dy,dz = grid_spacing(domain, gr)
-u_rhs, v_rhs, w_rhs = VortexMethod.curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
-Ux, Uy, Uz = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, domain)
-
-# interpolate on the triangle nodes (6 nodes for two triangles; we just pick vertices used above)
-nodesX = vec(unique([triXC...]))[1:6]
-nodesY = vec(unique([triYC...]))[1:6]
-nodesZ = zeros(Float64, length(nodesX))
-u, v, w = interpolate_node_velocity_mpi(Ux, Uy, Uz, nodesX, nodesY, nodesZ, domain, gr)
-
-if rank == 0
-    println("Computed node velocities (first 3):")
-    for i in 1:min(3, length(u))
-        println(lpad(string(i),3), ": (", @sprintf("%.4e", u[i]), ", ", @sprintf("%.4e", v[i]), ", ", @sprintf("%.4e", w[i]), ")")
-    end
-end
-
-finalize_mpi!()

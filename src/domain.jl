@@ -4,7 +4,9 @@ module DomainImpl
 
 export DomainSpec, GridSpec, default_domain, default_grid,
        grid_vectors, grid_spacing, grid_mesh, kvec,
-       wrap_point, wrap_nodes!
+       wrap_point, wrap_nodes!,
+       periodic_delta, unwrap_triangle, periodic_centroid,
+       periodic_triangle_area, periodic_shifts
 
 struct DomainSpec
     Lx::Float64
@@ -34,9 +36,56 @@ function grid_vectors(domain::DomainSpec, gr::GridSpec)
     return x, y, z
 end
 
-grid_spacing(domain::DomainSpec, gr::GridSpec) = begin
-    x, y, z = grid_vectors(domain, gr)
-    (abs(x[2]-x[1]), abs(y[2]-y[1]), abs(z[2]-z[1]))
+grid_spacing(domain::DomainSpec, gr::GridSpec) = (domain.Lx / gr.nx, domain.Ly / gr.ny, 2 * domain.Lz / gr.nz)
+
+@inline function periodic_delta(to::Real, from::Real, period::Real)
+    p = Float64(period)
+    d = Float64(to) - Float64(from)
+    p <= 0.0 && return d
+    return d - p * round(d / p)
+end
+
+function unwrap_triangle(p1::NTuple{3,<:Real}, p2::NTuple{3,<:Real},
+                         p3::NTuple{3,<:Real}, domain::DomainSpec)
+    q1 = (Float64(p1[1]), Float64(p1[2]), Float64(p1[3]))
+    q2 = (q1[1] + periodic_delta(p2[1], p1[1], domain.Lx),
+          q1[2] + periodic_delta(p2[2], p1[2], domain.Ly),
+          q1[3] + periodic_delta(p2[3], p1[3], 2 * domain.Lz))
+    q3 = (q1[1] + periodic_delta(p3[1], p1[1], domain.Lx),
+          q1[2] + periodic_delta(p3[2], p1[2], domain.Ly),
+          q1[3] + periodic_delta(p3[3], p1[3], 2 * domain.Lz))
+    return q1, q2, q3
+end
+
+function periodic_centroid(p1::NTuple{3,<:Real}, p2::NTuple{3,<:Real},
+                           p3::NTuple{3,<:Real}, domain::DomainSpec)
+    q1, q2, q3 = unwrap_triangle(p1, p2, p3, domain)
+    cx = (q1[1] + q2[1] + q3[1]) / 3
+    cy = (q1[2] + q2[2] + q3[2]) / 3
+    cz = (q1[3] + q2[3] + q3[3]) / 3
+    return wrap_point(cx, cy, cz, domain)
+end
+
+function periodic_triangle_area(p1::NTuple{3,<:Real}, p2::NTuple{3,<:Real},
+                                p3::NTuple{3,<:Real}, domain::DomainSpec)
+    q1, q2, q3 = unwrap_triangle(p1, p2, p3, domain)
+    v1x, v1y, v1z = q2[1] - q1[1], q2[2] - q1[2], q2[3] - q1[3]
+    v2x, v2y, v2z = q3[1] - q1[1], q3[2] - q1[2], q3[3] - q1[3]
+    cx = v1y * v2z - v1z * v2y
+    cy = v1z * v2x - v1x * v2z
+    cz = v1x * v2y - v1y * v2x
+    return 0.5 * sqrt(cx*cx + cy*cy + cz*cz)
+end
+
+function periodic_shifts(domain::DomainSpec)
+    shifts = Vector{NTuple{3,Float64}}(undef, 27)
+    idx = 1
+    zperiod = 2 * domain.Lz
+    @inbounds for sx in -1:1, sy in -1:1, sz in -1:1
+        shifts[idx] = (sx * domain.Lx, sy * domain.Ly, sz * zperiod)
+        idx += 1
+    end
+    return shifts
 end
 
 function grid_mesh(domain::DomainSpec, gr::GridSpec)
@@ -99,4 +148,6 @@ end
 
 end # module
 
-using .DomainImpl: DomainSpec, GridSpec, default_domain, default_grid, grid_vectors, grid_spacing, grid_mesh, kvec, wrap_point, wrap_nodes!
+using .DomainImpl: DomainSpec, GridSpec, default_domain, default_grid, grid_vectors, grid_spacing, grid_mesh, kvec,
+                   wrap_point, wrap_nodes!, periodic_delta, unwrap_triangle, periodic_centroid,
+                   periodic_triangle_area, periodic_shifts

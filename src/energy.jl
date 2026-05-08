@@ -9,8 +9,11 @@ export grid_ke, gamma_ke
 function grid_ke(Ux::Array{Float64,3}, Uy::Array{Float64,3}, Uz::Array{Float64,3}, domain::DomainSpec, gr::GridSpec)
     # Use grid_spacing for periodic domain (step = L/n, not L/(n-1))
     dx, dy, dz = grid_spacing(domain, gr)
-    KE = 0.5 * sum(Ux.^2 .+ Uy.^2 .+ Uz.^2) * dx * dy * dz
-    return KE
+    s = 0.0
+    @inbounds @simd for i in eachindex(Ux, Uy, Uz)
+        s += Ux[i] * Ux[i] + Uy[i] * Uy[i] + Uz[i] * Uz[i]
+    end
+    return 0.5 * s * dx * dy * dz
 end
 
 function gamma_ke(eleGma::AbstractMatrix,

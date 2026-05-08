@@ -1,6 +1,7 @@
 module Circulation
 
 using MPI
+using ..DomainImpl
 
 export node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma,
        triangle_normals, baroclinic_ele_gamma, TriangleGeometry, compute_triangle_geometry,
@@ -43,11 +44,82 @@ TriangleGeometry(nt::Int) = TriangleGeometry(Float64, nt)
     return T(0.5) * sqrt(cx*cx + cy*cy + cz*cz)
 end
 
+@inline function triangle_area_unwrapped(p₁::NTuple{3,T},
+                                         p₂::NTuple{3,T},
+                                         p₃::NTuple{3,T},
+                                         domain::DomainSpec) where T
+    return T(periodic_triangle_area(p₁, p₂, p₃, domain))
+end
+
+function triangle_edges_centroid(p₁::NTuple{3,T},
+                                 p₂::NTuple{3,T},
+                                 p₃::NTuple{3,T},
+                                 domain::Union{Nothing,DomainSpec}) where T
+    if domain === nothing
+        X₁₂, Y₁₂, Z₁₂ = p₂[1] - p₁[1], p₂[2] - p₁[2], p₂[3] - p₁[3]
+        X₂₃, Y₂₃, Z₂₃ = p₃[1] - p₂[1], p₃[2] - p₂[2], p₃[3] - p₂[3]
+        X₃₁, Y₃₁, Z₃₁ = p₁[1] - p₃[1], p₁[2] - p₃[2], p₁[3] - p₃[3]
+        cx, cy, cz = (p₁[1] + p₂[1] + p₃[1]) / 3,
+                     (p₁[2] + p₂[2] + p₃[2]) / 3,
+                     (p₁[3] + p₂[3] + p₃[3]) / 3
+        return (X₁₂, Y₁₂, Z₁₂), (X₂₃, Y₂₃, Z₂₃), (X₃₁, Y₃₁, Z₃₁), (cx, cy, cz)
+    end
+
+    q₁, q₂, q₃ = unwrap_triangle(p₁, p₂, p₃, domain)
+    X₁₂, Y₁₂, Z₁₂ = q₂[1] - q₁[1], q₂[2] - q₁[2], q₂[3] - q₁[3]
+    X₂₃, Y₂₃, Z₂₃ = q₃[1] - q₂[1], q₃[2] - q₂[2], q₃[3] - q₂[3]
+    X₃₁, Y₃₁, Z₃₁ = q₁[1] - q₃[1], q₁[2] - q₃[2], q₁[3] - q₃[3]
+    cx, cy, cz = periodic_centroid(p₁, p₂, p₃, domain)
+    return (T(X₁₂), T(Y₁₂), T(Z₁₂)),
+           (T(X₂₃), T(Y₂₃), T(Z₂₃)),
+           (T(X₃₁), T(Y₃₁), T(Z₃₁)),
+           (T(cx), T(cy), T(cz))
+end
+
+@inline function solve_circulation_weights(X₁₂::Float64, Y₁₂::Float64, Z₁₂::Float64,
+                                           X₂₃::Float64, Y₂₃::Float64, Z₂₃::Float64,
+                                           X₃₁::Float64, Y₃₁::Float64, Z₃₁::Float64,
+                                           rhs₁::Float64, rhs₂::Float64, rhs₃::Float64)
+    # Solve the 4x3 least-squares system used by node_circulation_from_ele_gamma
+    # via expanded normal equations, avoiding per-triangle Matrix/Vector allocations.
+    a₁₁ = X₁₂*X₁₂ + Y₁₂*Y₁₂ + Z₁₂*Z₁₂ + 1.0
+    a₁₂ = X₁₂*X₂₃ + Y₁₂*Y₂₃ + Z₁₂*Z₂₃ + 1.0
+    a₁₃ = X₁₂*X₃₁ + Y₁₂*Y₃₁ + Z₁₂*Z₃₁ + 1.0
+    a₂₂ = X₂₃*X₂₃ + Y₂₃*Y₂₃ + Z₂₃*Z₂₃ + 1.0
+    a₂₃ = X₂₃*X₃₁ + Y₂₃*Y₃₁ + Z₂₃*Z₃₁ + 1.0
+    a₃₃ = X₃₁*X₃₁ + Y₃₁*Y₃₁ + Z₃₁*Z₃₁ + 1.0
+
+    b₁ = X₁₂*rhs₁ + Y₁₂*rhs₂ + Z₁₂*rhs₃
+    b₂ = X₂₃*rhs₁ + Y₂₃*rhs₂ + Z₂₃*rhs₃
+    b₃ = X₃₁*rhs₁ + Y₃₁*rhs₂ + Z₃₁*rhs₃
+
+    det = a₁₁*(a₂₂*a₃₃ - a₂₃*a₂₃) -
+          a₁₂*(a₁₂*a₃₃ - a₂₃*a₁₃) +
+          a₁₃*(a₁₂*a₂₃ - a₂₂*a₁₃)
+
+    if abs(det) < 1e-15
+        return 0.0, 0.0, 0.0
+    end
+
+    inv_det = 1.0 / det
+    inv₁₁ = (a₂₂*a₃₃ - a₂₃*a₂₃) * inv_det
+    inv₁₂ = (a₁₃*a₂₃ - a₁₂*a₃₃) * inv_det
+    inv₁₃ = (a₁₂*a₂₃ - a₁₃*a₂₂) * inv_det
+    inv₂₂ = (a₁₁*a₃₃ - a₁₃*a₁₃) * inv_det
+    inv₂₃ = (a₁₂*a₁₃ - a₁₁*a₂₃) * inv_det
+    inv₃₃ = (a₁₁*a₂₂ - a₁₂*a₁₂) * inv_det
+
+    return inv₁₁*b₁ + inv₁₂*b₂ + inv₁₃*b₃,
+           inv₁₂*b₁ + inv₂₂*b₂ + inv₂₃*b₃,
+           inv₁₃*b₁ + inv₂₃*b₂ + inv₃₃*b₃
+end
+
 # Compute and cache triangle geometry
 function compute_triangle_geometry!(geom::TriangleGeometry{T},
                                 triXC::AbstractMatrix,
                                 triYC::AbstractMatrix,
-                                triZC::AbstractMatrix) where T
+                                triZC::AbstractMatrix;
+                                domain::Union{Nothing,DomainSpec}=nothing) where T
     nt = size(triXC, 1)
 
     @inbounds for t in 1:nt
@@ -55,36 +127,40 @@ function compute_triangle_geometry!(geom::TriangleGeometry{T},
         p₂ = (T(triXC[t,2]), T(triYC[t,2]), T(triZC[t,2]))
         p₃ = (T(triXC[t,3]), T(triYC[t,3]), T(triZC[t,3]))
 
+        e₁₂, e₂₃, e₃₁, centroid = triangle_edges_centroid(p₁, p₂, p₃, domain)
+
         # Cache triangle area
-        geom.areas[t] = triangle_area_fast(p₁, p₂, p₃)
+        geom.areas[t] = domain === nothing ? triangle_area_fast(p₁, p₂, p₃) :
+                                             triangle_area_unwrapped(p₁, p₂, p₃, domain)
 
         # Cache edge vectors
-        geom.edge_vectors[t,1,1] = p₂[1] - p₁[1]  # X₁₂
-        geom.edge_vectors[t,1,2] = p₂[2] - p₁[2]  # Y₁₂
-        geom.edge_vectors[t,1,3] = p₂[3] - p₁[3]  # Z₁₂
+        geom.edge_vectors[t,1,1] = e₁₂[1]  # X₁₂
+        geom.edge_vectors[t,1,2] = e₁₂[2]  # Y₁₂
+        geom.edge_vectors[t,1,3] = e₁₂[3]  # Z₁₂
 
-        geom.edge_vectors[t,2,1] = p₃[1] - p₂[1]  # X₂₃
-        geom.edge_vectors[t,2,2] = p₃[2] - p₂[2]  # Y₂₃
-        geom.edge_vectors[t,2,3] = p₃[3] - p₂[3]  # Z₂₃
+        geom.edge_vectors[t,2,1] = e₂₃[1]  # X₂₃
+        geom.edge_vectors[t,2,2] = e₂₃[2]  # Y₂₃
+        geom.edge_vectors[t,2,3] = e₂₃[3]  # Z₂₃
 
-        geom.edge_vectors[t,3,1] = p₁[1] - p₃[1]  # X₃₁
-        geom.edge_vectors[t,3,2] = p₁[2] - p₃[2]  # Y₃₁
-        geom.edge_vectors[t,3,3] = p₁[3] - p₃[3]  # Z₃₁
+        geom.edge_vectors[t,3,1] = e₃₁[1]  # X₃₁
+        geom.edge_vectors[t,3,2] = e₃₁[2]  # Y₃₁
+        geom.edge_vectors[t,3,3] = e₃₁[3]  # Z₃₁
 
         # Cache centroid
-        geom.centroids[t,1] = (p₁[1] + p₂[1] + p₃[1]) / 3
-        geom.centroids[t,2] = (p₁[2] + p₂[2] + p₃[2]) / 3
-        geom.centroids[t,3] = (p₁[3] + p₂[3] + p₃[3]) / 3
+        geom.centroids[t,1] = centroid[1]
+        geom.centroids[t,2] = centroid[2]
+        geom.centroids[t,3] = centroid[3]
     end
 
     return nothing
 end
 
 # Convenience constructor
-function compute_triangle_geometry(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
+function compute_triangle_geometry(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix;
+                                   domain::Union{Nothing,DomainSpec}=nothing)
     nt = size(triXC, 1)
     geom = TriangleGeometry(nt)
-    compute_triangle_geometry!(geom, triXC, triYC, triZC)
+    compute_triangle_geometry!(geom, triXC, triYC, triZC; domain=domain)
     return geom
 end
 
@@ -103,24 +179,24 @@ function node_circulation_from_ele_gamma(geom::TriangleGeometry, element_gamma::
         X₂₃, Y₂₃, Z₂₃ = geom.edge_vectors[t,2,1], geom.edge_vectors[t,2,2], geom.edge_vectors[t,2,3]
         X₃₁, Y₃₁, Z₃₁ = geom.edge_vectors[t,3,1], geom.edge_vectors[t,3,2], geom.edge_vectors[t,3,3]
 
-        M = [X₁₂ X₂₃ X₃₁;
-             Y₁₂ Y₂₃ Y₃₁;
-             Z₁₂ Z₂₃ Z₃₁;
-             1.0 1.0 1.0]
-
         # Use cached area
         Aₜ = geom.areas[t]
-        rhs = [Aₜ*element_gamma[t,1]; Aₜ*element_gamma[t,2]; Aₜ*element_gamma[t,3]; 0.0]
-        aτ = M \ rhs
-        τ[t,1] = aτ[1]; τ[t,2] = aτ[2]; τ[t,3] = aτ[3]
+        τ₁, τ₂, τ₃ = solve_circulation_weights(X₁₂, Y₁₂, Z₁₂,
+                                                X₂₃, Y₂₃, Z₂₃,
+                                                X₃₁, Y₃₁, Z₃₁,
+                                                Aₜ*element_gamma[t,1],
+                                                Aₜ*element_gamma[t,2],
+                                                Aₜ*element_gamma[t,3])
+        τ[t,1] = τ₁; τ[t,2] = τ₂; τ[t,3] = τ₃
     end
     return τ
 end
 
 # Backward-compatible wrapper
 function node_circulation_from_ele_gamma(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                                         element_gamma::AbstractMatrix)
-    geom = compute_triangle_geometry(triXC, triYC, triZC)
+                                         element_gamma::AbstractMatrix;
+                                         domain::Union{Nothing,DomainSpec}=nothing)
+    geom = compute_triangle_geometry(triXC, triYC, triZC; domain=domain)
     return node_circulation_from_ele_gamma(geom, element_gamma)
 end
 
@@ -149,23 +225,52 @@ end
 
 # Backward-compatible wrapper
 function ele_gamma_from_node_circ(node_τ::AbstractMatrix,
-                                  triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
-    geom = compute_triangle_geometry(triXC, triYC, triZC)
+                                  triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix;
+                                  domain::Union{Nothing,DomainSpec}=nothing)
+    geom = compute_triangle_geometry(triXC, triYC, triZC; domain=domain)
     return ele_gamma_from_node_circ(geom, node_τ)
 end
 
-# Transport element gamma from old triangles to new triangles by preserving node circulation
+# Transport element gamma between unchanged-topology triangle sets by preserving node circulation.
+# Topology-changing remesh paths must update circulation locally as they split/merge.
 function transport_ele_gamma(eleGma_old::AbstractMatrix,
                              triXC_old::AbstractMatrix, triYC_old::AbstractMatrix, triZC_old::AbstractMatrix,
-                             triXC_new::AbstractMatrix, triYC_new::AbstractMatrix, triZC_new::AbstractMatrix)
+                             triXC_new::AbstractMatrix, triYC_new::AbstractMatrix, triZC_new::AbstractMatrix;
+                             domain::Union{Nothing,DomainSpec}=nothing,
+                             method::Symbol=:node)
 
-    τ = node_circulation_from_ele_gamma(triXC_old, triYC_old, triZC_old, eleGma_old)
-    eleGma_new = ele_gamma_from_node_circ(τ, triXC_new, triYC_new, triZC_new)
-    return eleGma_new
+    geom_old = compute_triangle_geometry(triXC_old, triYC_old, triZC_old; domain=domain)
+    geom_new = compute_triangle_geometry(triXC_new, triYC_new, triZC_new; domain=domain)
+
+    if method == :auto
+        method = :node
+    end
+
+    method == :node ||
+        throw(ArgumentError("Unsupported circulation transport method: $method; topology-changing transport must use remesh-specific circulation handling"))
+    length(geom_old.areas) == length(geom_new.areas) ||
+        throw(DimensionMismatch("node-circulation transport requires the same number of elements; topology-changing remesh must update circulation locally"))
+
+    τ = node_circulation_from_ele_gamma(geom_old, eleGma_old)
+    return ele_gamma_from_node_circ(geom_new, τ)
+end
+
+function require_same_transport_topology(triXC_old::AbstractMatrix, triXC_new::AbstractMatrix)
+    size(triXC_old, 1) == size(triXC_new, 1) ||
+        throw(DimensionMismatch("node-circulation transport requires the same number of elements; topology-changing remesh must update circulation locally"))
+    return nothing
+end
+
+function require_transport_method(method::Symbol)
+    if method == :auto || method == :node
+        return nothing
+    end
+    throw(ArgumentError("Unsupported circulation transport method: $method; topology-changing transport must use remesh-specific circulation handling"))
 end
 
 # Unit normals for each triangle; flip to ensure positive z-component like python helper
-function triangle_normals(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
+function triangle_normals(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix;
+                          domain::Union{Nothing,DomainSpec}=nothing)
     nt = size(triXC,1)
     N = zeros(Float64, nt, 3)
 
@@ -174,8 +279,9 @@ function triangle_normals(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::A
         p₁ = (triXC[t,2], triYC[t,2], triZC[t,2])
         p₂ = (triXC[t,3], triYC[t,3], triZC[t,3])
 
-        r₀₁ = (p₁[1]-p₀[1], p₁[2]-p₀[2], p₁[3]-p₀[3])
-        r₁₂ = (p₂[1]-p₁[1], p₂[2]-p₁[2], p₂[3]-p₁[3])
+        e₀₁, e₁₂, _, _ = triangle_edges_centroid(p₀, p₁, p₂, domain)
+        r₀₁ = e₀₁
+        r₁₂ = e₁₂
 
         nₓ = r₀₁[2]*r₁₂[3] - r₀₁[3]*r₁₂[2]
         nᵧ = r₁₂[1]*r₀₁[3] - r₁₂[3]*r₀₁[1]
@@ -198,18 +304,37 @@ end
 
 # Baroclinic contribution to element vorticity over dt: dγ = [+2At*nᵧ, -2At*nₓ, 0]*dt
 # At is the Atwood number (dimensionless density ratio)
-function baroclinic_ele_gamma(At::Float64, dt::Float64,
+function atwood_value(At::Number, ::Int, ::Int)
+    return Float64(At)
+end
+
+function atwood_value(At::AbstractVector, t::Int, nt::Int)
+    length(At) == nt || throw(DimensionMismatch("At vector length $(length(At)) does not match element count $nt"))
+    return Float64(At[t])
+end
+
+function has_baroclinicity(At::Number)
+    return At != 0
+end
+
+function has_baroclinicity(At::AbstractVector)
+    return any(!iszero, At)
+end
+
+function baroclinic_ele_gamma(At, dt::Float64,
                             triXC::AbstractMatrix,
                             triYC::AbstractMatrix,
-                            triZC::AbstractMatrix)
+                            triZC::AbstractMatrix;
+                            domain::Union{Nothing,DomainSpec}=nothing)
 
-    N = triangle_normals(triXC, triYC, triZC)
+    N = triangle_normals(triXC, triYC, triZC; domain=domain)
     nt = size(triXC,1)
     dG = zeros(Float64, nt, 3)
     @inbounds for t in 1:nt
         nₓ = N[t,1]; nᵧ = N[t,2]
-        dG[t,1] = +2*At*nᵧ*dt
-        dG[t,2] = -2*At*nₓ*dt
+        At_t = atwood_value(At, t, nt)
+        dG[t,1] = +2*At_t*nᵧ*dt
+        dG[t,2] = -2*At_t*nₓ*dt
         dG[t,3] = 0.0
     end
     return dG
@@ -240,15 +365,14 @@ function node_circulation_from_ele_gamma_mpi(geom::TriangleGeometry, element_gam
         X₂₃, Y₂₃, Z₂₃ = geom.edge_vectors[t,2,1], geom.edge_vectors[t,2,2], geom.edge_vectors[t,2,3]
         X₃₁, Y₃₁, Z₃₁ = geom.edge_vectors[t,3,1], geom.edge_vectors[t,3,2], geom.edge_vectors[t,3,3]
 
-        M = [X₁₂ X₂₃ X₃₁;
-             Y₁₂ Y₂₃ Y₃₁;
-             Z₁₂ Z₂₃ Z₃₁;
-             1.0 1.0 1.0]
-
         Aₜ = geom.areas[t]
-        rhs = [Aₜ*element_gamma[t,1]; Aₜ*element_gamma[t,2]; Aₜ*element_gamma[t,3]; 0.0]
-        aτ = M \ rhs
-        local_τ[t,1] = aτ[1]; local_τ[t,2] = aτ[2]; local_τ[t,3] = aτ[3]
+        τ₁, τ₂, τ₃ = solve_circulation_weights(X₁₂, Y₁₂, Z₁₂,
+                                                X₂₃, Y₂₃, Z₂₃,
+                                                X₃₁, Y₃₁, Z₃₁,
+                                                Aₜ*element_gamma[t,1],
+                                                Aₜ*element_gamma[t,2],
+                                                Aₜ*element_gamma[t,3])
+        local_τ[t,1] = τ₁; local_τ[t,2] = τ₂; local_τ[t,3] = τ₃
     end
 
     # Reduce across all ranks
@@ -260,8 +384,9 @@ end
 
 # Backward-compatible MPI wrapper
 function node_circulation_from_ele_gamma_mpi(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
-                                             element_gamma::AbstractMatrix)
-    geom = compute_triangle_geometry(triXC, triYC, triZC)
+                                             element_gamma::AbstractMatrix;
+                                             domain::Union{Nothing,DomainSpec}=nothing)
+    geom = compute_triangle_geometry(triXC, triYC, triZC; domain=domain)
     return node_circulation_from_ele_gamma_mpi(geom, element_gamma)
 end
 
@@ -303,8 +428,9 @@ end
 
 # Backward-compatible MPI wrapper
 function ele_gamma_from_node_circ_mpi(node_τ::AbstractMatrix,
-                                      triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
-    geom = compute_triangle_geometry(triXC, triYC, triZC)
+                                      triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix;
+                                      domain::Union{Nothing,DomainSpec}=nothing)
+    geom = compute_triangle_geometry(triXC, triYC, triZC; domain=domain)
     return ele_gamma_from_node_circ_mpi(geom, node_τ)
 end
 
@@ -315,11 +441,14 @@ MPI-parallel version of transport_ele_gamma.
 """
 function transport_ele_gamma_mpi(eleGma_old::AbstractMatrix,
                                  triXC_old::AbstractMatrix, triYC_old::AbstractMatrix, triZC_old::AbstractMatrix,
-                                 triXC_new::AbstractMatrix, triYC_new::AbstractMatrix, triZC_new::AbstractMatrix)
+                                 triXC_new::AbstractMatrix, triYC_new::AbstractMatrix, triZC_new::AbstractMatrix;
+                                 domain::Union{Nothing,DomainSpec}=nothing,
+                                 method::Symbol=:node)
+    require_transport_method(method)
+    require_same_transport_topology(triXC_old, triXC_new)
 
-    τ = node_circulation_from_ele_gamma_mpi(triXC_old, triYC_old, triZC_old, eleGma_old)
-    eleGma_new = ele_gamma_from_node_circ_mpi(τ, triXC_new, triYC_new, triZC_new)
-    return eleGma_new
+    τ = node_circulation_from_ele_gamma_mpi(triXC_old, triYC_old, triZC_old, eleGma_old; domain=domain)
+    return ele_gamma_from_node_circ_mpi(τ, triXC_new, triYC_new, triZC_new; domain=domain)
 end
 
 """
@@ -328,7 +457,8 @@ end
 MPI-parallel version of triangle_normals.
 Distributes triangle processing across MPI ranks using strided work splitting.
 """
-function triangle_normals_mpi(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix)
+function triangle_normals_mpi(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix;
+                              domain::Union{Nothing,DomainSpec}=nothing)
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
@@ -343,8 +473,9 @@ function triangle_normals_mpi(triXC::AbstractMatrix, triYC::AbstractMatrix, triZ
         p₁ = (triXC[t,2], triYC[t,2], triZC[t,2])
         p₂ = (triXC[t,3], triYC[t,3], triZC[t,3])
 
-        r₀₁ = (p₁[1]-p₀[1], p₁[2]-p₀[2], p₁[3]-p₀[3])
-        r₁₂ = (p₂[1]-p₁[1], p₂[2]-p₁[2], p₂[3]-p₁[3])
+        e₀₁, e₁₂, _, _ = triangle_edges_centroid(p₀, p₁, p₂, domain)
+        r₀₁ = e₀₁
+        r₁₂ = e₁₂
 
         nₓ = r₀₁[2]*r₁₂[3] - r₀₁[3]*r₁₂[2]
         nᵧ = r₁₂[1]*r₀₁[3] - r₁₂[3]*r₀₁[1]
@@ -376,17 +507,18 @@ end
 MPI-parallel version of baroclinic_ele_gamma.
 At is the Atwood number (dimensionless density ratio).
 """
-function baroclinic_ele_gamma_mpi(At::Float64, dt::Float64,
+function baroclinic_ele_gamma_mpi(At, dt::Float64,
                                   triXC::AbstractMatrix,
                                   triYC::AbstractMatrix,
-                                  triZC::AbstractMatrix)
+                                  triZC::AbstractMatrix;
+                                  domain::Union{Nothing,DomainSpec}=nothing)
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     nprocs = MPI.Comm_size(comm)
 
     # Compute normals in parallel
-    N = triangle_normals_mpi(triXC, triYC, triZC)
+    N = triangle_normals_mpi(triXC, triYC, triZC; domain=domain)
 
     nt = size(triXC, 1)
     local_dG = zeros(Float64, nt, 3)
@@ -394,8 +526,9 @@ function baroclinic_ele_gamma_mpi(At::Float64, dt::Float64,
     # Strided work splitting across MPI ranks
     @inbounds for t in (rank+1):nprocs:nt
         nₓ = N[t,1]; nᵧ = N[t,2]
-        local_dG[t,1] = +2*At*nᵧ*dt
-        local_dG[t,2] = -2*At*nₓ*dt
+        At_t = atwood_value(At, t, nt)
+        local_dG[t,1] = +2*At_t*nᵧ*dt
+        local_dG[t,2] = -2*At_t*nₓ*dt
         local_dG[t,3] = 0.0
     end
 

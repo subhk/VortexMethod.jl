@@ -37,6 +37,25 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 ```julia
 using VortexMethod
 
+grid = RectilinearGrid(size=(25, 50, 99),
+                       x=(0, 1),
+                       y=(0, 1),
+                       z=(-1, 1),
+                       topology=(Periodic, Periodic, Periodic))
+
+model = VortexSheetModel(; grid,
+                         sheet_size=(64, 64),
+                         circulation=(0.0, 1.0, 0.0))
+
+simulation = Simulation(model; Δt=1e-3, stop_iteration=10)
+run!(simulation)
+```
+
+The lower-level arrays and kernels remain available when you need direct control:
+
+```julia
+using VortexMethod
+
 domain = default_domain(); gr = default_grid()
 
 # Build a structured sheet and an initial element vorticity
@@ -58,8 +77,8 @@ n_changed = adaptive_particle_control!(nodeX, nodeY, nodeZ, tri, eleGma, domain;
 
 # Advanced remeshing with flow adaptation
 vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr)
-tri, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
-    nodeX, nodeY, nodeZ, tri, vel, domain;
+tri, eleGma, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
+    nodeX, nodeY, nodeZ, tri, eleGma, vel, domain;
     max_aspect_ratio=3.0, min_angle_quality=0.4, grad_threshold=0.2
 )
 
@@ -140,4 +159,3 @@ SNAP_INDEX=10 \
 OUTPUT_PNG=docs/src/assets/snapshot_gamma.png \
 julia --project examples/plot_snapshot_gamma.jl
 ```
-

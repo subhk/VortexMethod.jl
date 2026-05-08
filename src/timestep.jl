@@ -100,7 +100,12 @@ function max_grid_speed(eleGma, triXC, triYC, triZC,
     end
 
     # compute max |U| over grid and reduce across ranks
-    magmax_local = maximum(sqrt.(Ux.^2 .+ Uy.^2 .+ Uz.^2))
+    magmax2_local = 0.0
+    @inbounds @simd for i in eachindex(Ux, Uy, Uz)
+        mag2 = Ux[i]*Ux[i] + Uy[i]*Uy[i] + Uz[i]*Uz[i]
+        magmax2_local = max(magmax2_local, mag2)
+    end
+    magmax_local = sqrt(magmax2_local)
     magmax = MPI.Allreduce(magmax_local, MPI.MAX, MPI.COMM_WORLD)
 
     return magmax
@@ -108,7 +113,7 @@ end
 
 function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, 
                 domain::DomainSpec, gr::GridSpec, dt::Float64;
-                At::Float64=0.0, adaptive::Bool=false, 
+                At=0.0, adaptive::Bool=false, 
                 CFL::Float64=0.5, poisson_mode::Symbol=:spectral, 
                 parallel_fft::Bool=false)
 
@@ -122,7 +127,7 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma,
     end
 
     # compute node circulation from current gamma
-    nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
+    nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma; domain=domain)
 
     # adaptive dt based on grid max speed if requested
     if adaptive
@@ -152,14 +157,14 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma,
     end
 
     # baroclinic update at half step
-    if At != 0.0
-        dGmid = baroclinic_ele_gamma(At, 0.5*dt, triXC, triYC, triZC)
-        dTau = node_circulation_from_ele_gamma(triXC, triYC, triZC, dGmid)
+    if Circulation.has_baroclinicity(At)
+        dGmid = baroclinic_ele_gamma(At, 0.5*dt, triXC, triYC, triZC; domain=domain)
+        dTau = node_circulation_from_ele_gamma(triXC, triYC, triZC, dGmid; domain=domain)
         nodeCirc .+= dTau
     end
 
     # recompute gamma at half-step geometry from updated node circulation
-    eleGma_mid = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
+    eleGma_mid = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC; domain=domain)
     u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, domain, gr; 
                                 poisson_mode=poisson_mode, parallel_fft=parallel_fft)
 
@@ -181,14 +186,14 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma,
     end
 
     # second baroclinic update at end step
-    if At != 0.0
-        dGend = baroclinic_ele_gamma(At, 0.5*dt, triXC_new, triYC_new, triZC_new)
-        dTau2 = node_circulation_from_ele_gamma(triXC_new, triYC_new, triZC_new, dGend)
+    if Circulation.has_baroclinicity(At)
+        dGend = baroclinic_ele_gamma(At, 0.5*dt, triXC_new, triYC_new, triZC_new; domain=domain)
+        dTau2 = node_circulation_from_ele_gamma(triXC_new, triYC_new, triZC_new, dGend; domain=domain)
         nodeCirc .+= dTau2
     end
 
     # produce gamma at new geometry from node circulation
-    eleGma_new = ele_gamma_from_node_circ(nodeCirc, triXC_new, triYC_new, triZC_new)
+    eleGma_new = ele_gamma_from_node_circ(nodeCirc, triXC_new, triYC_new, triZC_new; domain=domain)
     eleGma .= eleGma_new
 
     return dt
@@ -198,7 +203,7 @@ end
 function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma, 
                                 domain::DomainSpec, gr::GridSpec, dt::Float64,
                                 dissipation_model::DissipationModel=NoDissipation();
-                                At::Float64=0.0, 
+                                At=0.0, 
                                 adaptive::Bool=false, 
                                 CFL::Float64=0.5, 
                                 poisson_mode::Symbol=:spectral, 
@@ -218,7 +223,7 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma,
     eleGma = apply_dissipation!(dissipation_model, eleGma, triXC, triYC, triZC, domain, gr, 0.5*dt)
 
     # compute node circulation from current gamma
-    nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
+    nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma; domain=domain)
     
     # adaptive dt based on grid max speed if requested
     if adaptive
@@ -265,14 +270,14 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma,
     end
     
     # baroclinic update at half step
-    if At != 0.0
-        dGmid = baroclinic_ele_gamma(At, 0.5*dt, triXC, triYC, triZC)
-        dTau = node_circulation_from_ele_gamma(triXC, triYC, triZC, dGmid)
+    if Circulation.has_baroclinicity(At)
+        dGmid = baroclinic_ele_gamma(At, 0.5*dt, triXC, triYC, triZC; domain=domain)
+        dTau = node_circulation_from_ele_gamma(triXC, triYC, triZC, dGmid; domain=domain)
         nodeCirc .+= dTau
     end
     
     # recompute gamma at half-step geometry from updated node circulation
-    eleGma_mid = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
+    eleGma_mid = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC; domain=domain)
     
     # Apply dissipation at mid-step
     eleGma_mid = apply_dissipation!(dissipation_model, eleGma_mid, triXC, triYC, triZC, domain, gr, 0.5*dt)
@@ -312,14 +317,14 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma,
     end
     
     # second baroclinic update at end step
-    if At != 0.0
-        dGend = baroclinic_ele_gamma(At, 0.5*dt, triXC_new, triYC_new, triZC_new)
-        dTau2 = node_circulation_from_ele_gamma(triXC_new, triYC_new, triZC_new, dGend)
+    if Circulation.has_baroclinicity(At)
+        dGend = baroclinic_ele_gamma(At, 0.5*dt, triXC_new, triYC_new, triZC_new; domain=domain)
+        dTau2 = node_circulation_from_ele_gamma(triXC_new, triYC_new, triZC_new, dGend; domain=domain)
         nodeCirc .+= dTau2
     end
     
     # produce gamma at new geometry from node circulation
-    eleGma_new = ele_gamma_from_node_circ(nodeCirc, triXC_new, triYC_new, triZC_new)
+    eleGma_new = ele_gamma_from_node_circ(nodeCirc, triXC_new, triYC_new, triZC_new; domain=domain)
     eleGma .= eleGma_new
 
     return dt

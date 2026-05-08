@@ -19,6 +19,7 @@ makedocs(;
     checkdocs=:none,
     pages=[
         "Home" => "index.md",
+        "Codebase Structure" => "codebase.md",
         "Theory" => "theory.md",
         "Boundary Conditions" => "boundary_conditions.md",
         "Baroclinic Effects" => "baroclinic.md",

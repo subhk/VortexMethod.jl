@@ -120,16 +120,13 @@ for it in 1:nsteps
         max_aspect = maximum([q.aspect_ratio for q in qualities])
         
         if min_quality < quality_threshold || max_aspect > ar_max
-            # Store circulation before remeshing
-            nodeCirc = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma)
-
             # Define velocity sampling function using interpolation on the precomputed grid
             velocity_field(x, y, z) = vel(x,y,z)
             
             # Thesis-style thresholds: aspect ratio, angle/jacobian quality,
             # Frobenius norm grad threshold, and curvature (dihedral angle in radians)
-            tri_new, changed = flow_adaptive_remesh!(
-                nodeX, nodeY, nodeZ, tri, velocity_field, domain;
+            tri_new, eleGma_new, changed = flow_adaptive_remesh!(
+                nodeX, nodeY, nodeZ, tri, eleGma, velocity_field, domain;
                 max_aspect_ratio=3.0,
                 max_skewness=0.8,
                 min_angle_quality=0.4,
@@ -141,6 +138,7 @@ for it in 1:nsteps
             
             if changed
                 tri = tri_new
+                eleGma = eleGma_new
                 nt = size(tri, 1)
                 
                 # Rebuild triangle coordinates
@@ -153,9 +151,6 @@ for it in 1:nsteps
                     triYC[t,k] = nodeY[v]
                     triZC[t,k] = nodeZ[v]
                 end
-                
-                # Reconstruct vorticity from conserved circulation
-                eleGma = ele_gamma_from_node_circ(nodeCirc, triXC, triYC, triZC)
                 
                 # Update vortex sheet
                 vortex_sheet = VortexSheet(nodeX, nodeY, nodeZ, tri, eleGma)

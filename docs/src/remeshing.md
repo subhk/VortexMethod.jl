@@ -107,6 +107,14 @@ For **non-coplanar** children (spline/cylindrical midpoints):
 
 ## Baseline pass (`VortexMethod.Remesh.remesh_pass!`)
 
+Call signature:
+
+```julia
+tri_new, eleGma_new, changed = VortexMethod.Remesh.remesh_pass!(
+    nodeX, nodeY, nodeZ, tri, eleGma, ds_max, ds_min; domain
+)
+```
+
 - Detect long edges and perform 1→4 splits using periodic midpoints on all three edges of any marked triangle (and its neighbor sharing an edge).
 - Perform edge flips to remove very short edges and reduce anisotropy.
 - Optionally collapse edges persistently below `ds_min` by inserting a periodic midpoint and replacing both endpoints.
@@ -163,6 +171,18 @@ The in-sheet merging case shows that element count increases proportionally to s
 
 Uses strict thresholds designed to match the thesis:
 
+```julia
+tri_new, eleGma_new, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
+    nodeX, nodeY, nodeZ, tri, eleGma, velocity_field, domain;
+    max_aspect_ratio=3.0,
+    max_skewness=0.8,
+    min_angle_quality=0.4,
+    min_jacobian_quality=0.4,
+    grad_threshold=0.2,
+    curvature_threshold=0.6,
+)
+```
+
 ### Periodic Quality Metrics (Minimum Image)
 
 - **Max aspect ratio:** `aspect_ratio ≤ max_aspect_ratio` (default 3.0)
@@ -179,20 +199,22 @@ Any single criterion marks an element for refinement. Refinement uses 1→4 spli
 
 ## Curvature-/Anisotropy-based passes
 
-- `curvature_based_remesh!`: targets high-dihedral-angle regions to preserve sharp roll-up fronts.
-- `anisotropic_remesh!`: probes a supplied `velocity_field(x,y,z)` and refines where gradients are strong.
+- `curvature_based_remesh!(nodeX,nodeY,nodeZ, tri, eleGma, domain; ...)`
+  targets high-dihedral-angle regions to preserve sharp roll-up fronts.
+- `anisotropic_remesh!(nodeX,nodeY,nodeZ, tri, eleGma, velocity_field, domain; ...)`
+  probes a supplied `velocity_field(x,y,z)` and refines where gradients are strong.
 
 ## Conservation of circulation across remesh
 
 !!! tip "Circulation Conservation"
-    Remeshing preserves discrete circulation by computing node circulations from the old mesh and reconstructing element circulations on the new geometry.
+    Topology-changing remeshing APIs accept `eleGma` and return `eleGma_new` so element circulation is carried through the remesh.
 
-We compute node circulations from `eleGma` on the old mesh, then reconstruct `eleGma` on the new geometry:
-
-1. `nodeTau = node_circulation_from_ele_gamma(tri_old, eleGma_old)`
-2. `eleGma_new = ele_gamma_from_node_circ(nodeTau, tri_new)`
-
-This preserves the discrete circulation across re-meshing operations.
+Splits copy the parent sheet strength onto child elements. Collapses and
+topology cleanup redistribute the circulation from removed or modified elements
+onto the surviving connectivity. For standalone transport experiments, the
+helpers `node_circulation_from_ele_gamma` and `ele_gamma_from_node_circ` remain
+available in `VortexMethod.Circulation`, but the main remeshing paths now carry
+circulation directly.
 
 ## Figures from the thesis
 
@@ -200,14 +222,14 @@ Add quality metrics illustrations and sheet roll-up examples from the thesis PDF
 
 - Figure 3.26 (remeshing/quality illustration; suggested filename: `fig_3_26.png`):
 
-![](assets/fig_3_26.png)
-
 _Figure 3.26: Remeshing and mesh-quality metrics (aspect ratio, skewness, angle and Jacobian quality) used to trigger refinement._
+
+Expected asset path: `docs/src/assets/fig_3_26.png`.
 
 - Figure 3.52 (curvature/flow-adaptive example; suggested filename: `fig_3_52.png`):
 
-![](assets/fig_3_52.png)
-
 _Figure 3.52: Curvature- and flow-adaptive refinement highlighting high-dihedral-angle regions and strong velocity-gradient zones._
+
+Expected asset path: `docs/src/assets/fig_3_52.png`.
 
 Add brief captions describing what each figure illustrates once extracted.

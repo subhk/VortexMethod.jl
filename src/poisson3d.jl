@@ -10,113 +10,46 @@ using ..DomainImpl
 export curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace, 
        poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
 
-# Pre-allocated workspace for memory-efficient operations
+# Compatibility token for the in-place curl RHS API. The second-order periodic
+# stencil computes directly into the output arrays and needs no derivative buffers.
 struct PoissonWorkspace{T<:AbstractFloat}
-    dX_dy::Array{T,3}
-    dX_dz::Array{T,3} 
-    dY_dx::Array{T,3}
-    dY_dz::Array{T,3}
-    dZ_dx::Array{T,3}
-    dZ_dy::Array{T,3}
-    u_rhs_temp::Array{T,3}
-    v_rhs_temp::Array{T,3}
-    w_rhs_temp::Array{T,3}
 end
 
 # Constructor for workspace
 function PoissonWorkspace(::Type{T}, nz::Int, ny::Int, nx::Int) where T<:AbstractFloat
-    PoissonWorkspace{T}(
-        Array{T}(undef, nz, ny, nx),
-        Array{T}(undef, nz, ny, nx),
-        Array{T}(undef, nz, ny, nx),
-        Array{T}(undef, nz, ny, nx),
-        Array{T}(undef, nz, ny, nx),
-        Array{T}(undef, nz, ny, nx),
-        Array{T}(undef, nz, ny, nx),
-        Array{T}(undef, nz, ny, nx),
-        Array{T}(undef, nz, ny, nx)
-    )
+    return PoissonWorkspace{T}()
 end
 
 PoissonWorkspace(nz::Int, ny::Int, nx::Int) = PoissonWorkspace(Float64, nz, ny, nx)
 
-# In-place version using pre-allocated workspace
-function curl_rhs_centered!(workspace::PoissonWorkspace{T}, 
+@inline prev_periodic_index(i::Int, n::Int) = i == 1 ? n : i - 1
+@inline next_periodic_index(i::Int, n::Int) = i == n ? 1 : i + 1
+
+# In-place version; workspace is retained for API compatibility.
+function curl_rhs_centered!(_workspace::PoissonWorkspace{T}, 
                            u_rhs::AbstractArray{T,3}, v_rhs::AbstractArray{T,3}, w_rhs::AbstractArray{T,3},
                            VorX::AbstractArray{T,3}, VorY::AbstractArray{T,3}, VorZ::AbstractArray{T,3},
                            dx::T, dy::T, dz::T) where T<:AbstractFloat
     nz, ny, nx = size(VorX)
-    
-    # Use pre-allocated workspace arrays
-    dX_dy, dX_dz = workspace.dX_dy, workspace.dX_dz
-    dY_dx, dY_dz = workspace.dY_dx, workspace.dY_dz 
-    dZ_dx, dZ_dy = workspace.dZ_dx, workspace.dZ_dy
 
-    # x-derivatives
-    @inbounds for i in 3:nx-2
-        for k in 1:nz, j in 1:ny
-            dY_dx[k,j,i] = (VorY[k,j,i-2]/12 - 2*VorY[k,j,i-1]/3 + 2*VorY[k,j,i+1]/3 - VorY[k,j,i+2]/12) / dx
-            dZ_dx[k,j,i] = (VorZ[k,j,i-2]/12 - 2*VorZ[k,j,i-1]/3 + 2*VorZ[k,j,i+1]/3 - VorZ[k,j,i+2]/12) / dx
-        end
-    end
-    @inbounds for i in 1:2
-        for k in 1:nz, j in 1:ny
-            dY_dx[k,j,i] = (-3*VorY[k,j,i]/2 + 2*VorY[k,j,i+1] - VorY[k,j,i+2]/2)/dx
-            dZ_dx[k,j,i] = (-3*VorZ[k,j,i]/2 + 2*VorZ[k,j,i+1] - VorZ[k,j,i+2]/2)/dx
-        end
-    end
-    @inbounds for k in 1:nz, j in 1:ny
-        dY_dx[k,j,nx-1] = (3*VorY[k,j,nx-1]/2 - 2*VorY[k,j,nx-2] + VorY[k,j,nx-3]/2)/dx
-        dZ_dx[k,j,nx-1] = (3*VorZ[k,j,nx-1]/2 - 2*VorZ[k,j,nx-2] + VorZ[k,j,nx-3]/2)/dx
-        dY_dx[k,j,nx]   = dY_dx[k,j,1]
-        dZ_dx[k,j,nx]   = dZ_dx[k,j,1]
-    end
-
-    # y-derivatives  
-    @inbounds for j in 3:ny-2
-        for k in 1:nz, i in 1:nx
-            dX_dy[k,j,i] = (VorX[k,j-2,i]/12 - 2*VorX[k,j-1,i]/3 + 2*VorX[k,j+1,i]/3 - VorX[k,j+2,i]/12) / dy
-            dZ_dy[k,j,i] = (VorZ[k,j-2,i]/12 - 2*VorZ[k,j-1,i]/3 + 2*VorZ[k,j+1,i]/3 - VorZ[k,j+2,i]/12) / dy
-        end
-    end
-    @inbounds for j in 1:2
-        for k in 1:nz, i in 1:nx
-            dX_dy[k,j,i] = (-3*VorX[k,j,i]/2 + 2*VorX[k,j+1,i] - VorX[k,j+2,i]/2)/dy
-            dZ_dy[k,j,i] = (-3*VorZ[k,j,i]/2 + 2*VorZ[k,j+1,i] - VorZ[k,j+2,i]/2)/dy
-        end
-    end
-    @inbounds for k in 1:nz, i in 1:nx
-        dX_dy[k,ny-1,i] = (3*VorX[k,ny-1,i]/2 - 2*VorX[k,ny-2,i] + VorX[k,ny-3,i]/2)/dy
-        dZ_dy[k,ny-1,i] = (3*VorZ[k,ny-1,i]/2 - 2*VorZ[k,ny-2,i] + VorZ[k,ny-3,i]/2)/dy
-        dX_dy[k,ny,i]   = dX_dy[k,1,i]
-        dZ_dy[k,ny,i]   = dZ_dy[k,1,i]
-    end
-
-    # z-derivatives
-    @inbounds for k in 3:nz-2
-        for j in 1:ny, i in 1:nx
-            dX_dz[k,j,i] = (VorX[k-2,j,i]/12 - 2*VorX[k-1,j,i]/3 + 2*VorX[k+1,j,i]/3 - VorX[k+2,j,i]/12) / dz
-            dY_dz[k,j,i] = (VorY[k-2,j,i]/12 - 2*VorY[k-1,j,i]/3 + 2*VorY[k+1,j,i]/3 - VorY[k+2,j,i]/12) / dz
-        end
-    end
-    @inbounds for k in 1:2
-        for j in 1:ny, i in 1:nx
-            dX_dz[k,j,i] = (-3*VorX[k,j,i]/2 + 2*VorX[k+1,j,i] - VorX[k+2,j,i]/2)/dz
-            dY_dz[k,j,i] = (-3*VorY[k,j,i]/2 + 2*VorY[k+1,j,i] - VorY[k+2,j,i]/2)/dz
-        end
-    end
-    @inbounds for j in 1:ny, i in 1:nx
-        dX_dz[nz-1,j,i] = (3*VorX[nz-1,j,i]/2 - 2*VorX[nz-2,j,i] + VorX[nz-3,j,i]/2)/dz
-        dY_dz[nz-1,j,i] = (3*VorY[nz-1,j,i]/2 - 2*VorY[nz-2,j,i] + VorY[nz-3,j,i]/2)/dz
-        dX_dz[nz,j,i]   = dX_dz[1,j,i]
-        dY_dz[nz,j,i]   = dY_dz[1,j,i]
-    end
-
-    # -curl(ω) computed in-place
     @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
-        u_rhs[k,j,i] = -(dZ_dy[k,j,i] - dY_dz[k,j,i])
-        v_rhs[k,j,i] = -(dX_dz[k,j,i] - dZ_dx[k,j,i]) 
-        w_rhs[k,j,i] = -(dY_dx[k,j,i] - dX_dy[k,j,i])
+        ip = next_periodic_index(i, nx)
+        im = prev_periodic_index(i, nx)
+        jp = next_periodic_index(j, ny)
+        jm = prev_periodic_index(j, ny)
+        kp = next_periodic_index(k, nz)
+        km = prev_periodic_index(k, nz)
+
+        dZ_dy = (VorZ[k,jp,i] - VorZ[k,jm,i]) / (2dy)
+        dY_dz = (VorY[kp,j,i] - VorY[km,j,i]) / (2dz)
+        dX_dz = (VorX[kp,j,i] - VorX[km,j,i]) / (2dz)
+        dZ_dx = (VorZ[k,j,ip] - VorZ[k,j,im]) / (2dx)
+        dY_dx = (VorY[k,j,ip] - VorY[k,j,im]) / (2dx)
+        dX_dy = (VorX[k,jp,i] - VorX[k,jm,i]) / (2dy)
+
+        u_rhs[k,j,i] = -(dZ_dy - dY_dz)
+        v_rhs[k,j,i] = -(dX_dz - dZ_dx)
+        w_rhs[k,j,i] = -(dY_dx - dX_dy)
     end
     
     return nothing
@@ -134,8 +67,16 @@ function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{F
     return u_rhs, v_rhs, w_rhs
 end
 
+function require_periodic_boundary(boundary_condition::Symbol)
+    boundary_condition == :periodic && return nothing
+    throw(ArgumentError("poisson_velocity_fft supports only periodic FFT boundaries; requested boundary_condition=$boundary_condition"))
+end
+
 # FFT-based Poisson solve (periodic): ∇^2 U = RHS -> Û = -RHŜ/k^2
-function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, domain::DomainSpec; mode::Symbol=:spectral)
+function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3},
+                              domain::DomainSpec; mode::Symbol=:spectral,
+                              boundary_condition::Symbol=:periodic)
+    require_periodic_boundary(boundary_condition)
     nz, ny, nx = size(u_rhs)
     dx = domain.Lx/nx
     dy = domain.Ly/ny
@@ -206,7 +147,10 @@ Distributes FFT computation across all MPI ranks using pencil decomposition.
 # Returns
 - `(ux, uy, uz)`: Velocity field arrays with periodic boundary conditions applied
 """
-function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, domain::DomainSpec; mode::Symbol=:spectral)
+function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3},
+                                     domain::DomainSpec; mode::Symbol=:spectral,
+                                     boundary_condition::Symbol=:periodic)
+    require_periodic_boundary(boundary_condition)
     comm = MPI.COMM_WORLD
     nz, ny, nx = size(u_rhs)
     
@@ -333,14 +277,18 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
 end
 
 # MPI wrapper: compute Poisson solve on rank 0 and broadcast to all ranks (original implementation)
-function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, domain::DomainSpec; mode::Symbol=:spectral)
+function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3},
+                                  domain::DomainSpec; mode::Symbol=:spectral,
+                                  boundary_condition::Symbol=:periodic)
+    require_periodic_boundary(boundary_condition)
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     Ux = Array{Float64}(undef, size(u_rhs))
     Uy = Array{Float64}(undef, size(v_rhs))
     Uz = Array{Float64}(undef, size(w_rhs))
     if rank == 0
-        Ux0, Uy0, Uz0 = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, domain; mode=mode)
+        Ux0, Uy0, Uz0 = poisson_velocity_fft(u_rhs, v_rhs, w_rhs, domain;
+                                             mode=mode, boundary_condition=boundary_condition)
         Ux .= Ux0; Uy .= Uy0; Uz .= Uz0
     end
     MPI.Bcast!(Ux, 0, comm)
