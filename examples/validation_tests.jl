@@ -7,6 +7,7 @@ using Printf
 using LinearAlgebra
 
 const Poisson = VortexMethod.Poisson
+const Sheets = VortexMethod.Sheets
 
 init_mpi!()
 comm = MPI.COMM_WORLD
