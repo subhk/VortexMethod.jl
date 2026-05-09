@@ -228,7 +228,7 @@ end
 end
 
 @testset "fast_linalg hot-path solver assertions removed" begin
-    source = read(joinpath(dirname(@__DIR__), "src", "fast_linalg.jl"), String)
+    source = read(joinpath(dirname(@__DIR__), "src", "diagnostics", "fast_linalg.jl"), String)
     for name in ("solve_4x3!", "batch_solve_3x3!", "solve_3x3!")
         start = findfirst("function $name", source)
         @test start !== nothing
