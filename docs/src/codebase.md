@@ -25,14 +25,14 @@ The solver is organized around the Lagrangian sheet to Eulerian grid pipeline:
 | Stage | Source files | Role |
 |:------|:-------------|:-----|
 | Domain and mesh setup | `src/domain.jl`, `src/mesh.jl` | Domain lengths, grid shape, wrapping, and structured sheet construction |
-| Geometry and circulation | `src/circulation.jl`, `src/peskin3d.jl` | Triangle centroids, areas, normals, element circulation, and circulation transport helpers |
-| Kernel operations | `src/kernels.jl`, `src/peskin3d.jl` | Regularized kernel spreading and grid-to-node interpolation |
+| Geometry and circulation | `src/physics/circulation.jl`, `src/kernels/grid_transfer.jl` | Triangle centroids, areas, normals, element circulation, and circulation transport helpers |
+| Kernel operations | `src/kernels/kernels.jl`, `src/kernels/grid_transfer.jl` | Regularized kernel spreading and grid-to-node interpolation |
 | Velocity solve | `src/poisson3d.jl`, `src/poisson_advanced.jl` | Curl RHS construction and periodic FFT, pencil FFT, or advanced Poisson solves |
 | Time integration | `src/timestep.jl` | RK2 stepping, velocity reuse helpers, baroclinic forcing, and optional dissipation |
 | Remeshing | `src/remeshing/Remeshing.jl`, `src/remeshing/basic.jl`, `src/remeshing/quality.jl` | Circulation-aware edge splitting, collapse, and flow-adaptive refinement |
-| Physics extensions | `src/dissipation.jl`, `src/vortex_sheets.jl`, `src/particle_management.jl` | SFS dissipation, sheet evolution utilities, reconnection, and smoothing |
+| Physics extensions | `src/physics/dissipation.jl`, `src/sheets/sheets.jl`, `src/particle_management.jl` | SFS dissipation, sheet evolution utilities, reconnection, and smoothing |
 | Diagnostics and I/O | `src/energy.jl`, `src/checkpoint.jl` | Energy diagnostics, mesh statistics, checkpoints, and time series output |
-| Performance utilities | `src/performance.jl`, `src/fast_linalg.jl`, `src/soa_layout.jl`, `src/cache_optimization.jl` | Allocation reduction, cache-friendly storage, and small linear algebra helpers |
+| Performance utilities | `src/diagnostics/performance.jl`, `src/diagnostics/fast_linalg.jl`, `src/core/layout.jl` | Allocation reduction, cache-friendly storage, and small linear algebra helpers |
 
 ## Tests and examples
 

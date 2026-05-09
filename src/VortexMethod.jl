@@ -27,7 +27,6 @@ include("particle_management.jl")
 include("diagnostics/performance.jl")
 include("diagnostics/fast_linalg.jl")
 include("core/layout.jl")
-include("cache_optimization.jl")
 
 # Exports organized by subsystem for better maintainability
 
@@ -41,7 +40,7 @@ export DomainSpec, GridSpec,
 # kernels.jl - Interpolation kernels and spreading functions  
        KernelType, PeskinStandard, PeskinCosine, M4Prime, AreaWeighting,
 
-# peskin3d.jl - MPI parallel spreading and interpolation
+# grid_transfer.jl - MPI parallel spreading and interpolation
        init_mpi!, finalize_mpi!,
        spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
        spread_vorticity_to_grid_kernel_mpi,
@@ -94,7 +93,7 @@ export DomainSpec, GridSpec,
        HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
        solve_poisson_adaptive!, solve_poisson_mpi!,
 
-# vortex_sheets.jl - Vortex sheet tracking and evolution
+# sheets.jl - Vortex sheet tracking and evolution
        VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet,
        HybridSheet, evolve_sheet!, track_sheet_interface!,
        compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
@@ -128,14 +127,9 @@ export DomainSpec, GridSpec,
        solve_3x3!, solve_4x3!, fast_inv_3x3!, fast_det_3x3, fast_cross_product!,
        batch_solve_3x3!, TriangleMatrix3x3, EdgeVectorCache, fast_triangle_area,
 
-# soa_layout.jl - Structure of Arrays memory layout
+# layout.jl - Structure of Arrays memory layout
        TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA,
        aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!,
-       soa_triangle_areas!, soa_circulation_solve!, create_soa_layout,
-
-# cache_optimization.jl - Cache-aware algorithms
-       TiledPoissonSolver, BlockedSpreadingKernel, CacheAwareMesh,
-       tiled_curl_computation!, blocked_kernel_evaluation!,
-       cache_optimized_interpolation!, hierarchical_grid_traversal
+       soa_triangle_areas!, soa_circulation_solve!, create_soa_layout
 
 end

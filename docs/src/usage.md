@@ -27,7 +27,7 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 - Time stepping: `rk2_step!`, `rk2_step_with_dissipation!`; helper `node_velocities`
 - Velocity reuse: `grid_velocity` to compute `(Ux,Uy,Uz)` once; `make_velocity_sampler` to build `(x,y,z)->(u,v,w)` closures
 - Remeshing: `VortexMethod.Remeshing.*`
-- Vortex sheets: see `VortexMethod.VortexSheets`
+- Vortex sheets: see `VortexMethod.Sheets`
 - Checkpoints: `save_checkpoint!`, `save_state!`, `save_state_timeseries!`
 
 ## Minimal workflow

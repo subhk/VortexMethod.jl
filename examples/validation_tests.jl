@@ -283,7 +283,7 @@ function test_vortex_sheet_tracking()
     initial_center = mean(sheet.nodes, dims=1)
     
     for step in 1:n_steps
-        evolve_sheet!(sheet, VortexSheets.ClassicalEvolution(), velocity_field, dt, domain)
+        evolve_sheet!(sheet, Sheets.ClassicalEvolution(), velocity_field, dt, domain)
     end
     
     final_center = mean(sheet.nodes, dims=1)

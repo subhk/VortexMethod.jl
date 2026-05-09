@@ -6,18 +6,18 @@ using StaticArrays
     nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = VortexMethod.structured_mesh(4, 4; domain=domain)
     eleGma = reshape(sin.(1:(size(tri, 1) * 3)), size(tri, 1), 3)
     geom = VortexMethod.compute_triangle_geometry(triXC, triYC, triZC)
-    triC = VortexMethod.Peskin3D.triangle_centroids(triXC, triYC, triZC)
-    subC = VortexMethod.Peskin3D.build_all_subcentroids(triXC, triYC, triZC)
-    areas = VortexMethod.Peskin3D.triangle_areas(triXC, triYC, triZC)
+    triC = VortexMethod.GridTransfer.triangle_centroids(triXC, triYC, triZC)
+    subC = VortexMethod.GridTransfer.build_all_subcentroids(triXC, triYC, triZC)
+    areas = VortexMethod.GridTransfer.triangle_areas(triXC, triYC, triZC)
     ds = VortexMethod.grid_spacing(domain, gr)
     coord = (0.2, 0.3, 0.0)
 
-    @test @inferred(VortexMethod.Peskin3D.peskin_grid_sum(eleGma, triC, subC, coord, ds, areas; domain=domain)) isa NTuple{3,Float64}
-    @test @inferred(VortexMethod.Peskin3D.peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, areas, VortexMethod.PeskinCosine(); domain=domain)) isa NTuple{3,Float64}
+    @test @inferred(VortexMethod.GridTransfer.peskin_grid_sum(eleGma, triC, subC, coord, ds, areas; domain=domain)) isa NTuple{3,Float64}
+    @test @inferred(VortexMethod.GridTransfer.peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, areas, VortexMethod.PeskinCosine(); domain=domain)) isa NTuple{3,Float64}
 
-    VortexMethod.Peskin3D.peskin_grid_sum(eleGma, triC, subC, coord, ds, areas; domain=domain)
+    VortexMethod.GridTransfer.peskin_grid_sum(eleGma, triC, subC, coord, ds, areas; domain=domain)
     GC.gc()
-    @test @allocated(VortexMethod.Peskin3D.peskin_grid_sum(eleGma, triC, subC, coord, ds, areas; domain=domain)) < 1024
+    @test @allocated(VortexMethod.GridTransfer.peskin_grid_sum(eleGma, triC, subC, coord, ds, areas; domain=domain)) < 1024
 
     VortexMethod.Circulation.node_circulation_from_ele_gamma(geom, eleGma)
     GC.gc()
@@ -103,8 +103,8 @@ end
     p1 = SVector{3,Float64}(0.1, 0.2, 0.3)
     p2 = SVector{3,Float64}(0.4, 0.5, 0.1)
     p3 = SVector{3,Float64}(0.2, 0.7, 0.4)
-    @test VortexMethod.Peskin3D.bary_point(p1, p2, p3, 1, 1, 2) isa SVector{3,Float64}
-    @test VortexMethod.Peskin3D.centroid3(p1, p2, p3) isa SVector{3,Float64}
+    @test VortexMethod.GridTransfer.bary_point(p1, p2, p3, 1, 1, 2) isa SVector{3,Float64}
+    @test VortexMethod.GridTransfer.centroid3(p1, p2, p3) isa SVector{3,Float64}
 
     weights = zeros(Float32, 2)
     dx = Float32[0.0, 0.25]
@@ -113,15 +113,15 @@ end
     VortexMethod.kernel_function_vec!(weights, VortexMethod.PeskinStandard(), dx, dy, dz, Float32(1), Float32(1), Float32(1))
     @test all(isfinite, weights)
 
-    triC32 = Float32.(VortexMethod.Peskin3D.triangle_centroids(triXC, triYC, triZC; domain=domain))
-    subC32 = Float32.(VortexMethod.Peskin3D.build_all_subcentroids(triXC, triYC, triZC; domain=domain, subsegments=2))
-    areas32 = Float32.(VortexMethod.Peskin3D.triangle_areas(triXC, triYC, triZC; domain=domain))
+    triC32 = Float32.(VortexMethod.GridTransfer.triangle_centroids(triXC, triYC, triZC; domain=domain))
+    subC32 = Float32.(VortexMethod.GridTransfer.build_all_subcentroids(triXC, triYC, triZC; domain=domain, subsegments=2))
+    areas32 = Float32.(VortexMethod.GridTransfer.triangle_areas(triXC, triYC, triZC; domain=domain))
     eleGma32 = Float32.(eleGma)
     acc32 = SVector{3,Float32}(0, 0, 0)
     coord32 = SVector{3,Float32}(0.2, 0.3, 0.0)
     eps32 = SVector{3,Float32}(0.5, 0.5, 0.5)
     shift32 = SVector{3,Float32}(0, 0, 0)
-    result32 = VortexMethod.Peskin3D.peskin_add_nearby_kernel!(
+    result32 = VortexMethod.GridTransfer.peskin_add_nearby_kernel!(
         acc32, eleGma32, triC32, subC32, areas32, coord32,
         VortexMethod.PeskinStandard(), eps32, shift32,
     )
@@ -140,14 +140,14 @@ end
     end
 
     sheet = make_sheet()
-    VortexMethod.VortexSheets.evolve_sheet_rk2!(sheet, velocity_field, 0.01, domain)
+    VortexMethod.Sheets.evolve_sheet_rk2!(sheet, velocity_field, 0.01, domain)
     GC.gc()
-    @test @allocated(VortexMethod.VortexSheets.evolve_sheet_rk2!(sheet, velocity_field, 0.01, domain)) < 5_000
+    @test @allocated(VortexMethod.Sheets.evolve_sheet_rk2!(sheet, velocity_field, 0.01, domain)) < 5_000
 
     sheet = make_sheet()
-    VortexMethod.VortexSheets.evolve_sheet_rk4!(sheet, velocity_field, 0.01, domain)
+    VortexMethod.Sheets.evolve_sheet_rk4!(sheet, velocity_field, 0.01, domain)
     GC.gc()
-    @test @allocated(VortexMethod.VortexSheets.evolve_sheet_rk4!(sheet, velocity_field, 0.01, domain)) < 5_000
+    @test @allocated(VortexMethod.Sheets.evolve_sheet_rk4!(sheet, velocity_field, 0.01, domain)) < 5_000
 
     sheet = make_sheet()
     VortexMethod.compute_sheet_curvature(sheet)

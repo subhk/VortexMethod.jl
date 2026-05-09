@@ -1,7 +1,7 @@
 # Enhanced vortex sheet tracking and evolution
 # Implements advanced sheet tracking methods from thesis Chapter 3.3
 
-module VortexSheets
+module Sheets
 
 using ..DomainImpl
 using ..Kernels
@@ -529,7 +529,7 @@ end
 
 end # module
 
-using .VortexSheets: VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet,
-                     HybridSheet, evolve_sheet!, track_sheet_interface!,
-                     compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
-                     reconnect_sheet_nodes!, adaptive_sheet_tracking!, compute_mesh_quality_sheet
+using .Sheets: VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet,
+               HybridSheet, evolve_sheet!, track_sheet_interface!,
+               compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
+               reconnect_sheet_nodes!, adaptive_sheet_tracking!, compute_mesh_quality_sheet

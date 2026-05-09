@@ -29,7 +29,7 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 ## Spreading and interpolation (MPI)
 
-`VortexMethod.Peskin3D`:
+`VortexMethod.GridTransfer`:
 
 - `spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)`
 - `interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ, domain, gr)`
@@ -86,7 +86,7 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 ## Vortex sheets
 
-`VortexMethod.VortexSheets`:
+`VortexMethod.Sheets`:
 
 - Types: `LagrangianSheet`, `EulerianSheet`, `HybridSheet`
 - Evolution: `evolve_sheet!(sheet, evolution, velocity_field, dt, domain)` with `Classical`, `Adaptive`, or `HighOrder` strategies

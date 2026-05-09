@@ -1,6 +1,6 @@
 # Performance monitoring and profiling infrastructure for VortexMethod.jl
 
-module Performance
+module Diagnostics
 
 using Printf
 using LinearAlgebra
@@ -213,7 +213,7 @@ end
 
 end # module
 
-using .Performance: @vortex_time, PerformanceCounters, reset_counters!, print_performance_report,
+using .Diagnostics: @vortex_time, PerformanceCounters, reset_counters!, print_performance_report,
                     @profile_function, enable_profiling!, disable_profiling!,
                     count_kernel_evaluation!, count_matrix_inversion!, count_triangle_area!,
                     count_cache_hit!, count_cache_miss!

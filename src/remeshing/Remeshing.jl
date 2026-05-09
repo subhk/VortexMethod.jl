@@ -3,7 +3,7 @@ module Remeshing
 using LinearAlgebra
 using StaticArrays
 using ..DomainImpl
-using ..Peskin3D
+using ..GridTransfer
 using ..Circulation
 
 include("basic.jl")

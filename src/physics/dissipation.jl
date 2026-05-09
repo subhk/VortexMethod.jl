@@ -4,7 +4,7 @@
 module Dissipation
 
 using ..DomainImpl
-using ..Peskin3D
+using ..GridTransfer
 using ..Poisson
 using LinearAlgebra
 
