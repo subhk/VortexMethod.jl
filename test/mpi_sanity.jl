@@ -20,7 +20,7 @@ eleGma[:,2] .= 1.0  # simple nonzero gamma to exercise kernels
 # Spread to grid (MPI) and run Poisson
 ζx, ζy, ζz = VortexMethod.spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
 dx,dy,dz = VortexMethod.grid_spacing(domain, gr)
-u_rhs, v_rhs, w_rhs = VortexMethod.curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
+u_rhs, v_rhs, w_rhs = VortexMethod.Poisson.curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
 Ux, Uy, Uz = VortexMethod.poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, domain; mode=:spectral)
 
 # Interpolate back on a handful of nodes (MPI)

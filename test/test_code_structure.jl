@@ -15,10 +15,32 @@ const POISSON_INTERNAL_TYPES = [
     :NeumannBC,
 ]
 
+const ROOT_QUALIFIED_POISSON_INTERNALS = [
+    :curl_rhs_centered,
+    :FFTSolver,
+    :HybridSolver,
+    :IterativeSolver,
+    :PeriodicBC,
+    :DirichletBC,
+    :NeumannBC,
+    :PoissonWorkspace,
+]
+
 function unqualified_poisson_type_refs(file)
     text = read(file, String)
     pattern = Regex("(?<![.])\\b(" * join(string.(POISSON_INTERNAL_TYPES), "|") * ")\\b")
     return collect(eachmatch(pattern, text))
+end
+
+function root_qualified_poisson_internal_refs(file)
+    pattern = Regex("\\bVortexMethod\\.(" * join(string.(ROOT_QUALIFIED_POISSON_INTERNALS), "|") * ")\\b")
+    refs = String[]
+    for (line_number, line) in enumerate(eachline(file))
+        m = match(pattern, line)
+        m === nothing && continue
+        push!(refs, "$(relpath(file, repo_root)):$(line_number):$(m.match)")
+    end
+    return refs
 end
 
 @testset "code structure" begin
@@ -163,5 +185,23 @@ end
             refs = unqualified_poisson_type_refs(joinpath(repo_root, "examples", example))
             @test isempty(refs)
         end
+    end
+
+    @testset "tests and examples do not use root-qualified Poisson internals" begin
+        refs = String[]
+
+        for root in ["test", "examples"]
+            for (dir, _, filenames) in walkdir(joinpath(repo_root, root))
+                for filename in filenames
+                    endswith(filename, ".jl") || continue
+
+                    file = joinpath(dir, filename)
+                    file == (@__FILE__) && continue
+                    append!(refs, root_qualified_poisson_internal_refs(file))
+                end
+            end
+        end
+
+        @test isempty(refs)
     end
 end

@@ -107,7 +107,7 @@ end
         w_exp[k,j,i] = -(dYdx - dXdy)
     end
 
-    u_rhs, v_rhs, w_rhs = VortexMethod.curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
+    u_rhs, v_rhs, w_rhs = VortexMethod.Poisson.curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
 
     @test u_rhs ≈ u_exp
     @test v_rhs ≈ v_exp
