@@ -5,13 +5,15 @@ using VortexMethod
 using MPI
 using Printf
 
+include(joinpath(@__DIR__, "kh_stock_setup.jl"))
+
 init_mpi!()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 nprocs = MPI.Comm_size(comm)
 
-domain = default_domain()
-gr = default_grid()
+domain = STOCK_KH_DOMAIN
+gr = STOCK_KH_GRID
 
 # Parallel FFT configuration
 # Set to true to use PencilFFTs for distributed parallel FFT computation
@@ -19,14 +21,16 @@ gr = default_grid()
 parallel_fft = "--parallel-fft" in ARGS || "--parallel" in ARGS
 
 # Mesh resolution (structured)
-Nx = 64
-Ny = 64
+Nx = STOCK_KH_MESH_NX
+Ny = STOCK_KH_MESH_NY
 
-nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
+nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(
+    Nx, Ny; domain=domain, amp=STOCK_KH_PERTURBATION_AMPLITUDE,
+)
 
 nt = size(tri,1)
 eleGma = zeros(Float64, nt, 3)
-eleGma[:,2] .= 1.0 # initial vortex strength aligned with y
+initialize_stock_kh_gamma!(eleGma)
 
 dt = 1e-3
 nsteps = 50
@@ -47,6 +51,9 @@ next_save_t = save_interval
 
 if rank == 0
     println("KH 3D: Nx=$(Nx) Ny=$(Ny) nt=$(nt) dt=$(dt) steps=$(nsteps)")
+    dx, dy, dz = grid_spacing(domain, gr)
+    println("Stock PDF parameters: domain=[0,1]x[0,1]x[-2,2], grid=($(gr.nx),$(gr.ny),$(gr.nz)), dx=$(dx), dy=$(dy), dz=$(dz)")
+    println("Initial sheet: gamma_y=$(STOCK_KH_INITIAL_GAMMA[2]), perturbation amplitude=$(STOCK_KH_PERTURBATION_AMPLITUDE)")
     println("MPI ranks: $nprocs")
     if parallel_fft
         println("Using PencilFFTs for distributed parallel FFT computation")
@@ -59,7 +66,7 @@ end
 
 for it in 1:nsteps
     dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt; 
-                       At=Atg, adaptive=true, CFL=0.5, poisson_mode=:fd, parallel_fft=parallel_fft)
+                       At=Atg, adaptive=true, CFL=STOCK_KH_CFL, poisson_mode=:fd, parallel_fft=parallel_fft)
     time += dt_used
     # recompute tri coords for next step (connectivity unchanged)
     @inbounds for k in 1:3, t in 1:size(tri,1)
@@ -69,9 +76,7 @@ for it in 1:nsteps
         triZC[t,k] = nodeZ[v]
     end
     # simple edge-length based diagnostics; thresholds from grid spacing
-    dx,dy,dz = grid_spacing(domain, gr)
-    ds_max = 0.80*max(dx,dy)
-    ds_min = 0.05*max(dx,dy)
+    ds_max, ds_min = stock_kh_remesh_thresholds(domain, gr)
     tmax, maxedge = VortexMethod.Remesh.detect_max_edge_length(triXC, triYC, triZC, ds_max)
     tmin, minedge = VortexMethod.Remesh.detect_min_edge_length(triXC, triYC, triZC, ds_min)
     # aspect ratio diagnostic (max over all triangles)
@@ -126,16 +131,20 @@ for it in 1:nsteps
         end
         if save_series
             base = save_state_timeseries!(series_file, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                                          domain=domain, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                                          domain=domain, grid=gr, dt=dt_used, CFL=STOCK_KH_CFL, adaptive=true,
                                           poisson_mode=:fd, remesh_every=remesh_every, save_interval=save_interval,
                                           ar_max=ar_max, step=it,
-                                          params_extra=(; Atg=Atg, Nx=Nx, Ny=Ny, KE=KE))
+                                          params_extra=(; Atg=Atg, Nx=Nx, Ny=Ny, KE=KE,
+                                                        perturbation_amplitude=STOCK_KH_PERTURBATION_AMPLITUDE,
+                                                        split_threshold=ds_max, merge_threshold=ds_min))
         else
             base = save_state!("checkpoints", time, nodeX, nodeY, nodeZ, tri, eleGma;
-                               domain=domain, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                               domain=domain, grid=gr, dt=dt_used, CFL=STOCK_KH_CFL, adaptive=true,
                                poisson_mode=:fd, remesh_every=remesh_every, save_interval=save_interval,
                                ar_max=ar_max, step=it,
-                               params_extra=(; Atg=Atg, Nx=Nx, Ny=Ny, KE=KE))
+                               params_extra=(; Atg=Atg, Nx=Nx, Ny=Ny, KE=KE,
+                                             perturbation_amplitude=STOCK_KH_PERTURBATION_AMPLITUDE,
+                                             split_threshold=ds_max, merge_threshold=ds_min))
         end
         println("  checkpoint saved (t=$(round(time,digits=4))): ", save_series ? series_file : base)
         next_save_t += save_interval

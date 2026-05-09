@@ -378,6 +378,167 @@ function _apply_smagorinsky_dissipation!(ws::VortexWorkspace{T},
     return eleGma
 end
 
+function _ensure_workspace_geometry!(ws::VortexWorkspace,
+                                     triXC::AbstractMatrix,
+                                     triYC::AbstractMatrix,
+                                     triZC::AbstractMatrix,
+                                     domain::DomainSpec,
+                                     gr::GridSpec)
+    if ws.geom_dirty[]
+        refresh_workspace_geometry!(ws, triXC, triYC, triZC, domain, gr)
+    end
+    return nothing
+end
+
+function _apply_workspace_dissipation!(::VortexWorkspace{T},
+                                       ::NoDissipation,
+                                       eleGma::AbstractMatrix{T},
+                                       triXC::AbstractMatrix,
+                                       triYC::AbstractMatrix,
+                                       triZC::AbstractMatrix,
+                                       domain::DomainSpec,
+                                       gr::GridSpec,
+                                       dt::T;
+                                       poisson_mode::Symbol=:spectral,
+                                       parallel_fft::Bool=false) where T<:AbstractFloat
+    return eleGma
+end
+
+function _apply_workspace_dissipation!(ws::VortexWorkspace{T},
+                                       model::SmagorinskyModel,
+                                       eleGma::AbstractMatrix{T},
+                                       triXC::AbstractMatrix,
+                                       triYC::AbstractMatrix,
+                                       triZC::AbstractMatrix,
+                                       domain::DomainSpec,
+                                       gr::GridSpec,
+                                       dt::T;
+                                       poisson_mode::Symbol=:spectral,
+                                       parallel_fft::Bool=false) where T<:AbstractFloat
+    return _apply_smagorinsky_dissipation!(ws, model, eleGma, triXC, triYC, triZC,
+                                           domain, gr, dt;
+                                           poisson_mode=poisson_mode,
+                                           parallel_fft=parallel_fft)
+end
+
+function _dynamic_smagorinsky_model(ws::VortexWorkspace{T},
+                                    model::DynamicSmagorinsky,
+                                    eleGma::AbstractMatrix{T}) where T<:AbstractFloat
+    total_area = zero(T)
+    weighted_vort = zero(T)
+    weighted_vort_sq = zero(T)
+
+    @inbounds for t in axes(eleGma, 1)
+        area = ws.geom.areas[t]
+        ζ1 = eleGma[t,1]
+        ζ2 = eleGma[t,2]
+        ζ3 = eleGma[t,3]
+        ζmag = sqrt(ζ1*ζ1 + ζ2*ζ2 + ζ3*ζ3)
+        total_area += area
+        weighted_vort += ζmag * area
+        weighted_vort_sq += ζmag * ζmag * area
+    end
+
+    Cs_dynamic = T(model.Cs_base)
+    if total_area > zero(T) && weighted_vort_sq > zero(T)
+        ζmean = weighted_vort / total_area
+        ζrms = sqrt(weighted_vort_sq / total_area)
+        intermittency = ζmean / (ζrms + eps(T))
+        Cs_dynamic = T(model.Cs_base) * (T(2) - intermittency)
+    end
+    Cs_dynamic = clamp(Cs_dynamic, T(0.01), T(0.5))
+    return SmagorinskyModel(Float64(Cs_dynamic))
+end
+
+function _apply_workspace_dissipation!(ws::VortexWorkspace{T},
+                                       model::DynamicSmagorinsky,
+                                       eleGma::AbstractMatrix{T},
+                                       triXC::AbstractMatrix,
+                                       triYC::AbstractMatrix,
+                                       triZC::AbstractMatrix,
+                                       domain::DomainSpec,
+                                       gr::GridSpec,
+                                       dt::T;
+                                       poisson_mode::Symbol=:spectral,
+                                       parallel_fft::Bool=false) where T<:AbstractFloat
+    _ensure_workspace_geometry!(ws, triXC, triYC, triZC, domain, gr)
+    smagorinsky_model = _dynamic_smagorinsky_model(ws, model, eleGma)
+    return _apply_smagorinsky_dissipation!(ws, smagorinsky_model, eleGma,
+                                           triXC, triYC, triZC, domain, gr, dt;
+                                           poisson_mode=poisson_mode,
+                                           parallel_fft=parallel_fft)
+end
+
+function _apply_workspace_dissipation!(ws::VortexWorkspace{T},
+                                       model::VortexStretchingDissipation,
+                                       eleGma::AbstractMatrix{T},
+                                       triXC::AbstractMatrix,
+                                       triYC::AbstractMatrix,
+                                       triZC::AbstractMatrix,
+                                       domain::DomainSpec,
+                                       gr::GridSpec,
+                                       dt::T;
+                                       poisson_mode::Symbol=:spectral,
+                                       parallel_fft::Bool=false) where T<:AbstractFloat
+    _ensure_workspace_geometry!(ws, triXC, triYC, triZC, domain, gr)
+    dx, dy, dz = grid_spacing(domain, gr)
+    dxT = T(dx); dyT = T(dy); dzT = T(dz)
+    grid_filter = (dxT * dyT * dzT)^(one(T) / T(3))
+    threshold = T(model.strain_threshold)
+    coefficient = T(model.C_stretch)
+
+    @inbounds for t in axes(eleGma, 1)
+        Δ = max(grid_filter, sqrt(ws.geom.areas[t]))
+        ζ1 = eleGma[t,1]
+        ζ2 = eleGma[t,2]
+        ζ3 = eleGma[t,3]
+        ζmag = sqrt(ζ1*ζ1 + ζ2*ζ2 + ζ3*ζ3)
+
+        if ζmag > threshold
+            stretch_factor = ζmag / threshold
+            dissipation_rate = coefficient * stretch_factor * ζmag / (Δ * Δ)
+            decay_factor = exp(-dissipation_rate * dt)
+            eleGma[t,1] = ζ1 * decay_factor
+            eleGma[t,2] = ζ2 * decay_factor
+            eleGma[t,3] = ζ3 * decay_factor
+        end
+    end
+    return eleGma
+end
+
+function _apply_workspace_dissipation!(ws::VortexWorkspace{T},
+                                       model::MixedScaleModel,
+                                       eleGma::AbstractMatrix{T},
+                                       triXC::AbstractMatrix,
+                                       triYC::AbstractMatrix,
+                                       triZC::AbstractMatrix,
+                                       domain::DomainSpec,
+                                       gr::GridSpec,
+                                       dt::T;
+                                       poisson_mode::Symbol=:spectral,
+                                       parallel_fft::Bool=false) where T<:AbstractFloat
+    copyto!(ws.eleGma_new, eleGma)
+    copyto!(ws.eleGma_tmp, eleGma)
+
+    _apply_workspace_dissipation!(ws, model.smagorinsky, ws.eleGma_new,
+                                  triXC, triYC, triZC, domain, gr, dt;
+                                  poisson_mode=poisson_mode,
+                                  parallel_fft=parallel_fft)
+    _apply_workspace_dissipation!(ws, model.vortex_stretch, ws.eleGma_tmp,
+                                  triXC, triYC, triZC, domain, gr, dt;
+                                  poisson_mode=poisson_mode,
+                                  parallel_fft=parallel_fft)
+
+    α = T(model.blend_factor)
+    β = one(T) - α
+    @inbounds for t in axes(eleGma, 1)
+        eleGma[t,1] = α * ws.eleGma_new[t,1] + β * ws.eleGma_tmp[t,1]
+        eleGma[t,2] = α * ws.eleGma_new[t,2] + β * ws.eleGma_tmp[t,2]
+        eleGma[t,3] = α * ws.eleGma_new[t,3] + β * ws.eleGma_tmp[t,3]
+    end
+    return eleGma
+end
+
 function rk2_step!(ws::VortexWorkspace{T},
                    nodeX::AbstractVector{T}, nodeY::AbstractVector{T}, nodeZ::AbstractVector{T},
                    tri, eleGma::AbstractMatrix{T},
@@ -460,7 +621,7 @@ function rk2_step_with_dissipation!(ws::VortexWorkspace{T},
                                     domain::DomainSpec,
                                     gr::GridSpec,
                                     dt::Real,
-                                    dissipation_model::SmagorinskyModel;
+                                    dissipation_model::DissipationModel;
                                     At=zero(T),
                                     adaptive::Bool=false,
                                     CFL::Real=T(0.5),
@@ -471,11 +632,11 @@ function rk2_step_with_dissipation!(ws::VortexWorkspace{T},
 
     triangle_coords_from_nodes!(ws.triXC, ws.triYC, ws.triZC, nodeX, nodeY, nodeZ, tri)
     ws.geom_dirty[] = true
-    _apply_smagorinsky_dissipation!(ws, dissipation_model, eleGma,
-                                    ws.triXC, ws.triYC, ws.triZC,
-                                    domain, gr, T(0.5) * dt_used;
-                                    poisson_mode=poisson_mode,
-                                    parallel_fft=parallel_fft)
+    _apply_workspace_dissipation!(ws, dissipation_model, eleGma,
+                                  ws.triXC, ws.triYC, ws.triZC,
+                                  domain, gr, T(0.5) * dt_used;
+                                  poisson_mode=poisson_mode,
+                                  parallel_fft=parallel_fft)
     node_velocities!(ws, ws.u1, ws.v1, ws.w1, eleGma,
                      ws.triXC, ws.triYC, ws.triZC,
                      nodeX, nodeY, nodeZ, domain, gr;
@@ -510,11 +671,11 @@ function rk2_step_with_dissipation!(ws::VortexWorkspace{T},
     end
 
     ele_gamma_from_node_circ!(ws.eleGma_mid, ws.geom, ws.nodeΓ)
-    _apply_smagorinsky_dissipation!(ws, dissipation_model, ws.eleGma_mid,
-                                    ws.triXC, ws.triYC, ws.triZC,
-                                    domain, gr, T(0.5) * dt_used;
-                                    poisson_mode=poisson_mode,
-                                    parallel_fft=parallel_fft)
+    _apply_workspace_dissipation!(ws, dissipation_model, ws.eleGma_mid,
+                                  ws.triXC, ws.triYC, ws.triZC,
+                                  domain, gr, T(0.5) * dt_used;
+                                  poisson_mode=poisson_mode,
+                                  parallel_fft=parallel_fft)
     node_velocities!(ws, ws.u2, ws.v2, ws.w2, ws.eleGma_mid,
                      ws.triXC, ws.triYC, ws.triZC,
                      ws.xh, ws.yh, ws.zh, domain, gr;

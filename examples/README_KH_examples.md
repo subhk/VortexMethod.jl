@@ -2,6 +2,8 @@
 
 This directory contains three Kelvin-Helmholtz (KH) instability examples that demonstrate different features of the VortexMethod.jl package, with particular emphasis on parallel FFT computation using PencilFFTs.
 
+The basic and configurable KH examples use the medium-resolution setup from Stock's dissertation, Chapter 4, Section 4.2.1: domain `[0,1] x [0,1] x [-2,2]`, a sheet initially at `z=0`, `gamma_y=1`, perturbation amplitude `0.01`, VIC spacing `dx=1/29`, split threshold `0.8dx`, merge threshold `0.2dx`, and adaptive time stepping with CFL `0.5`.
+
 ## Examples Overview
 
 ### 1. `kh3d.jl` - Basic KH Simulation with Parallel FFT Support
@@ -30,7 +32,7 @@ mpirun -n 8 julia kh3d.jl --parallel
 - Comprehensive command-line configuration
 - Performance monitoring and timing analysis
 - Side-by-side performance comparison mode
-- Enhanced initial conditions with perturbations
+- Stock dissertation KH initial condition and perturbation
 - Detailed metadata logging
 
 **Usage:**
@@ -51,7 +53,7 @@ julia kh3d_parallel.jl --nx=96 --ny=96 --dt=5e-4 --save-interval=0.05 --poisson-
 **Command-line Options:**
 - `--parallel-fft`: Use PencilFFTs for distributed FFT
 - `--compare-performance`: Run both serial and parallel for timing comparison
-- `--nx=N`, `--ny=N`: Mesh resolution (default: 64x64)
+- `--nx=N`, `--ny=N`: Mesh nodes (default: 30x30, giving 29x29 cells)
 - `--steps=N`: Number of time steps (default: 50)
 - `--dt=X`: Time step size (default: 1e-3)
 - `--save-interval=X`: Save interval in physical time (default: 0.1)

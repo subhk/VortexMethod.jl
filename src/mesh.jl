@@ -9,16 +9,16 @@ function structured_mesh(Nx::Int, Ny::Int; domain::DomainSpec=default_domain(),
                          amp::Float64=1e-2)
     x = range(0.0, domain.Lx; length=Nx) |> collect
     y = range(0.0, domain.Ly; length=Ny) |> collect
-    # perturb x slightly like python (_xgrid = x + 0.01*sin(2πx))
+    # Perturb x and z as in the Stock KH setup.
 
     X = Array{Float64}(undef, Ny, Nx)
     Y = Array{Float64}(undef, Ny, Nx)
     Z = Array{Float64}(undef, Ny, Nx)
     
     @inbounds for j in 1:Ny, i in 1:Nx
-        X[j,i] = x[i] + 0.01*sin(2π*x[i])
+        X[j,i] = x[i] + amp*sin(2π*x[i])
         Y[j,i] = y[j]
-        Z[j,i] = 0.01*sin(2π*x[i]) + 0.01*sin(4π*y[j])
+        Z[j,i] = amp*sin(2π*x[i]) + amp*sin(4π*y[j])
     end
     
     # nodes flattened row-major (j fast or i fast? Use j major consistent with python meshgrid)

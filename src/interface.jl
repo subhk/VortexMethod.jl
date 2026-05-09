@@ -102,7 +102,7 @@ end
 
 Clock() = Clock(0.0, 0, 0.0)
 
-mutable struct VortexSheetModel{T<:AbstractFloat,A}
+mutable struct VortexSheetModel{T<:AbstractFloat,A,D<:DissipationModel,K<:KernelType}
     grid::RectilinearGrid{T}
     clock::Clock
     nodeX::Vector{T}
@@ -115,8 +115,8 @@ mutable struct VortexSheetModel{T<:AbstractFloat,A}
     CFL::T
     poisson_mode::Symbol
     parallel_fft::Bool
-    dissipation::DissipationModel
-    kernel::KernelType
+    dissipation::D
+    kernel::K
     workspace::VortexWorkspace{T}
 end
 
@@ -131,8 +131,8 @@ function VortexSheetModel(; grid::RectilinearGrid{T},
                           CFL::Float64=0.5,
                           poisson_mode::Symbol=:spectral,
                           parallel_fft::Bool=false,
-                          dissipation::DissipationModel=NoDissipation(),
-                          kernel::KernelType=PeskinStandard()) where T
+                          dissipation::D=NoDissipation(),
+                          kernel::K=PeskinStandard()) where {T,D<:DissipationModel,K<:KernelType}
     nodeX, nodeY, nodeZ, tri, _, _, _ =
         structured_mesh(Int(sheet_size[1]), Int(sheet_size[2]); domain=grid.domain, amp=amp)
     eleGma = zeros(T, size(tri, 1), 3)
@@ -140,10 +140,10 @@ function VortexSheetModel(; grid::RectilinearGrid{T},
     ws = VortexWorkspace(T, length(nodeX), size(tri, 1), nx, ny, nz, grid.domain)
     At_value = At === nothing ? zero(T) : At
     A = typeof(At_value)
-    model = VortexSheetModel{T,A}(grid, Clock(), Vector{T}(nodeX), Vector{T}(nodeY),
-                                  Vector{T}(nodeZ), tri, eleGma, At_value, adaptive,
-                                  T(CFL), poisson_mode, parallel_fft, dissipation,
-                                  kernel, ws)
+    model = VortexSheetModel{T,A,D,K}(grid, Clock(), Vector{T}(nodeX), Vector{T}(nodeY),
+                                      Vector{T}(nodeZ), tri, eleGma, At_value, adaptive,
+                                      T(CFL), poisson_mode, parallel_fft, dissipation,
+                                      kernel, ws)
     specified = count(!isnothing, (Γ, gamma, circulation))
     specified <= 1 ||
         throw(ArgumentError("provide only one of Γ, gamma, or circulation"))
@@ -182,37 +182,34 @@ function set!(model::VortexSheetModel; Γ=nothing, gamma=nothing, circulation=no
     return model
 end
 
-function time_step!(model::VortexSheetModel{T,A}, Δt::Real; kwargs...) where {T,A}
+function _advance_model!(model::VortexSheetModel{T,A,D,K}, dt::Float64,
+                         ::NoDissipation; kwargs...) where {T,A,D,K}
+    return rk2_step!(model.workspace,
+                     model.nodeX, model.nodeY, model.nodeZ, model.tri, model.eleGma,
+                     model.grid.domain, model.grid.grid, dt;
+                     At=model.At, adaptive=model.adaptive, CFL=model.CFL,
+                     poisson_mode=model.poisson_mode, parallel_fft=model.parallel_fft,
+                     kernel=model.kernel,
+                     kwargs...)
+end
+
+function _advance_model!(model::VortexSheetModel{T,A,D,K}, dt::Float64,
+                         dissipation::DissipationModel; kwargs...) where {T,A,D,K}
+    return rk2_step_with_dissipation!(model.workspace,
+                                      model.nodeX, model.nodeY, model.nodeZ,
+                                      model.tri, model.eleGma,
+                                      model.grid.domain, model.grid.grid, dt,
+                                      dissipation;
+                                      At=model.At, adaptive=model.adaptive,
+                                      CFL=model.CFL,
+                                      poisson_mode=model.poisson_mode,
+                                      parallel_fft=model.parallel_fft,
+                                      kernel=model.kernel, kwargs...)
+end
+
+function time_step!(model::VortexSheetModel{T,A,D,K}, Δt::Real; kwargs...) where {T,A,D,K}
     dt = Float64(Δt)
-    if model.dissipation isa NoDissipation
-        dt_used = rk2_step!(model.workspace,
-                            model.nodeX, model.nodeY, model.nodeZ, model.tri, model.eleGma,
-                            model.grid.domain, model.grid.grid, dt;
-                            At=model.At, adaptive=model.adaptive, CFL=model.CFL,
-                            poisson_mode=model.poisson_mode, parallel_fft=model.parallel_fft,
-                            kernel=model.kernel,
-                            kwargs...)
-    elseif model.dissipation isa SmagorinskyModel
-        dt_used = rk2_step_with_dissipation!(model.workspace,
-                                             model.nodeX, model.nodeY, model.nodeZ,
-                                             model.tri, model.eleGma,
-                                             model.grid.domain, model.grid.grid, dt,
-                                             model.dissipation;
-                                             At=model.At, adaptive=model.adaptive,
-                                             CFL=model.CFL,
-                                             poisson_mode=model.poisson_mode,
-                                             parallel_fft=model.parallel_fft,
-                                             kernel=model.kernel, kwargs...)
-    else
-        dt_used = rk2_step_with_dissipation!(model.nodeX, model.nodeY, model.nodeZ,
-                                             model.tri, model.eleGma,
-                                             model.grid.domain, model.grid.grid, dt,
-                                             model.dissipation;
-                                             At=model.At, adaptive=model.adaptive, CFL=model.CFL,
-                                             poisson_mode=model.poisson_mode,
-                                             parallel_fft=model.parallel_fft,
-                                             kernel=model.kernel, kwargs...)
-    end
+    dt_used = _advance_model!(model, dt, model.dissipation; kwargs...)
 
     model.clock.time += dt_used
     model.clock.iteration += 1
@@ -220,8 +217,8 @@ function time_step!(model::VortexSheetModel{T,A}, Δt::Real; kwargs...) where {T
     return dt_used
 end
 
-mutable struct Simulation
-    model::VortexSheetModel
+mutable struct Simulation{M<:VortexSheetModel}
+    model::M
     Δt::Float64
     stop_iteration::Union{Nothing,Int}
     stop_time::Float64

@@ -20,6 +20,7 @@ end
     include("test_checkpoint.jl")
     include("test_particle_management.jl")
     include("test_stock_regressions.jl")
+    include("test_kh_pdf_parameters.jl")
     include("test_parallel_fft.jl")
     include("test_performance.jl")
 

@@ -26,8 +26,8 @@ Usage:
 Command-line options:
     --parallel-fft          Use PencilFFTs for distributed FFT computation
     --compare-performance   Run both serial and parallel FFT for timing comparison
-    --nx=N                  Mesh resolution in x direction (default: 64)
-    --ny=N                  Mesh resolution in y direction (default: 64)  
+    --nx=N                  Mesh nodes in x direction (default: 30)
+    --ny=N                  Mesh nodes in y direction (default: 30)
     --steps=N               Number of time steps (default: 50)
     --dt=X                  Time step size (default: 1e-3)
     --save-interval=X       Save interval in physical time (default: 0.1)
@@ -40,13 +40,15 @@ using MPI
 using Printf
 using Dates
 
+include(joinpath(@__DIR__, "kh_stock_setup.jl"))
+
 # Parse command line arguments
 function parse_args()
     args = Dict{String,Any}(
         "parallel_fft" => false,
         "compare_performance" => false,
-        "nx" => 64,
-        "ny" => 64,
+        "nx" => STOCK_KH_MESH_NX,
+        "ny" => STOCK_KH_MESH_NY,
         "steps" => 50,
         "dt" => 1e-3,
         "save_interval" => 0.1,
@@ -164,6 +166,9 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
         end
         println("Enhanced KH 3D with $(parallel_fft ? "Parallel" : "Serial") FFT")
         println("Nx=$(args["nx"]) Ny=$(args["ny"]) steps=$(args["steps"]) dt=$(args["dt"])")
+        dx, dy, dz = grid_spacing(STOCK_KH_DOMAIN, STOCK_KH_GRID)
+        println("Stock PDF parameters: domain=[0,1]x[0,1]x[-2,2], grid=($(STOCK_KH_GRID.nx),$(STOCK_KH_GRID.ny),$(STOCK_KH_GRID.nz)), dx=$(dx), dy=$(dy), dz=$(dz)")
+        println("Initial sheet: gamma_y=$(STOCK_KH_INITIAL_GAMMA[2]), perturbation amplitude=$(STOCK_KH_PERTURBATION_AMPLITUDE)")
         println("MPI ranks: $nprocs")
         println("Poisson mode: $(args["poisson_mode"])")
         if parallel_fft
@@ -174,32 +179,20 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
         println()
     end
     
-    # Setup domain and grid
-    domain = default_domain()
-    gr = default_grid()
+    # Setup domain and grid from Stock's medium-resolution KH case.
+    domain = STOCK_KH_DOMAIN
+    gr = STOCK_KH_GRID
     
     # Create mesh
     Nx, Ny = args["nx"], args["ny"]
-    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(Nx, Ny; domain=domain)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC = structured_mesh(
+        Nx, Ny; domain=domain, amp=STOCK_KH_PERTURBATION_AMPLITUDE,
+    )
     
-    # Initialize vorticity with Kelvin-Helmholtz profile
+    # Initialize with the Stock sheet strength: unit jump, gamma_y = 1.
     nt = size(tri, 1)
     eleGma = zeros(Float64, nt, 3)
-    
-    # Enhanced KH initial condition with perturbation
-    for t in 1:nt
-        x_center = sum(triXC[t, :]) / 3
-        y_center = sum(triYC[t, :]) / 3
-        
-        # Base shear layer
-        if 0.3 < y_center < 0.7
-            eleGma[t, 1] = 2.0 * tanh(10 * (y_center - 0.5))  # x-component
-        end
-        
-        # Add small perturbation to trigger instability  
-        perturbation = 0.1 * sin(4π * x_center) * exp(-20 * (y_center - 0.5)^2)
-        eleGma[t, 2] = perturbation  # y-component
-    end
+    initialize_stock_kh_gamma!(eleGma)
     
     # Simulation parameters
     dt = args["dt"]
@@ -229,7 +222,7 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
         # Time stepping with performance monitoring
         fft_start = time()
         dt_used = rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma, domain, gr, dt; 
-                           At=Atg, adaptive=true, CFL=0.5, 
+                           At=Atg, adaptive=true, CFL=STOCK_KH_CFL,
                            poisson_mode=poisson_mode, parallel_fft=parallel_fft)
         fft_time = time() - fft_start
         log_timing!(monitor, :fft, fft_time)
@@ -245,9 +238,7 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
         end
         
         # Mesh quality diagnostics
-        dx, dy, dz = grid_spacing(domain, gr)
-        ds_max = 0.80 * max(dx, dy)
-        ds_min = 0.05 * max(dx, dy)
+        ds_max, ds_min = stock_kh_remesh_thresholds(domain, gr)
         
         # Remeshing with performance monitoring
         if it % remesh_every == 0
@@ -301,13 +292,16 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
                 parallel_fft=parallel_fft,
                 fft_time=fft_time,
                 step_time=step_time,
+                perturbation_amplitude=STOCK_KH_PERTURBATION_AMPLITUDE,
+                split_threshold=ds_max,
+                merge_threshold=ds_min,
                 nprocs=nprocs,
                 julia_version=string(VERSION),
                 timestamp=string(now())
             )
             
             base = save_state_timeseries!(series_file, time, nodeX, nodeY, nodeZ, tri, eleGma;
-                                         domain=domain, grid=gr, dt=dt_used, CFL=0.5, adaptive=true,
+                                         domain=domain, grid=gr, dt=dt_used, CFL=STOCK_KH_CFL, adaptive=true,
                                          poisson_mode=poisson_mode, remesh_every=remesh_every, 
                                          save_interval=save_interval, ar_max=ar_max, step=it,
                                          params_extra=params_extra)

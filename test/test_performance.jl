@@ -171,6 +171,29 @@ end
     VortexMethod.time_step!(smag_model, 0.0)
     GC.gc()
     @test @allocated(VortexMethod.time_step!(smag_model, 0.0)) < 250_000
+
+    advanced_dissipation_models = (
+        VortexMethod.DynamicSmagorinsky(),
+        VortexMethod.VortexStretchingDissipation(),
+        VortexMethod.MixedScaleModel(),
+    )
+    for dissipation in advanced_dissipation_models
+        advanced_model = VortexMethod.VortexSheetModel(;
+            grid=VortexMethod.RectilinearGrid(size=(6, 6, 6)),
+            sheet_size=(4, 4),
+            Γ=(0.0, 0.2, 0.0),
+            amp=0.0,
+            dissipation=dissipation,
+        )
+        @test fieldtype(typeof(advanced_model), :dissipation) === typeof(dissipation)
+        @test fieldtype(typeof(advanced_model), :kernel) === typeof(VortexMethod.PeskinStandard())
+        @test @inferred(VortexMethod.time_step!(advanced_model, 0.0)) == 0.0
+        GC.gc()
+        @test @allocated(VortexMethod.time_step!(advanced_model, 0.0)) < 150_000
+    end
+
+    simulation = VortexMethod.Simulation(model; Δt=0.0, stop_iteration=1)
+    @test fieldtype(typeof(simulation), :model) === typeof(model)
 end
 
 @testset "fast_linalg hot-path solver assertions removed" begin
