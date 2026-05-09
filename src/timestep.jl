@@ -62,8 +62,13 @@ function grid_velocity!(ws::VortexWorkspace{T},
                         domain::DomainSpec,
                         gr::GridSpec;
                         poisson_mode::Symbol=:spectral,
-                        parallel_fft::Bool=false) where T<:AbstractFloat
-    spread_vorticity_to_grid_mpi!(ws, eleGma, triXC, triYC, triZC, domain, gr)
+                        parallel_fft::Bool=false,
+                        kernel::KernelType=PeskinStandard()) where T<:AbstractFloat
+    if kernel == PeskinStandard()
+        spread_vorticity_to_grid_mpi!(ws, eleGma, triXC, triYC, triZC, domain, gr)
+    else
+        spread_vorticity_to_grid_kernel_mpi!(ws, eleGma, triXC, triYC, triZC, domain, gr, kernel)
+    end
     dx, dy, dz = grid_spacing(domain, gr)
     curl_rhs_centered!(PoissonWorkspace(T, gr.nz, gr.ny, gr.nx),
                        ws.rhs_x, ws.rhs_y, ws.rhs_z,
@@ -91,12 +96,21 @@ function node_velocities!(ws::VortexWorkspace{T},
                           domain::DomainSpec,
                           gr::GridSpec;
                           poisson_mode::Symbol=:spectral,
-                          parallel_fft::Bool=false) where T<:AbstractFloat
+                          parallel_fft::Bool=false,
+                          kernel::KernelType=PeskinStandard()) where T<:AbstractFloat
     grid_velocity!(ws, eleGma, triXC, triYC, triZC, domain, gr;
-                   poisson_mode=poisson_mode, parallel_fft=parallel_fft)
-    interpolate_node_velocity_mpi!(out_u, out_v, out_w, ws,
-                                   ws.gridUx, ws.gridUy, ws.gridUz,
-                                   nodeX, nodeY, nodeZ, domain, gr)
+                   poisson_mode=poisson_mode, parallel_fft=parallel_fft,
+                   kernel=kernel)
+    if kernel == PeskinStandard()
+        interpolate_node_velocity_mpi!(out_u, out_v, out_w, ws,
+                                       ws.gridUx, ws.gridUy, ws.gridUz,
+                                       nodeX, nodeY, nodeZ, domain, gr)
+    else
+        interpolate_node_velocity_kernel_mpi!(out_u, out_v, out_w, ws,
+                                              ws.gridUx, ws.gridUy, ws.gridUz,
+                                              nodeX, nodeY, nodeZ, domain, gr,
+                                              kernel)
+    end
     return out_u, out_v, out_w
 end
 
@@ -226,13 +240,152 @@ function max_grid_speed!(ws::VortexWorkspace{T},
     return MPI.Allreduce(magmax_local, MPI.MAX, MPI.COMM_WORLD)
 end
 
+@inline _prev_periodic(i::Int, n::Int) = i == 1 ? n : i - 1
+@inline _next_periodic(i::Int, n::Int) = i == n ? 1 : i + 1
+
+@inline function _interp_grid_periodic(A::Array{T,3},
+                                       x::T, y::T, z::T,
+                                       domain::DomainSpec, gr::GridSpec,
+                                       dx::T, dy::T, dz::T) where T<:AbstractFloat
+    xw = mod(x, T(domain.Lx))
+    yw = mod(y, T(domain.Ly))
+    zw = mod(z + T(domain.Lz), T(2) * T(domain.Lz)) - T(domain.Lz)
+
+    fx = xw / dx
+    fy = yw / dy
+    fz = (zw + T(domain.Lz)) / dz
+
+    ix = floor(Int, fx)
+    iy = floor(Int, fy)
+    iz = floor(Int, fz)
+    i0 = mod(ix, gr.nx) + 1
+    j0 = mod(iy, gr.ny) + 1
+    k0 = mod(iz, gr.nz) + 1
+    i1 = _next_periodic(i0, gr.nx)
+    j1 = _next_periodic(j0, gr.ny)
+    k1 = _next_periodic(k0, gr.nz)
+
+    tx = fx - T(ix)
+    ty = fy - T(iy)
+    tz = fz - T(iz)
+
+    c000 = A[k0,j0,i0]; c100 = A[k0,j0,i1]; c010 = A[k0,j1,i0]; c110 = A[k0,j1,i1]
+    c001 = A[k1,j0,i0]; c101 = A[k1,j0,i1]; c011 = A[k1,j1,i0]; c111 = A[k1,j1,i1]
+    c00 = (one(T) - tx) * c000 + tx * c100
+    c10 = (one(T) - tx) * c010 + tx * c110
+    c01 = (one(T) - tx) * c001 + tx * c101
+    c11 = (one(T) - tx) * c011 + tx * c111
+    c0 = (one(T) - ty) * c00 + ty * c10
+    c1 = (one(T) - ty) * c01 + ty * c11
+    return (one(T) - tz) * c0 + tz * c1
+end
+
+function _smagorinsky_grid_terms!(ws::VortexWorkspace{T},
+                                  model::SmagorinskyModel,
+                                  domain::DomainSpec,
+                                  gr::GridSpec) where T<:AbstractFloat
+    dx, dy, dz = grid_spacing(domain, gr)
+    dxT = T(dx); dyT = T(dy); dzT = T(dz)
+    inv2dx = one(T) / (T(2) * dxT)
+    inv2dy = one(T) / (T(2) * dyT)
+    inv2dz = one(T) / (T(2) * dzT)
+    invdx2 = one(T) / (dxT * dxT)
+    invdy2 = one(T) / (dyT * dyT)
+    invdz2 = one(T) / (dzT * dzT)
+    delta = (dxT * dyT * dzT)^(one(T) / T(3))
+    coeff = (T(model.Cs) * delta)^2
+    nz, ny, nx = size(ws.ζx)
+
+    @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
+        ip = _next_periodic(i, nx); im = _prev_periodic(i, nx)
+        jp = _next_periodic(j, ny); jm = _prev_periodic(j, ny)
+        kp = _next_periodic(k, nz); km = _prev_periodic(k, nz)
+
+        dudx = (ws.gridUx[k,j,ip] - ws.gridUx[k,j,im]) * inv2dx
+        dudy = (ws.gridUx[k,jp,i] - ws.gridUx[k,jm,i]) * inv2dy
+        dudz = (ws.gridUx[kp,j,i] - ws.gridUx[km,j,i]) * inv2dz
+        dvdx = (ws.gridUy[k,j,ip] - ws.gridUy[k,j,im]) * inv2dx
+        dvdy = (ws.gridUy[k,jp,i] - ws.gridUy[k,jm,i]) * inv2dy
+        dvdz = (ws.gridUy[kp,j,i] - ws.gridUy[km,j,i]) * inv2dz
+        dwdx = (ws.gridUz[k,j,ip] - ws.gridUz[k,j,im]) * inv2dx
+        dwdy = (ws.gridUz[k,jp,i] - ws.gridUz[k,jm,i]) * inv2dy
+        dwdz = (ws.gridUz[kp,j,i] - ws.gridUz[km,j,i]) * inv2dz
+
+        s12 = T(0.5) * (dudy + dvdx)
+        s13 = T(0.5) * (dudz + dwdx)
+        s23 = T(0.5) * (dvdz + dwdy)
+        strain = sqrt(T(2) * (dudx*dudx + dvdy*dvdy + dwdz*dwdz +
+                              T(2) * (s12*s12 + s13*s13 + s23*s23)))
+        ws.rhs_x[k,j,i] = coeff * strain
+        ws.rhs_y[k,j,i] =
+            (ws.ζx[k,j,ip] - ws.ζx[k,j,im]) * inv2dx +
+            (ws.ζy[k,jp,i] - ws.ζy[k,jm,i]) * inv2dy +
+            (ws.ζz[kp,j,i] - ws.ζz[km,j,i]) * inv2dz
+    end
+
+    @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
+        ip = _next_periodic(i, nx); im = _prev_periodic(i, nx)
+        jp = _next_periodic(j, ny); jm = _prev_periodic(j, ny)
+        kp = _next_periodic(k, nz); km = _prev_periodic(k, nz)
+        νt = ws.rhs_x[k,j,i]
+
+        lapx = (ws.ζx[k,j,ip] - T(2) * ws.ζx[k,j,i] + ws.ζx[k,j,im]) * invdx2 +
+               (ws.ζx[k,jp,i] - T(2) * ws.ζx[k,j,i] + ws.ζx[k,jm,i]) * invdy2 +
+               (ws.ζx[kp,j,i] - T(2) * ws.ζx[k,j,i] + ws.ζx[km,j,i]) * invdz2
+        lapy = (ws.ζy[k,j,ip] - T(2) * ws.ζy[k,j,i] + ws.ζy[k,j,im]) * invdx2 +
+               (ws.ζy[k,jp,i] - T(2) * ws.ζy[k,j,i] + ws.ζy[k,jm,i]) * invdy2 +
+               (ws.ζy[kp,j,i] - T(2) * ws.ζy[k,j,i] + ws.ζy[km,j,i]) * invdz2
+        lapz = (ws.ζz[k,j,ip] - T(2) * ws.ζz[k,j,i] + ws.ζz[k,j,im]) * invdx2 +
+               (ws.ζz[k,jp,i] - T(2) * ws.ζz[k,j,i] + ws.ζz[k,jm,i]) * invdy2 +
+               (ws.ζz[kp,j,i] - T(2) * ws.ζz[k,j,i] + ws.ζz[km,j,i]) * invdz2
+
+        graddivx = (ws.rhs_y[k,j,ip] - ws.rhs_y[k,j,im]) * inv2dx
+        graddivy = (ws.rhs_y[k,jp,i] - ws.rhs_y[k,jm,i]) * inv2dy
+        graddivz = (ws.rhs_y[kp,j,i] - ws.rhs_y[km,j,i]) * inv2dz
+
+        ws.gridUx[k,j,i] = νt * (lapx - graddivx)
+        ws.gridUy[k,j,i] = νt * (lapy - graddivy)
+        ws.gridUz[k,j,i] = νt * (lapz - graddivz)
+    end
+    return nothing
+end
+
+function _apply_smagorinsky_dissipation!(ws::VortexWorkspace{T},
+                                         model::SmagorinskyModel,
+                                         eleGma::AbstractMatrix{T},
+                                         triXC::AbstractMatrix,
+                                         triYC::AbstractMatrix,
+                                         triZC::AbstractMatrix,
+                                         domain::DomainSpec,
+                                         gr::GridSpec,
+                                         dt::T;
+                                         poisson_mode::Symbol=:spectral,
+                                         parallel_fft::Bool=false) where T<:AbstractFloat
+    grid_velocity!(ws, eleGma, triXC, triYC, triZC, domain, gr;
+                   poisson_mode=poisson_mode, parallel_fft=parallel_fft)
+    _smagorinsky_grid_terms!(ws, model, domain, gr)
+
+    dx, dy, dz = grid_spacing(domain, gr)
+    dxT = T(dx); dyT = T(dy); dzT = T(dz)
+    @inbounds for t in axes(eleGma, 1)
+        cx = ws.geom.centroids[t,1]
+        cy = ws.geom.centroids[t,2]
+        cz = ws.geom.centroids[t,3]
+        eleGma[t,1] += dt * _interp_grid_periodic(ws.gridUx, cx, cy, cz, domain, gr, dxT, dyT, dzT)
+        eleGma[t,2] += dt * _interp_grid_periodic(ws.gridUy, cx, cy, cz, domain, gr, dxT, dyT, dzT)
+        eleGma[t,3] += dt * _interp_grid_periodic(ws.gridUz, cx, cy, cz, domain, gr, dxT, dyT, dzT)
+    end
+    return eleGma
+end
+
 function rk2_step!(ws::VortexWorkspace{T},
                    nodeX::AbstractVector{T}, nodeY::AbstractVector{T}, nodeZ::AbstractVector{T},
                    tri, eleGma::AbstractMatrix{T},
                    domain::DomainSpec, gr::GridSpec, dt::Real;
                    At=zero(T), adaptive::Bool=false,
                    CFL::Real=T(0.5), poisson_mode::Symbol=:spectral,
-                   parallel_fft::Bool=false) where T<:AbstractFloat
+                   parallel_fft::Bool=false,
+                   kernel::KernelType=PeskinStandard()) where T<:AbstractFloat
     dt_used = T(dt)
 
     triangle_coords_from_nodes!(ws.triXC, ws.triYC, ws.triZC, nodeX, nodeY, nodeZ, tri)
@@ -240,7 +393,8 @@ function rk2_step!(ws::VortexWorkspace{T},
     node_velocities!(ws, ws.u1, ws.v1, ws.w1, eleGma,
                      ws.triXC, ws.triYC, ws.triZC,
                      nodeX, nodeY, nodeZ, domain, gr;
-                     poisson_mode=poisson_mode, parallel_fft=parallel_fft)
+                     poisson_mode=poisson_mode, parallel_fft=parallel_fft,
+                     kernel=kernel)
     node_circulation_from_ele_gamma!(ws.nodeΓ, ws.geom, eleGma)
 
     if adaptive
@@ -273,13 +427,105 @@ function rk2_step!(ws::VortexWorkspace{T},
     node_velocities!(ws, ws.u2, ws.v2, ws.w2, ws.eleGma_mid,
                      ws.triXC, ws.triYC, ws.triZC,
                      ws.xh, ws.yh, ws.zh, domain, gr;
-                     poisson_mode=poisson_mode, parallel_fft=parallel_fft)
+                     poisson_mode=poisson_mode, parallel_fft=parallel_fft,
+                     kernel=kernel)
 
     @inbounds for i in eachindex(nodeX, nodeY, nodeZ, ws.u2, ws.v2, ws.w2)
         nodeX[i] = mod(nodeX[i] + dt_used * ws.u2[i], T(domain.Lx))
         nodeY[i] = mod(nodeY[i] + dt_used * ws.v2[i], T(domain.Ly))
         nodeZ[i] = mod(nodeZ[i] + T(domain.Lz) + dt_used * ws.w2[i],
                        T(2 * domain.Lz)) - T(domain.Lz)
+    end
+
+    triangle_coords_from_nodes!(ws.triXC_new, ws.triYC_new, ws.triZC_new,
+                                nodeX, nodeY, nodeZ, tri)
+    refresh_workspace_geometry!(ws, ws.triXC_new, ws.triYC_new, ws.triZC_new, domain, gr)
+    if Circulation.has_baroclinicity(At)
+        dGend = baroclinic_ele_gamma(At, 0.5 * Float64(dt_used), ws.triXC_new, ws.triYC_new, ws.triZC_new; domain=domain)
+        dTau2 = node_circulation_from_ele_gamma(ws.geom, dGend)
+        ws.nodeΓ .+= dTau2
+    end
+
+    ele_gamma_from_node_circ!(ws.eleGma_new, ws.geom, ws.nodeΓ)
+    eleGma .= ws.eleGma_new
+    return Float64(dt_used)
+end
+
+function rk2_step_with_dissipation!(ws::VortexWorkspace{T},
+                                    nodeX::AbstractVector{T},
+                                    nodeY::AbstractVector{T},
+                                    nodeZ::AbstractVector{T},
+                                    tri,
+                                    eleGma::AbstractMatrix{T},
+                                    domain::DomainSpec,
+                                    gr::GridSpec,
+                                    dt::Real,
+                                    dissipation_model::SmagorinskyModel;
+                                    At=zero(T),
+                                    adaptive::Bool=false,
+                                    CFL::Real=T(0.5),
+                                    poisson_mode::Symbol=:spectral,
+                                    parallel_fft::Bool=false,
+                                    kernel::KernelType=PeskinStandard()) where T<:AbstractFloat
+    dt_used = T(dt)
+
+    triangle_coords_from_nodes!(ws.triXC, ws.triYC, ws.triZC, nodeX, nodeY, nodeZ, tri)
+    ws.geom_dirty[] = true
+    _apply_smagorinsky_dissipation!(ws, dissipation_model, eleGma,
+                                    ws.triXC, ws.triYC, ws.triZC,
+                                    domain, gr, T(0.5) * dt_used;
+                                    poisson_mode=poisson_mode,
+                                    parallel_fft=parallel_fft)
+    node_velocities!(ws, ws.u1, ws.v1, ws.w1, eleGma,
+                     ws.triXC, ws.triYC, ws.triZC,
+                     nodeX, nodeY, nodeZ, domain, gr;
+                     poisson_mode=poisson_mode, parallel_fft=parallel_fft,
+                     kernel=kernel)
+    node_circulation_from_ele_gamma!(ws.nodeΓ, ws.geom, eleGma)
+
+    if adaptive
+        dx, dy, _ = grid_spacing(domain, gr)
+        magmax2_local = zero(T)
+        @inbounds @simd for i in eachindex(ws.gridUx, ws.gridUy, ws.gridUz)
+            mag2 = ws.gridUx[i]*ws.gridUx[i] + ws.gridUy[i]*ws.gridUy[i] + ws.gridUz[i]*ws.gridUz[i]
+            magmax2_local = max(magmax2_local, mag2)
+        end
+        umax = MPI.Allreduce(sqrt(magmax2_local), MPI.MAX, MPI.COMM_WORLD)
+        dt_used = T(CFL) * min(T(dx), T(dy)) / max(T(umax), T(1e-12))
+    end
+
+    @inbounds for i in eachindex(nodeX, nodeY, nodeZ, ws.u1, ws.v1, ws.w1)
+        ws.xh[i] = mod(nodeX[i] + T(0.5) * dt_used * ws.u1[i], T(domain.Lx))
+        ws.yh[i] = mod(nodeY[i] + T(0.5) * dt_used * ws.v1[i], T(domain.Ly))
+        ws.zh[i] = mod(nodeZ[i] + T(domain.Lz) + T(0.5) * dt_used * ws.w1[i],
+                       T(2) * T(domain.Lz)) - T(domain.Lz)
+    end
+
+    triangle_coords_from_nodes!(ws.triXC, ws.triYC, ws.triZC, ws.xh, ws.yh, ws.zh, tri)
+    refresh_workspace_geometry!(ws, ws.triXC, ws.triYC, ws.triZC, domain, gr)
+    if Circulation.has_baroclinicity(At)
+        dGmid = baroclinic_ele_gamma(At, 0.5 * Float64(dt_used), ws.triXC, ws.triYC, ws.triZC; domain=domain)
+        dTau = node_circulation_from_ele_gamma(ws.geom, dGmid)
+        ws.nodeΓ .+= dTau
+    end
+
+    ele_gamma_from_node_circ!(ws.eleGma_mid, ws.geom, ws.nodeΓ)
+    _apply_smagorinsky_dissipation!(ws, dissipation_model, ws.eleGma_mid,
+                                    ws.triXC, ws.triYC, ws.triZC,
+                                    domain, gr, T(0.5) * dt_used;
+                                    poisson_mode=poisson_mode,
+                                    parallel_fft=parallel_fft)
+    node_velocities!(ws, ws.u2, ws.v2, ws.w2, ws.eleGma_mid,
+                     ws.triXC, ws.triYC, ws.triZC,
+                     ws.xh, ws.yh, ws.zh, domain, gr;
+                     poisson_mode=poisson_mode, parallel_fft=parallel_fft,
+                     kernel=kernel)
+
+    @inbounds for i in eachindex(nodeX, nodeY, nodeZ, ws.u2, ws.v2, ws.w2)
+        nodeX[i] = mod(nodeX[i] + dt_used * ws.u2[i], T(domain.Lx))
+        nodeY[i] = mod(nodeY[i] + dt_used * ws.v2[i], T(domain.Ly))
+        nodeZ[i] = mod(nodeZ[i] + T(domain.Lz) + dt_used * ws.w2[i],
+                       T(2) * T(domain.Lz)) - T(domain.Lz)
     end
 
     triangle_coords_from_nodes!(ws.triXC_new, ws.triYC_new, ws.triZC_new,

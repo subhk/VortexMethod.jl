@@ -177,7 +177,7 @@ end
         ws.geom_dirty[] = true
         @test @allocated(VortexMethod.grid_velocity!(ws, eleGma, triXC, triYC, triZC,
                                                      domain, gr; poisson_mode=mode,
-                                                     parallel_fft=true)) < 130_000
+                                                     parallel_fft=true)) < 60_000
 
         node_broadcast = VortexMethod.node_velocities(eleGma, triXC, triYC, triZC,
                                                       nodeX, nodeY, nodeZ, domain, gr;

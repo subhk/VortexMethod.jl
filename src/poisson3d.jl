@@ -87,7 +87,7 @@ function init_mpi!()
     return nothing
 end
 
-struct PencilPoissonWorkspace{T<:AbstractFloat,P,In,Out}
+struct PencilPoissonWorkspace{T<:AbstractFloat,P,In,Out,InView,OutView}
     dims::NTuple{3,Int}
     comm_size::Int
     fft_plan::P
@@ -100,9 +100,17 @@ struct PencilPoissonWorkspace{T<:AbstractFloat,P,In,Out}
     ux_local::In
     uy_local::In
     uz_local::In
-    ux_local_global::Array{T,3}
-    uy_local_global::Array{T,3}
-    uz_local_global::Array{T,3}
+    velocity_local_global::Matrix{T}
+    velocity_global::Matrix{T}
+    u_view::InView
+    v_view::InView
+    w_view::InView
+    Fu_view::OutView
+    Fv_view::OutView
+    Fw_view::OutView
+    ux_view::InView
+    uy_view::InView
+    uz_view::InView
 end
 
 function PencilPoissonWorkspace(::Type{T}, dims::NTuple{3,Int}, comm::MPI.Comm) where T<:AbstractFloat
@@ -117,17 +125,29 @@ function PencilPoissonWorkspace(::Type{T}, dims::NTuple{3,Int}, comm::MPI.Comm) 
     ux_local = allocate_input(fft_plan)
     uy_local = allocate_input(fft_plan)
     uz_local = allocate_input(fft_plan)
+    u_view = global_view(u_local)
+    v_view = global_view(v_local)
+    w_view = global_view(w_local)
+    Fu_view = global_view(Fu)
+    Fv_view = global_view(Fv)
+    Fw_view = global_view(Fw)
+    ux_view = global_view(ux_local)
+    uy_view = global_view(uy_local)
+    uz_view = global_view(uz_local)
     nz, ny, nx = dims
-    return PencilPoissonWorkspace{T,typeof(fft_plan),typeof(u_local),typeof(Fu)}(
+    return PencilPoissonWorkspace{T,typeof(fft_plan),typeof(u_local),typeof(Fu),
+                                  typeof(u_view),typeof(Fu_view)}(
         dims,
         MPI.Comm_size(comm),
         fft_plan,
         u_local, v_local, w_local,
         Fu, Fv, Fw,
         ux_local, uy_local, uz_local,
-        zeros(T, nz, ny, nx),
-        zeros(T, nz, ny, nx),
-        zeros(T, nz, ny, nx),
+        zeros(T, nz * ny * nx, 3),
+        zeros(T, nz * ny * nx, 3),
+        u_view, v_view, w_view,
+        Fu_view, Fv_view, Fw_view,
+        ux_view, uy_view, uz_view,
     )
 end
 
@@ -397,9 +417,9 @@ function _poisson_velocity_pencil_fft!(workspace::PencilPoissonWorkspace{T},
     dy = T(domain.Ly / ny)
     dz = T((2 * domain.Lz) / nz)
 
-    u_view = global_view(workspace.u_local)
-    v_view = global_view(workspace.v_local)
-    w_view = global_view(workspace.w_local)
+    u_view = workspace.u_view
+    v_view = workspace.v_view
+    w_view = workspace.w_view
     @inbounds for I in CartesianIndices(u_view)
         u_view[I] = u_rhs[I]
         v_view[I] = v_rhs[I]
@@ -410,9 +430,9 @@ function _poisson_velocity_pencil_fft!(workspace::PencilPoissonWorkspace{T},
     mul!(workspace.Fv, workspace.fft_plan, workspace.v_local)
     mul!(workspace.Fw, workspace.fft_plan, workspace.w_local)
 
-    Fu_view = global_view(workspace.Fu)
-    Fv_view = global_view(workspace.Fv)
-    Fw_view = global_view(workspace.Fw)
+    Fu_view = workspace.Fu_view
+    Fv_view = workspace.Fv_view
+    Fw_view = workspace.Fw_view
     fd_scale = T(0.5 / (domain.Lx * domain.Ly * domain.Lz))
     @inbounds for I in CartesianIndices(Fu_view)
         k, j, i = Tuple(I)
@@ -440,22 +460,26 @@ function _poisson_velocity_pencil_fft!(workspace::PencilPoissonWorkspace{T},
     ldiv!(workspace.uy_local, workspace.fft_plan, workspace.Fv)
     ldiv!(workspace.uz_local, workspace.fft_plan, workspace.Fw)
 
-    fill!(workspace.ux_local_global, zero(T))
-    fill!(workspace.uy_local_global, zero(T))
-    fill!(workspace.uz_local_global, zero(T))
+    fill!(workspace.velocity_local_global, zero(T))
 
-    ux_view = global_view(workspace.ux_local)
-    uy_view = global_view(workspace.uy_local)
-    uz_view = global_view(workspace.uz_local)
+    ux_view = workspace.ux_view
+    uy_view = workspace.uy_view
+    uz_view = workspace.uz_view
     @inbounds for I in CartesianIndices(ux_view)
-        workspace.ux_local_global[I] = real(ux_view[I])
-        workspace.uy_local_global[I] = real(uy_view[I])
-        workspace.uz_local_global[I] = real(uz_view[I])
+        k, j, i = Tuple(I)
+        idx = k + (j - 1) * nz + (i - 1) * nz * ny
+        workspace.velocity_local_global[idx,1] = real(ux_view[I])
+        workspace.velocity_local_global[idx,2] = real(uy_view[I])
+        workspace.velocity_local_global[idx,3] = real(uz_view[I])
     end
 
-    MPI.Allreduce!(workspace.ux_local_global, ux, MPI.SUM, comm)
-    MPI.Allreduce!(workspace.uy_local_global, uy, MPI.SUM, comm)
-    MPI.Allreduce!(workspace.uz_local_global, uz, MPI.SUM, comm)
+    MPI.Allreduce!(workspace.velocity_local_global, workspace.velocity_global, MPI.SUM, comm)
+
+    @inbounds for idx in eachindex(ux, uy, uz)
+        ux[idx] = workspace.velocity_global[idx,1]
+        uy[idx] = workspace.velocity_global[idx,2]
+        uz[idx] = workspace.velocity_global[idx,3]
+    end
     return ux, uy, uz
 end
 

@@ -149,6 +149,28 @@ end
     VortexMethod.time_step!(model, 0.0)
     GC.gc()
     @test @allocated(VortexMethod.time_step!(model, 0.0)) < 80_000
+
+    kernel_model = VortexMethod.VortexSheetModel(;
+        grid=VortexMethod.RectilinearGrid(size=(6, 6, 6)),
+        sheet_size=(4, 4),
+        Γ=(0.0, 0.2, 0.0),
+        amp=0.0,
+        kernel=VortexMethod.PeskinCosine(),
+    )
+    VortexMethod.time_step!(kernel_model, 0.0)
+    GC.gc()
+    @test @allocated(VortexMethod.time_step!(kernel_model, 0.0)) < 120_000
+
+    smag_model = VortexMethod.VortexSheetModel(;
+        grid=VortexMethod.RectilinearGrid(size=(6, 6, 6)),
+        sheet_size=(4, 4),
+        Γ=(0.0, 0.2, 0.0),
+        amp=0.0,
+        dissipation=VortexMethod.SmagorinskyModel(),
+    )
+    VortexMethod.time_step!(smag_model, 0.0)
+    GC.gc()
+    @test @allocated(VortexMethod.time_step!(smag_model, 0.0)) < 250_000
 end
 
 @testset "fast_linalg hot-path solver assertions removed" begin

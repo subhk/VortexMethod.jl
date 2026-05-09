@@ -13,9 +13,9 @@ export init_mpi!, finalize_mpi!,
        triangle_centroids, triangle_areas,
        subtriangle_centroids, subtriangle_centroids4,
        spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
-       spread_vorticity_to_grid_kernel_mpi,
+       spread_vorticity_to_grid_kernel_mpi, spread_vorticity_to_grid_kernel_mpi!,
        interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
-       interpolate_node_velocity_kernel_mpi,
+       interpolate_node_velocity_kernel_mpi, interpolate_node_velocity_kernel_mpi!,
        find_elements_nearby!
 
 init_mpi!() = (MPI.Initialized() || MPI.Init(); nothing)
@@ -346,12 +346,21 @@ function peskin_add_nearby_kernel!(acc::SVector{3,T}, eleGma::AbstractMatrix{T},
                                    coord::SVector{3,T}, kernel::KernelType,
                                    eps::SVector{3,T},
                                    shift::SVector{3,T}) where T<:AbstractFloat
+    return peskin_add_nearby_kernel_nsub!(acc, eleGma, triC, subC, triAreas,
+                                          size(subC, 2), coord, kernel, eps, shift)
+end
+
+function peskin_add_nearby_kernel_nsub!(acc::SVector{3,T}, eleGma::AbstractMatrix{T},
+                                        triC::AbstractMatrix{T}, subC::Array{T,3},
+                                        triAreas::AbstractVector{T}, n_sub::Int,
+                                        coord::SVector{3,T}, kernel::KernelType,
+                                        eps::SVector{3,T},
+                                        shift::SVector{3,T}) where T<:AbstractFloat
     sx = acc[1]; sy = acc[2]; sz = acc[3]
     x = coord[1]; y = coord[2]; z = coord[3]
     epsx = eps[1]; epsy = eps[2]; epsz = eps[3]
     delr = T(kernel_support_radius(kernel))
     hx = epsx/delr; hy = epsy/delr; hz = epsz/delr
-    n_sub = size(subC, 2)
     inv_n_sub = one(T) / T(n_sub)
 
     @inbounds for idx in 1:size(triC, 1)
@@ -496,6 +505,66 @@ function spread_vorticity_to_grid_mpi!(ws::VortexWorkspace{T},
     return nothing
 end
 
+function spread_vorticity_to_grid_kernel_mpi!(ws::VortexWorkspace{T},
+                                              eleGma::AbstractMatrix{T},
+                                              triXC::AbstractMatrix,
+                                              triYC::AbstractMatrix,
+                                              triZC::AbstractMatrix,
+                                              domain::DomainSpec,
+                                              gr::GridSpec,
+                                              kernel::KernelType=PeskinStandard()) where T<:AbstractFloat
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    nprocs = MPI.Comm_size(comm)
+
+    if ws.geom_dirty[]
+        _recompute_geometry!(ws, triXC, triYC, triZC, domain, gr)
+        ws.geom_dirty[] = false
+    end
+
+    dx, dy, dz = grid_spacing(domain, gr)
+    nx, ny, nz = gr.nx, gr.ny, gr.nz
+    nsub = ws.nsub[]
+    inv_cell_volume = one(T) / T(dx * dy * dz)
+    delr = T(kernel_support_radius(kernel))
+    eps = SVector{3,T}(delr * T(dx), delr * T(dy), delr * T(dz))
+
+    fill!(ws.local_buf, zero(T))
+
+    idx = 1
+    @inbounds for i in 1:nx, j in 1:ny, k in 1:nz
+        if mod(idx - 1, nprocs) == rank
+            coord = SVector{3,T}(T(i - 1) * T(dx),
+                                 T(j - 1) * T(dy),
+                                 -T(domain.Lz) + T(k - 1) * T(dz))
+            acc = SVector{3,T}(zero(T), zero(T), zero(T))
+            for shift in ws.shifts
+                acc = peskin_add_nearby_kernel_nsub!(acc, eleGma, ws.triC, ws.subC,
+                                                     ws.areas, nsub, coord, kernel,
+                                                     eps, shift)
+            end
+            ws.local_buf[idx,1] = acc[1] * inv_cell_volume
+            ws.local_buf[idx,2] = acc[2] * inv_cell_volume
+            ws.local_buf[idx,3] = acc[3] * inv_cell_volume
+        end
+        idx += 1
+    end
+
+    MPI.Allreduce!(ws.local_buf, ws.global_buf, MPI.SUM, comm)
+
+    @inbounds for idx in 1:(nx * ny * nz)
+        ws.ζx[idx] = ws.global_buf[idx,1]
+        ws.ζy[idx] = ws.global_buf[idx,2]
+        ws.ζz[idx] = ws.global_buf[idx,3]
+    end
+
+    copy_periodic_boundaries!(ws.ζx)
+    copy_periodic_boundaries!(ws.ζy)
+    copy_periodic_boundaries!(ws.ζz)
+    return nothing
+end
+
 function interpolate_node_velocity_mpi!(ws::VortexWorkspace{T},
                                         gridUx::Array{T,3}, gridUy::Array{T,3}, gridUz::Array{T,3},
                                         nodeX::AbstractVector{T}, nodeY::AbstractVector{T},
@@ -548,6 +617,87 @@ function interpolate_node_velocity_mpi!(out_u::AbstractVector{T},
                     w = (one(T) + cos(T(π) * dxv / epsx)) *
                         (one(T) + cos(T(π) * dyv / epsy)) *
                         (one(T) + cos(T(π) * dzv / epsz)) * scale
+                    sx += gridUx[k,j,ii] * w
+                    sy += gridUy[k,j,ii] * w
+                    sz += gridUz[k,j,ii] * w
+                end
+            end
+        end
+        ws.local_buf[i,1] = sx
+        ws.local_buf[i,2] = sy
+        ws.local_buf[i,3] = sz
+    end
+
+    MPI.Allreduce!(ws.local_buf, ws.global_buf, MPI.SUM, comm)
+
+    @inbounds for i in 1:N
+        out_u[i] = ws.global_buf[i,1]
+        out_v[i] = ws.global_buf[i,2]
+        out_w[i] = ws.global_buf[i,3]
+    end
+    return nothing
+end
+
+function interpolate_node_velocity_kernel_mpi!(ws::VortexWorkspace{T},
+                                               gridUx::Array{T,3},
+                                               gridUy::Array{T,3},
+                                               gridUz::Array{T,3},
+                                               nodeX::AbstractVector{T},
+                                               nodeY::AbstractVector{T},
+                                               nodeZ::AbstractVector{T},
+                                               domain::DomainSpec,
+                                               gr::GridSpec,
+                                               kernel::KernelType=PeskinStandard()) where T<:AbstractFloat
+    return interpolate_node_velocity_kernel_mpi!(ws.u1, ws.v1, ws.w1, ws, gridUx, gridUy, gridUz,
+                                                 nodeX, nodeY, nodeZ, domain, gr, kernel)
+end
+
+function interpolate_node_velocity_kernel_mpi!(out_u::AbstractVector{T},
+                                               out_v::AbstractVector{T},
+                                               out_w::AbstractVector{T},
+                                               ws::VortexWorkspace{T},
+                                               gridUx::Array{T,3},
+                                               gridUy::Array{T,3},
+                                               gridUz::Array{T,3},
+                                               nodeX::AbstractVector{T},
+                                               nodeY::AbstractVector{T},
+                                               nodeZ::AbstractVector{T},
+                                               domain::DomainSpec,
+                                               gr::GridSpec,
+                                               kernel::KernelType=PeskinStandard()) where T<:AbstractFloat
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    nprocs = MPI.Comm_size(comm)
+
+    nx, ny, nz = gr.nx, gr.ny, gr.nz
+    dx, dy, dz = grid_spacing(domain, gr)
+    delr = T(kernel_support_radius(kernel))
+    epsx = delr * T(dx)
+    epsy = delr * T(dy)
+    epsz = delr * T(dz)
+
+    N = length(nodeX)
+    fill!(ws.local_buf, zero(T))
+
+    @inbounds for i in (rank + 1):nprocs:N
+        xc = nodeX[i]
+        yc = nodeY[i]
+        zc = nodeZ[i]
+        sx = zero(T)
+        sy = zero(T)
+        sz = zero(T)
+        for shift in ws.shifts
+            xq = xc - shift[1]
+            yq = yc - shift[2]
+            zq = zc - shift[3]
+            for k in 1:nz, j in 1:ny, ii in 1:nx
+                dxv = xq - T(ii - 1) * T(dx)
+                dyv = yq - T(j - 1) * T(dy)
+                dzv = zq - (-T(domain.Lz) + T(k - 1) * T(dz))
+                if abs(dxv) <= epsx && abs(dyv) <= epsy && abs(dzv) <= epsz
+                    w = interpolate_kernel_weight(kernel, dxv, dyv, dzv,
+                                                  T(dx), T(dy), T(dz))
                     sx += gridUx[k,j,ii] * w
                     sy += gridUy[k,j,ii] * w
                     sz += gridUz[k,j,ii] * w
@@ -789,5 +939,6 @@ end # module
 using .Peskin3D: init_mpi!, finalize_mpi!, triangle_centroids, triangle_areas, subtriangle_centroids, subtriangle_centroids4,
                           spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
                           interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
-                          spread_vorticity_to_grid_kernel_mpi, interpolate_node_velocity_kernel_mpi,
+                          spread_vorticity_to_grid_kernel_mpi, spread_vorticity_to_grid_kernel_mpi!,
+                          interpolate_node_velocity_kernel_mpi, interpolate_node_velocity_kernel_mpi!,
                           find_elements_nearby!

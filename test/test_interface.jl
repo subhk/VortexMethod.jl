@@ -108,6 +108,69 @@ end
     @test model.eleGma ≈ expected_Γ
 end
 
+@testset "Workspace-backed kernel and Smagorinsky branches match allocating paths" begin
+    domain = VortexMethod.default_domain()
+    grid = VortexMethod.RectilinearGrid(size=(6, 6, 6))
+    nodeX, nodeY, nodeZ, tri, _, _, _ =
+        VortexMethod.structured_mesh(4, 4; domain=domain, amp=0.0)
+    eleGma = fill(0.2, size(tri, 1), 3)
+
+    expected_x = copy(nodeX)
+    expected_y = copy(nodeY)
+    expected_z = copy(nodeZ)
+    expected_Γ = copy(eleGma)
+    VortexMethod.rk2_step_with_dissipation!(
+        expected_x, expected_y, expected_z, tri, expected_Γ,
+        domain, grid.grid, 0.001, VortexMethod.NoDissipation();
+        kernel=VortexMethod.PeskinCosine(),
+    )
+
+    kernel_model = VortexMethod.VortexSheetModel(;
+        grid,
+        sheet_size=(4, 4),
+        Γ=(0.2, 0.2, 0.2),
+        amp=0.0,
+        kernel=VortexMethod.PeskinCosine(),
+    )
+    kernel_model.nodeX .= nodeX
+    kernel_model.nodeY .= nodeY
+    kernel_model.nodeZ .= nodeZ
+    kernel_model.eleGma .= eleGma
+    VortexMethod.time_step!(kernel_model, 0.001)
+
+    @test kernel_model.nodeX ≈ expected_x
+    @test kernel_model.nodeY ≈ expected_y
+    @test kernel_model.nodeZ ≈ expected_z
+    @test kernel_model.eleGma ≈ expected_Γ
+
+    expected_x .= nodeX
+    expected_y .= nodeY
+    expected_z .= nodeZ
+    expected_Γ .= eleGma
+    VortexMethod.rk2_step_with_dissipation!(
+        expected_x, expected_y, expected_z, tri, expected_Γ,
+        domain, grid.grid, 0.001, VortexMethod.SmagorinskyModel(),
+    )
+
+    smag_model = VortexMethod.VortexSheetModel(;
+        grid,
+        sheet_size=(4, 4),
+        Γ=(0.2, 0.2, 0.2),
+        amp=0.0,
+        dissipation=VortexMethod.SmagorinskyModel(),
+    )
+    smag_model.nodeX .= nodeX
+    smag_model.nodeY .= nodeY
+    smag_model.nodeZ .= nodeZ
+    smag_model.eleGma .= eleGma
+    VortexMethod.time_step!(smag_model, 0.001)
+
+    @test smag_model.nodeX ≈ expected_x rtol=1e-10 atol=1e-12
+    @test smag_model.nodeY ≈ expected_y rtol=1e-10 atol=1e-12
+    @test smag_model.nodeZ ≈ expected_z rtol=1e-10 atol=1e-12
+    @test smag_model.eleGma ≈ expected_Γ rtol=1e-10 atol=1e-12
+end
+
 @testset "No external interface naming in repository text" begin
     repo_root = dirname(@__DIR__)
     this_file = @__FILE__

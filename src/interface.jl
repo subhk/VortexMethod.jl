@@ -184,13 +184,25 @@ end
 
 function time_step!(model::VortexSheetModel{T,A}, Δt::Real; kwargs...) where {T,A}
     dt = Float64(Δt)
-    if model.dissipation isa NoDissipation && model.kernel == PeskinStandard()
+    if model.dissipation isa NoDissipation
         dt_used = rk2_step!(model.workspace,
                             model.nodeX, model.nodeY, model.nodeZ, model.tri, model.eleGma,
                             model.grid.domain, model.grid.grid, dt;
                             At=model.At, adaptive=model.adaptive, CFL=model.CFL,
                             poisson_mode=model.poisson_mode, parallel_fft=model.parallel_fft,
+                            kernel=model.kernel,
                             kwargs...)
+    elseif model.dissipation isa SmagorinskyModel
+        dt_used = rk2_step_with_dissipation!(model.workspace,
+                                             model.nodeX, model.nodeY, model.nodeZ,
+                                             model.tri, model.eleGma,
+                                             model.grid.domain, model.grid.grid, dt,
+                                             model.dissipation;
+                                             At=model.At, adaptive=model.adaptive,
+                                             CFL=model.CFL,
+                                             poisson_mode=model.poisson_mode,
+                                             parallel_fft=model.parallel_fft,
+                                             kernel=model.kernel, kwargs...)
     else
         dt_used = rk2_step_with_dissipation!(model.nodeX, model.nodeY, model.nodeZ,
                                              model.tri, model.eleGma,
