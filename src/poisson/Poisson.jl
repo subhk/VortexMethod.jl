@@ -16,8 +16,7 @@ export curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace,
        poisson_velocity_pencil_fft!,
        PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver,
        HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
-       solve_poisson!, solve_poisson_advanced!, solve_poisson_adaptive!,
-       solve_poisson_advanced_mpi!
+       solve_poisson!, solve_poisson_adaptive!, solve_poisson_mpi!
 
 end
 
@@ -27,5 +26,4 @@ using .Poisson: curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace,
                 poisson_velocity_pencil_fft!,
                 PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver,
                 HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
-                solve_poisson!, solve_poisson_advanced!, solve_poisson_adaptive!,
-                solve_poisson_advanced_mpi!
+                solve_poisson!, solve_poisson_adaptive!, solve_poisson_mpi!

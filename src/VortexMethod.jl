@@ -30,7 +30,7 @@ include("diagnostics/fast_linalg.jl")
 include("core/layout.jl")
 include("cache_optimization.jl")
 
-# Exports organized by source file for better maintainability
+# Exports organized by subsystem for better maintainability
 
 # domain.jl - Domain specification and periodic boundary conditions
 export DomainSpec, GridSpec,
@@ -50,7 +50,7 @@ export DomainSpec, GridSpec,
        interpolate_node_velocity_kernel_mpi,
        find_elements_nearby!,
 
-# poisson3d.jl - FFT-based Poisson solvers
+# Poisson FFT solvers
        poisson_velocity_fft, poisson_velocity_fft!, poisson_velocity_fft_mpi,
        poisson_velocity_fft_mpi!, poisson_velocity_pencil_fft,
        poisson_velocity_pencil_fft!,
@@ -90,10 +90,10 @@ export DomainSpec, GridSpec,
        element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
        curvature_based_remesh!, flow_adaptive_remesh!,
 
-# poisson_advanced.jl - Advanced Poisson solvers
+# Poisson solver types and adaptive solvers
        PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver,
        HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
-       solve_poisson_adaptive!, solve_poisson_advanced_mpi!,
+       solve_poisson_adaptive!, solve_poisson_mpi!,
 
 # vortex_sheets.jl - Vortex sheet tracking and evolution
        VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet,

@@ -396,7 +396,7 @@ function discrete_laplacian(u::Array{Float64,3}, dx::Float64, dy::Float64, dz::F
     return lap
 end
 
-# Advanced Poisson solver with automatic method selection
+# Adaptive Poisson solver with automatic method selection
 function solve_poisson_adaptive!(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
                                  domain::DomainSpec; bc::BoundaryCondition=PeriodicBC(), tolerance::Float64=1e-8)
     nz, ny, nx = size(u_rhs)
@@ -419,12 +419,9 @@ function solve_poisson_adaptive!(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3
     return solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
 end
 
-# Back-compatibility alias: provide the expected name
-const solve_poisson_advanced! = solve_poisson_adaptive!
-
-# MPI-parallel version of advanced solver
-function solve_poisson_advanced_mpi!(solver::PoissonSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
-                                    domain::DomainSpec)
+# MPI-parallel Poisson solver
+function solve_poisson_mpi!(solver::PoissonSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 
+                            domain::DomainSpec)
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     
