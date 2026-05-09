@@ -17,7 +17,7 @@
     model = VortexMethod.VortexSheetModel(;
         grid,
         sheet_size=(4, 4),
-        circulation=(0.0, 1.0, 0.0),
+        Γ=(0.0, 1.0, 0.0),
         amp=0.0,
     )
 
@@ -45,6 +45,14 @@
     Γ = fill(0.25, size(model.eleGma))
     VortexMethod.set!(model; circulation=Γ)
     @test model.eleGma == Γ
+
+    model_with_circulation_alias = VortexMethod.VortexSheetModel(;
+        grid,
+        sheet_size=(4, 4),
+        circulation=(0.0, 0.5, 0.0),
+        amp=0.0,
+    )
+    @test all(model_with_circulation_alias.eleGma[:, 2] .== 0.5)
 
     model_with_vector_at = VortexMethod.VortexSheetModel(; grid, sheet_size=(4, 4), At=zeros(size(model.tri, 1)))
     if VortexMethod.VortexSheetModel isa UnionAll

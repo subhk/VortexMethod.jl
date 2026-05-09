@@ -19,7 +19,7 @@ struct VortexWorkspace{T<:AbstractFloat}
     triZC_new::Matrix{T}
     eleGma_mid::Matrix{T}
     eleGma_new::Matrix{T}
-    nodeCirc::Matrix{T}
+    nodeΓ::Matrix{T}
     u1::Vector{T}
     v1::Vector{T}
     w1::Vector{T}
@@ -69,7 +69,7 @@ function VortexWorkspace(::Type{T}, nnodes::Int, ntri::Int,
         Matrix{T}(undef, ntri, 3), Matrix{T}(undef, ntri, 3), Matrix{T}(undef, ntri, 3),
         Matrix{T}(undef, ntri, 3), Matrix{T}(undef, ntri, 3), Matrix{T}(undef, ntri, 3),
         Matrix{T}(undef, ntri, 3), Matrix{T}(undef, ntri, 3),
-        Matrix{T}(undef, ntri, 3),   # nodeCirc
+        Matrix{T}(undef, ntri, 3),   # nodeΓ
         Vector{T}(undef, nnodes), Vector{T}(undef, nnodes), Vector{T}(undef, nnodes),
         Vector{T}(undef, nnodes), Vector{T}(undef, nnodes), Vector{T}(undef, nnodes),
         # Geometry cache

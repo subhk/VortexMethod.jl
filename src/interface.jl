@@ -122,7 +122,9 @@ end
 
 function VortexSheetModel(; grid::RectilinearGrid{T},
                           sheet_size::Tuple{Int,Int}=(16, 16),
-                          circulation=(0.0, 1.0, 0.0),
+                          Γ=nothing,
+                          gamma=nothing,
+                          circulation=nothing,
                           amp::Float64=1e-2,
                           At=nothing,
                           adaptive::Bool=false,
@@ -142,19 +144,24 @@ function VortexSheetModel(; grid::RectilinearGrid{T},
                                   Vector{T}(nodeZ), tri, eleGma, At_value, adaptive,
                                   T(CFL), poisson_mode, parallel_fft, dissipation,
                                   kernel, ws)
-    set!(model; circulation=circulation)
+    specified = count(!isnothing, (Γ, gamma, circulation))
+    specified <= 1 ||
+        throw(ArgumentError("provide only one of Γ, gamma, or circulation"))
+    Γ_value = Γ !== nothing ? Γ : gamma !== nothing ? gamma :
+              circulation !== nothing ? circulation : (0.0, 1.0, 0.0)
+    _assign_circulation!(model.eleGma, Γ_value)
     return model
 end
 
 function _assign_circulation!(eleGma::AbstractMatrix, Γ::AbstractMatrix)
     size(eleGma) == size(Γ) ||
-        throw(DimensionMismatch("circulation matrix size $(size(Γ)) does not match model eleGma size $(size(eleGma))"))
+        throw(DimensionMismatch("Γ matrix size $(size(Γ)) does not match model eleGma size $(size(eleGma))"))
     eleGma .= Γ
     return nothing
 end
 
 function _assign_circulation!(eleGma::AbstractMatrix, Γ)
-    length(Γ) == 3 || throw(ArgumentError("circulation must have three components"))
+    length(Γ) == 3 || throw(ArgumentError("Γ must have three components"))
     T = eltype(eleGma)
     γ₁, γ₂, γ₃ = T(Γ[1]), T(Γ[2]), T(Γ[3])
     @inbounds for t in axes(eleGma, 1)
@@ -169,9 +176,9 @@ function set!(model::VortexSheetModel; Γ=nothing, gamma=nothing, circulation=no
     specified = count(!isnothing, (Γ, gamma, circulation))
     specified <= 1 ||
         throw(ArgumentError("provide only one of Γ, gamma, or circulation"))
-    value = Γ !== nothing ? Γ : gamma !== nothing ? gamma : circulation
-    value === nothing && return model
-    _assign_circulation!(model.eleGma, value)
+    Γ_value = Γ !== nothing ? Γ : gamma !== nothing ? gamma : circulation
+    Γ_value === nothing && return model
+    _assign_circulation!(model.eleGma, Γ_value)
     return model
 end
 
