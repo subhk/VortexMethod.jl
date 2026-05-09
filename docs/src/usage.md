@@ -41,7 +41,7 @@ For the high-level interface:
 using VortexMethod
 
 grid = RectilinearGrid(size=(32, 32, 63), x=(0, 1), y=(0, 1), z=(-1, 1))
-model = VortexSheetModel(; grid, sheet_size=(32, 32), circulation=(0, 1, 0))
+model = VortexSheetModel(; grid, sheet_size=(32, 32), Γ=(0, 1, 0))
 simulation = Simulation(model; Δt=1e-3, stop_iteration=10)
 run!(simulation)
 ```

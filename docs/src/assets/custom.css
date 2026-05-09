@@ -17,6 +17,10 @@
     --vm-code-fg: #dbeafe;
     --vm-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
     --vm-radius: 8px;
+    --julia-purple: #9558b2;
+    --julia-green: #389826;
+    --julia-red: #cb3c33;
+    --julia-blue: #4063d8;
 }
 
 html.theme--documenter-dark,
@@ -330,6 +334,45 @@ html[class*="theme--"] #documenter .docs-main header.docs-navbar {
     border-radius: var(--vm-radius);
     background: var(--vm-code-bg);
     box-shadow: var(--vm-shadow);
+}
+
+#documenter-page pre:has(code.language-julia) {
+    position: relative;
+    padding-top: 2rem;
+    border-color: rgba(149, 88, 178, 0.45);
+    background:
+        linear-gradient(180deg, rgba(149, 88, 178, 0.16), transparent 2.15rem),
+        var(--vm-code-bg);
+    box-shadow:
+        0 18px 45px rgba(15, 23, 42, 0.12),
+        inset 0 3px 0 var(--julia-purple);
+}
+
+#documenter-page pre:has(code.language-julia)::before {
+    content: "";
+    position: absolute;
+    top: 0.72rem;
+    left: 1rem;
+    width: 0.72rem;
+    height: 0.72rem;
+    border-radius: 50%;
+    background: var(--julia-red);
+    box-shadow:
+        1.05rem 0 0 var(--julia-green),
+        2.1rem 0 0 var(--julia-blue);
+}
+
+#documenter-page pre:has(code.language-julia)::after {
+    content: "Julia";
+    position: absolute;
+    top: 0.52rem;
+    right: 0.95rem;
+    color: #c4b5fd;
+    font-family: "JuliaMono", "SFMono-Regular", "Menlo", "Consolas", monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 #documenter-page pre code {

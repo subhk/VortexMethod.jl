@@ -126,7 +126,7 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma,
         triZC[t,k] = nodeZ[v]
     end
 
-    # compute node circulation from current gamma
+    # compute node Γ from current gamma
     nodeΓ = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma; domain=domain)
 
     # adaptive dt based on grid max speed if requested
@@ -163,7 +163,7 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma,
         nodeΓ .+= dTau
     end
 
-    # recompute gamma at half-step geometry from updated node circulation
+    # recompute gamma at half-step geometry from updated node Γ
     eleGma_mid = ele_gamma_from_node_circ(nodeΓ, triXC, triYC, triZC; domain=domain)
     u2, v2, w2 = node_velocities(eleGma_mid, triXC, triYC, triZC, xh, yh, zh, domain, gr; 
                                 poisson_mode=poisson_mode, parallel_fft=parallel_fft)
@@ -192,7 +192,7 @@ function rk2_step!(nodeX, nodeY, nodeZ, tri, eleGma,
         nodeΓ .+= dTau2
     end
 
-    # produce gamma at new geometry from node circulation
+    # produce gamma at new geometry from node Γ
     eleGma_new = ele_gamma_from_node_circ(nodeΓ, triXC_new, triYC_new, triZC_new; domain=domain)
     eleGma .= eleGma_new
 
@@ -222,7 +222,7 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma,
     # Apply dissipation at beginning of step
     eleGma = apply_dissipation!(dissipation_model, eleGma, triXC, triYC, triZC, domain, gr, 0.5*dt)
 
-    # compute node circulation from current gamma
+    # compute node Γ from current gamma
     nodeΓ = node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma; domain=domain)
     
     # adaptive dt based on grid max speed if requested
@@ -276,7 +276,7 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma,
         nodeΓ .+= dTau
     end
     
-    # recompute gamma at half-step geometry from updated node circulation
+    # recompute gamma at half-step geometry from updated node Γ
     eleGma_mid = ele_gamma_from_node_circ(nodeΓ, triXC, triYC, triZC; domain=domain)
     
     # Apply dissipation at mid-step
@@ -323,7 +323,7 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma,
         nodeΓ .+= dTau2
     end
     
-    # produce gamma at new geometry from node circulation
+    # produce gamma at new geometry from node Γ
     eleGma_new = ele_gamma_from_node_circ(nodeΓ, triXC_new, triYC_new, triZC_new; domain=domain)
     eleGma .= eleGma_new
 

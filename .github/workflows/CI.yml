@@ -44,11 +44,15 @@ jobs:
           lcov: true
       - name: Upload to Codecov
         if: matrix.version == '1.12' && matrix.os == 'ubuntu-latest'
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
-          files: lcov.info
+          files: ./lcov.info
+          disable_search: true
           flags: unittests
-          fail_ci_if_error: false
+          name: julia-1.12-ubuntu
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          verbose: true
 
   mpi-test:
     runs-on: ubuntu-latest

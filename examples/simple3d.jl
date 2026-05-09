@@ -11,7 +11,7 @@ grid = RectilinearGrid(size=(8, 8, 7),
 
 model = VortexSheetModel(; grid,
                          sheet_size=(5, 5),
-                         circulation=(0.0, 1.0, 0.0),
+                         Γ=(0.0, 1.0, 0.0),
                          amp=0.0)
 
 simulation = Simulation(model; Δt=0.0, stop_iteration=1)

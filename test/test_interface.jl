@@ -53,6 +53,13 @@
         amp=0.0,
     )
     @test all(model_with_circulation_alias.eleGma[:, 2] .== 0.5)
+    @test_throws ArgumentError VortexMethod.VortexSheetModel(;
+        grid,
+        sheet_size=(4, 4),
+        Γ=(0.0, 1.0, 0.0),
+        circulation=(0.0, 0.5, 0.0),
+        amp=0.0,
+    )
 
     model_with_vector_at = VortexMethod.VortexSheetModel(; grid, sheet_size=(4, 4), At=zeros(size(model.tri, 1)))
     if VortexMethod.VortexSheetModel isa UnionAll

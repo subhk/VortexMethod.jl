@@ -7,8 +7,8 @@ This page lists the main user-facing entry points. See docstrings and source for
 - Topologies: `Periodic`, `Bounded`, `Flat`
 - `RectilinearGrid(; size, x=(0,1), y=(0,1), z=(-1,1), extent=nothing, topology=(Periodic, Periodic, Periodic))`
   currently validates periodic topology for the FFT-based solver path.
-- `VortexSheetModel(; grid, sheet_size=(16,16), circulation=(0,1,0), amp=1e-2, kwargs...)`
-- `set!(model; circulation=...)` or `set!(model; Γ=...)`
+- `VortexSheetModel(; grid, sheet_size=(16,16), Γ=(0,1,0), amp=1e-2, kwargs...)`
+- `set!(model; Γ=...)` (`gamma=` and `circulation=` remain accepted aliases)
 - `time_step!(model, Δt; kwargs...)`
 - `Simulation(model; Δt, stop_iteration=nothing, stop_time=Inf)`
 - `run!(simulation)`

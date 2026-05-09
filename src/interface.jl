@@ -149,18 +149,18 @@ function VortexSheetModel(; grid::RectilinearGrid{T},
         throw(ArgumentError("provide only one of Γ, gamma, or circulation"))
     Γ_value = Γ !== nothing ? Γ : gamma !== nothing ? gamma :
               circulation !== nothing ? circulation : (0.0, 1.0, 0.0)
-    _assign_circulation!(model.eleGma, Γ_value)
+    _assign_Γ!(model.eleGma, Γ_value)
     return model
 end
 
-function _assign_circulation!(eleGma::AbstractMatrix, Γ::AbstractMatrix)
+function _assign_Γ!(eleGma::AbstractMatrix, Γ::AbstractMatrix)
     size(eleGma) == size(Γ) ||
         throw(DimensionMismatch("Γ matrix size $(size(Γ)) does not match model eleGma size $(size(eleGma))"))
     eleGma .= Γ
     return nothing
 end
 
-function _assign_circulation!(eleGma::AbstractMatrix, Γ)
+function _assign_Γ!(eleGma::AbstractMatrix, Γ)
     length(Γ) == 3 || throw(ArgumentError("Γ must have three components"))
     T = eltype(eleGma)
     γ₁, γ₂, γ₃ = T(Γ[1]), T(Γ[2]), T(Γ[3])
@@ -178,7 +178,7 @@ function set!(model::VortexSheetModel; Γ=nothing, gamma=nothing, circulation=no
         throw(ArgumentError("provide only one of Γ, gamma, or circulation"))
     Γ_value = Γ !== nothing ? Γ : gamma !== nothing ? gamma : circulation
     Γ_value === nothing && return model
-    _assign_circulation!(model.eleGma, Γ_value)
+    _assign_Γ!(model.eleGma, Γ_value)
     return model
 end
 
