@@ -2,7 +2,7 @@ module TimeStepper
 
 using MPI
 using ..DomainImpl
-using ..Poisson3D
+using ..Poisson
 using ..Peskin3D
 using ..Circulation
 using ..Dissipation

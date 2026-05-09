@@ -56,7 +56,7 @@ end
     w_rhs = fill(0.125, nz, ny, nx)
 
     fft_solver = VortexMethod.FFTSolver()
-    ux, uy, uz = @inferred VortexMethod.PoissonAdvanced.solve_poisson!(
+    ux, uy, uz = @inferred VortexMethod.Poisson.solve_poisson!(
         fft_solver, u_rhs, v_rhs, w_rhs, domain,
     )
     @test size(ux) == size(u_rhs)
@@ -66,7 +66,7 @@ end
     hybrid_solver = VortexMethod.HybridSolver(fft_solver, VortexMethod.FFTSolver(), Inf)
     @test fieldtype(typeof(hybrid_solver), :primary) === typeof(hybrid_solver.primary)
     @test fieldtype(typeof(hybrid_solver), :fallback) === typeof(hybrid_solver.fallback)
-    @test @inferred(VortexMethod.PoissonAdvanced.solve_poisson!(
+    @test @inferred(VortexMethod.Poisson.solve_poisson!(
         hybrid_solver, u_rhs, v_rhs, w_rhs, domain,
     )) isa NTuple{3,Array{Float64,3}}
 end
@@ -111,5 +111,5 @@ end
 end
 
 @testset "Curl RHS workspace does not retain old derivative buffers" begin
-    @test fieldcount(VortexMethod.Poisson3D.PoissonWorkspace{Float64}) == 0
+    @test fieldcount(VortexMethod.Poisson.PoissonWorkspace{Float64}) == 0
 end

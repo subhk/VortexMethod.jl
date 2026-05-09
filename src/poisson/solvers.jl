@@ -1,19 +1,6 @@
 # Advanced Poisson solvers for 3D vortex methods
 # Implements multiple solution methods described in thesis Chapter 3.2
 
-module PoissonAdvanced
-
-using FFTW
-using MPI
-using SparseArrays
-using LinearAlgebra
-using ..DomainImpl
-using ..Poisson3D: poisson_velocity_fft
-
-export PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver, 
-       HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
-       solve_poisson!, solve_poisson_advanced!, solve_poisson_adaptive!
-
 abstract type PoissonSolver end
 abstract type BoundaryCondition end
 
@@ -456,10 +443,3 @@ function solve_poisson_advanced_mpi!(solver::PoissonSolver, u_rhs::Array{Float64
     
     return Ux, Uy, Uz
 end
-
-end # module
-
-using .PoissonAdvanced: PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver, 
-                        HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
-                        solve_poisson!, solve_poisson_advanced!, solve_poisson_adaptive!,
-                        solve_poisson_advanced_mpi!

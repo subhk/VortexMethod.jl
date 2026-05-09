@@ -1,18 +1,5 @@
 # 3D FFT-based Poisson solver and curl RHS
 
-module Poisson3D
-
-using FFTW
-using MPI
-using PencilFFTs
-using LinearAlgebra
-using ..DomainImpl
-
-export curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace, 
-       poisson_velocity_fft, poisson_velocity_fft!, poisson_velocity_fft_mpi,
-       poisson_velocity_fft_mpi!, poisson_velocity_pencil_fft,
-       poisson_velocity_pencil_fft!
-
 # Compatibility token for the in-place curl RHS API. The second-order periodic
 # stencil computes directly into the output arrays and needs no derivative buffers.
 struct PoissonWorkspace{T<:AbstractFloat}
@@ -549,10 +536,3 @@ function poisson_velocity_fft_mpi!(Ux::Array{T,3}, Uy::Array{T,3}, Uz::Array{T,3
     MPI.Bcast!(Uz, 0, comm)
     return Ux, Uy, Uz
 end
-
-end # module
-
-using .Poisson3D: curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace, 
-                  poisson_velocity_fft, poisson_velocity_fft!, poisson_velocity_fft_mpi,
-                  poisson_velocity_fft_mpi!, poisson_velocity_pencil_fft,
-                  poisson_velocity_pencil_fft!
