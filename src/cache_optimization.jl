@@ -62,9 +62,9 @@ TiledPoissonSolver(nx::Int, ny::Int, nz::Int; kwargs...) = TiledPoissonSolver(Fl
 # Cache-optimized curl computation using tiling
 function tiled_curl_computation!(solver::TiledPoissonSolver{T},
                                 u_rhs::Array{T,3}, v_rhs::Array{T,3}, w_rhs::Array{T,3},
-                                VorX::Array{T,3}, VorY::Array{T,3}, VorZ::Array{T,3},
+                                ζx::Array{T,3}, ζy::Array{T,3}, ζz::Array{T,3},
                                 dx::T, dy::T, dz::T) where T
-    nz, ny, nx = size(VorX)
+    nz, ny, nx = size(ζx)
     tile_x, tile_y, tile_z = solver.tile_x, solver.tile_y, solver.tile_z
     
     # Process grid in cache-friendly tiles
@@ -76,7 +76,7 @@ function tiled_curl_computation!(solver::TiledPoissonSolver{T},
                 i_end = min(i_start + tile_x - 1, nx)
                 
                 # Process tile with good spatial locality
-                process_curl_tile!(solver, u_rhs, v_rhs, w_rhs, VorX, VorY, VorZ,
+                process_curl_tile!(solver, u_rhs, v_rhs, w_rhs, ζx, ζy, ζz,
                                  i_start:i_end, j_start:j_end, k_start:k_end, dx, dy, dz)
             end
         end
@@ -85,7 +85,7 @@ end
 
 function process_curl_tile!(solver::TiledPoissonSolver{T},
                            u_rhs::Array{T,3}, v_rhs::Array{T,3}, w_rhs::Array{T,3},
-                           VorX::Array{T,3}, VorY::Array{T,3}, VorZ::Array{T,3},
+                           ζx::Array{T,3}, ζy::Array{T,3}, ζz::Array{T,3},
                            i_range, j_range, k_range, dx::T, dy::T, dz::T) where T
 
     # Load tile data into cache-friendly input buffers
@@ -99,9 +99,9 @@ function process_curl_tile!(solver::TiledPoissonSolver{T},
     @inbounds for (kk, k) in enumerate(k_range)
         for (jj, j) in enumerate(j_range)
             for (ii, i) in enumerate(i_range)
-                tile_vorx[kk, jj, ii] = VorX[k, j, i]
-                tile_vory[kk, jj, ii] = VorY[k, j, i]
-                tile_vorz[kk, jj, ii] = VorZ[k, j, i]
+                tile_vorx[kk, jj, ii] = ζx[k, j, i]
+                tile_vory[kk, jj, ii] = ζy[k, j, i]
+                tile_vorz[kk, jj, ii] = ζz[k, j, i]
             end
         end
     end
@@ -135,19 +135,19 @@ function compute_tile_derivatives!(solver::TiledPoissonSolver{T}, dx::T, dy::T, 
         for j in 2:tile_ny-1
             for i in 2:tile_nx-1
                 # Central differences
-                dVorY_dz = (tile_vory[k+1,j,i] - tile_vory[k-1,j,i]) / (2*dz)
-                dVorZ_dy = (tile_vorz[k,j+1,i] - tile_vorz[k,j-1,i]) / (2*dy)
+                dζy_dz = (tile_vory[k+1,j,i] - tile_vory[k-1,j,i]) / (2*dz)
+                dζz_dy = (tile_vorz[k,j+1,i] - tile_vorz[k,j-1,i]) / (2*dy)
 
-                dVorX_dz = (tile_vorx[k+1,j,i] - tile_vorx[k-1,j,i]) / (2*dz)
-                dVorZ_dx = (tile_vorz[k,j,i+1] - tile_vorz[k,j,i-1]) / (2*dx)
+                dζx_dz = (tile_vorx[k+1,j,i] - tile_vorx[k-1,j,i]) / (2*dz)
+                dζz_dx = (tile_vorz[k,j,i+1] - tile_vorz[k,j,i-1]) / (2*dx)
 
-                dVorX_dy = (tile_vorx[k,j+1,i] - tile_vorx[k,j-1,i]) / (2*dy)
-                dVorY_dx = (tile_vory[k,j,i+1] - tile_vory[k,j,i-1]) / (2*dx)
+                dζx_dy = (tile_vorx[k,j+1,i] - tile_vorx[k,j-1,i]) / (2*dy)
+                dζy_dx = (tile_vory[k,j,i+1] - tile_vory[k,j,i-1]) / (2*dx)
 
                 # Store curl in output buffers (separate from input)
-                tile_u_rhs[k,j,i] = -(dVorZ_dy - dVorY_dz)
-                tile_v_rhs[k,j,i] = -(dVorX_dz - dVorZ_dx)
-                tile_w_rhs[k,j,i] = -(dVorY_dx - dVorX_dy)
+                tile_u_rhs[k,j,i] = -(dζz_dy - dζy_dz)
+                tile_v_rhs[k,j,i] = -(dζx_dz - dζz_dx)
+                tile_w_rhs[k,j,i] = -(dζy_dx - dζx_dy)
             end
         end
     end

@@ -45,8 +45,10 @@ export DomainSpec, GridSpec,
 
 # peskin3d.jl - MPI parallel spreading and interpolation
        init_mpi!, finalize_mpi!,
-       spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_kernel_mpi,
-       interpolate_node_velocity_mpi, interpolate_node_velocity_kernel_mpi,
+       spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
+       spread_vorticity_to_grid_kernel_mpi,
+       interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
+       interpolate_node_velocity_kernel_mpi,
        find_elements_nearby!,
 
 # poisson3d.jl - FFT-based Poisson solvers

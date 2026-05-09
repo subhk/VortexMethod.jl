@@ -196,18 +196,18 @@ function apply_dissipation!(model::SmagorinskyModel, eleGma::AbstractMatrix,
     nt = size(eleGma, 1)
     dx, dy, dz = grid_spacing(domain, gr)
 
-    VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
-    u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+    ζx, ζy, ζz = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
+    u_rhs, v_rhs, w_rhs = curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
     Ux, Uy, Uz = poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, domain)
 
     strain_mag = strain_magnitude_grid(Ux, Uy, Uz, dx, dy, dz)
     delta = (dx * dy * dz)^(1/3)
     nu_t = (model.Cs * delta)^2 .* strain_mag
 
-    div_omega = derivative_x(VorX, dx) .+ derivative_y(VorY, dy) .+ derivative_z(VorZ, dz)
-    dwdt_x = nu_t .* (laplacian_periodic(VorX, dx, dy, dz) .- derivative_x(div_omega, dx))
-    dwdt_y = nu_t .* (laplacian_periodic(VorY, dx, dy, dz) .- derivative_y(div_omega, dy))
-    dwdt_z = nu_t .* (laplacian_periodic(VorZ, dx, dy, dz) .- derivative_z(div_omega, dz))
+    div_omega = derivative_x(ζx, dx) .+ derivative_y(ζy, dy) .+ derivative_z(ζz, dz)
+    dwdt_x = nu_t .* (laplacian_periodic(ζx, dx, dy, dz) .- derivative_x(div_omega, dx))
+    dwdt_y = nu_t .* (laplacian_periodic(ζy, dx, dy, dz) .- derivative_y(div_omega, dy))
+    dwdt_z = nu_t .* (laplacian_periodic(ζz, dx, dy, dz) .- derivative_z(div_omega, dz))
 
     @inbounds for t in 1:nt
         p1 = (triXC[t,1], triYC[t,1], triZC[t,1])

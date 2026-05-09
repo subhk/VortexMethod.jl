@@ -18,9 +18,9 @@ eleGma = zeros(Float64, nt, 3)
 eleGma[:,2] .= 1.0  # simple nonzero gamma to exercise kernels
 
 # Spread to grid (MPI) and run Poisson
-VorX, VorY, VorZ = VortexMethod.spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
+ζx, ζy, ζz = VortexMethod.spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
 dx,dy,dz = VortexMethod.grid_spacing(domain, gr)
-u_rhs, v_rhs, w_rhs = VortexMethod.curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+u_rhs, v_rhs, w_rhs = VortexMethod.curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
 Ux, Uy, Uz = VortexMethod.poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, domain; mode=:spectral)
 
 # Interpolate back on a handful of nodes (MPI)
@@ -29,7 +29,7 @@ u, v, w = VortexMethod.interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX[sel], nod
 
 # Basic sanity assertions on rank 0
 if rank == 0
-    @assert size(VorX) == (gr.nz, gr.ny, gr.nx)
+    @assert size(ζx) == (gr.nz, gr.ny, gr.nx)
     @assert size(Ux)   == (gr.nz, gr.ny, gr.nx)
     @assert length(u)  == length(sel)
 end

@@ -4,6 +4,7 @@ module Peskin3D
 
 using ..DomainImpl
 using ..Kernels
+using ..Circulation: compute_triangle_geometry!
 using MPI
 using StaticArrays
 using ..Workspace: VortexWorkspace
@@ -11,8 +12,10 @@ using ..Workspace: VortexWorkspace
 export init_mpi!, finalize_mpi!,
        triangle_centroids, triangle_areas,
        subtriangle_centroids, subtriangle_centroids4,
-       spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_kernel_mpi,
-       interpolate_node_velocity_mpi, interpolate_node_velocity_kernel_mpi,
+       spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
+       spread_vorticity_to_grid_kernel_mpi,
+       interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
+       interpolate_node_velocity_kernel_mpi,
        find_elements_nearby!
 
 init_mpi!() = (MPI.Initialized() || MPI.Init(); nothing)
@@ -82,16 +85,28 @@ end
     return SVector{3,T}(T(xw), T(yw), T(zw))
 end
 
-function subtriangle_centroids(p1::NTuple{3,Float64}, p2::NTuple{3,Float64},
-                               p3::NTuple{3,Float64}, M::Integer;
-                               domain::Union{Nothing,DomainSpec}=nothing)
+@inline function periodic_shifts_svector(::Type{T}, domain::DomainSpec) where T
+    return ntuple(Val(27)) do i
+        q = i - 1
+        sx = fld(q, 9) - 1
+        sy = fld(mod(q, 9), 3) - 1
+        sz = mod(q, 3) - 1
+        SVector{3,T}(T(sx) * T(domain.Lx),
+                     T(sy) * T(domain.Ly),
+                     T(sz) * T(2 * domain.Lz))
+    end
+end
+
+function subtriangle_centroids(p1::NTuple{3,T}, p2::NTuple{3,T},
+                               p3::NTuple{3,T}, M::Integer;
+                               domain::Union{Nothing,DomainSpec}=nothing) where {T<:AbstractFloat}
     M >= 1 || throw(ArgumentError("subtriangle segment count M must be >= 1"))
     # pack into SVector for use with updated bary_point/centroid3
     raw_a, raw_b, raw_c = domain === nothing ? (p1, p2, p3) : unwrap_triangle(p1, p2, p3, domain)
-    a = SVector{3,Float64}(raw_a[1], raw_a[2], raw_a[3])
-    b = SVector{3,Float64}(raw_b[1], raw_b[2], raw_b[3])
-    c = SVector{3,Float64}(raw_c[1], raw_c[2], raw_c[3])
-    T = Array{Float64}(undef, M * M, 3)
+    a = SVector{3,T}(T(raw_a[1]), T(raw_a[2]), T(raw_a[3]))
+    b = SVector{3,T}(T(raw_b[1]), T(raw_b[2]), T(raw_b[3]))
+    c = SVector{3,T}(T(raw_c[1]), T(raw_c[2]), T(raw_c[3]))
+    C = Array{T}(undef, M * M, 3)
     idx = 1
 
     if M == 2
@@ -106,10 +121,10 @@ function subtriangle_centroids(p1::NTuple{3,Float64}, p2::NTuple{3,Float64},
             v2 = bary_point(a, b, c, tri_idx[2][1], tri_idx[2][2], M)
             v3 = bary_point(a, b, c, tri_idx[3][1], tri_idx[3][2], M)
             ct = maybe_wrap(centroid3(v1, v2, v3), domain)
-            T[idx, 1] = ct[1]; T[idx, 2] = ct[2]; T[idx, 3] = ct[3]
+            C[idx, 1] = ct[1]; C[idx, 2] = ct[2]; C[idx, 3] = ct[3]
             idx += 1
         end
-        return T
+        return C
     end
 
     @inbounds for i in 0:M-1, j in 0:M-1-i
@@ -117,21 +132,21 @@ function subtriangle_centroids(p1::NTuple{3,Float64}, p2::NTuple{3,Float64},
         v2 = bary_point(a, b, c, i + 1, j, M)
         v3 = bary_point(a, b, c, i, j + 1, M)
         ct = maybe_wrap(centroid3(v1, v2, v3), domain)
-        T[idx, 1] = ct[1]; T[idx, 2] = ct[2]; T[idx, 3] = ct[3]
+        C[idx, 1] = ct[1]; C[idx, 2] = ct[2]; C[idx, 3] = ct[3]
         idx += 1
         if i + j <= M - 2
             v1 = bary_point(a, b, c, i + 1, j, M)
             v2 = bary_point(a, b, c, i + 1, j + 1, M)
             v3 = bary_point(a, b, c, i, j + 1, M)
             ct = maybe_wrap(centroid3(v1, v2, v3), domain)
-            T[idx, 1] = ct[1]; T[idx, 2] = ct[2]; T[idx, 3] = ct[3]
+            C[idx, 1] = ct[1]; C[idx, 2] = ct[2]; C[idx, 3] = ct[3]
             idx += 1
         end
     end
-    return T
+    return C
 end
 
-subtriangle_centroids4(p1::NTuple{3,Float64}, p2::NTuple{3,Float64}, p3::NTuple{3,Float64}) =
+subtriangle_centroids4(p1::NTuple{3,T}, p2::NTuple{3,T}, p3::NTuple{3,T}) where T<:AbstractFloat =
     subtriangle_centroids(p1, p2, p3, 2)
 
 # Build 4-subtriangle centroids for all triangles
@@ -235,10 +250,19 @@ function peskin_add_nearby!(acc::SVector{3,T}, eleGma::AbstractMatrix{T},
                             coord::SVector{3,T}, delr::T,
                             eps::SVector{3,T},
                             shift::SVector{3,T}) where T<:AbstractFloat
+    return peskin_add_nearby_nsub!(acc, eleGma, triC, subC, triAreas,
+                                   size(subC, 2), coord, delr, eps, shift)
+end
+
+function peskin_add_nearby_nsub!(acc::SVector{3,T}, eleGma::AbstractMatrix{T},
+                                 triC::AbstractMatrix{T}, subC::Array{T,3},
+                                 triAreas::AbstractVector{T}, n_sub::Int,
+                                 coord::SVector{3,T}, delr::T,
+                                 eps::SVector{3,T},
+                                 shift::SVector{3,T}) where T<:AbstractFloat
     sx = acc[1]; sy = acc[2]; sz = acc[3]
     x = coord[1]; y = coord[2]; z = coord[3]
     epsx = eps[1]; epsy = eps[2]; epsz = eps[3]
-    n_sub = size(subC, 2)
     inv_n_sub = one(T) / T(n_sub)
     scale = one(T) / (T(8) * delr^3)
 
@@ -263,25 +287,26 @@ function peskin_add_nearby!(acc::SVector{3,T}, eleGma::AbstractMatrix{T},
     return SVector{3,T}(sx, sy, sz)
 end
 
-function peskin_add_nearby_kernel!(acc::SVector{3,Float64}, eleGma::AbstractMatrix,
-                                   triC::AbstractMatrix, subC, triAreas,
-                                   coord::SVector{3,Float64}, kernel::KernelType,
-                                   eps::SVector{3,Float64},
-                                   shift::SVector{3,Float64})
+function peskin_add_nearby_kernel!(acc::SVector{3,T}, eleGma::AbstractMatrix{T},
+                                   triC::AbstractMatrix{T}, subC::Array{T,3},
+                                   triAreas::AbstractVector{T},
+                                   coord::SVector{3,T}, kernel::KernelType,
+                                   eps::SVector{3,T},
+                                   shift::SVector{3,T}) where T<:AbstractFloat
     sx = acc[1]; sy = acc[2]; sz = acc[3]
     x = coord[1]; y = coord[2]; z = coord[3]
     epsx = eps[1]; epsy = eps[2]; epsz = eps[3]
-    delr = kernel_support_radius(kernel)
+    delr = T(kernel_support_radius(kernel))
     hx = epsx/delr; hy = epsy/delr; hz = epsz/delr
     n_sub = size(subC, 2)
-    inv_n_sub = 1.0 / n_sub
+    inv_n_sub = one(T) / T(n_sub)
 
     @inbounds for idx in 1:size(triC, 1)
         cx = triC[idx,1] + shift[1]
         cy = triC[idx,2] + shift[2]
         cz = triC[idx,3] + shift[3]
         if abs(cx - x) <= epsx && abs(cy - y) <= epsy && abs(cz - z) <= epsz
-            S = 0.0
+            S = zero(T)
             @simd for s in 1:n_sub
                 dx = x - (subC[idx,s,1] + shift[1])
                 dy = y - (subC[idx,s,2] + shift[2])
@@ -294,7 +319,7 @@ function peskin_add_nearby_kernel!(acc::SVector{3,Float64}, eleGma::AbstractMatr
             sz += w * eleGma[idx,3]
         end
     end
-    return SVector{3,Float64}(sx, sy, sz)
+    return SVector{3,T}(sx, sy, sz)
 end
 
 # Accumulate vorticity at a coordinate from periodic tiles (9 tiles in xy like python)
@@ -305,9 +330,7 @@ function peskin_grid_sum(eleGma::AbstractMatrix{Float64}, triC::AbstractMatrix{F
     eps = SVector{3,Float64}(delr*ds[1], delr*ds[2], delr*ds[3])
     sv_coord = SVector{3,Float64}(coord[1], coord[2], coord[3])
     acc = SVector{3,Float64}(0.0, 0.0, 0.0)
-    raw_shifts = periodic_shifts(domain)
-    shifts_svec = ntuple(i -> SVector{3,Float64}(raw_shifts[i][1], raw_shifts[i][2], raw_shifts[i][3]), 27)
-    for shift in shifts_svec
+    for shift in periodic_shifts_svector(Float64, domain)
         acc = peskin_add_nearby!(acc, eleGma, triC, subC, triAreas,
                                  sv_coord, Float64(delr), eps, shift)
     end
@@ -321,13 +344,169 @@ function peskin_grid_sum_kernel(eleGma, triC, subC, coord::NTuple{3,Float64}, ds
     eps = SVector{3,Float64}(delr*ds[1], delr*ds[2], delr*ds[3])
     sv_coord = SVector{3,Float64}(coord[1], coord[2], coord[3])
     acc = SVector{3,Float64}(0.0, 0.0, 0.0)
-    raw_shifts = periodic_shifts(domain)
-    shifts_svec = ntuple(i -> SVector{3,Float64}(raw_shifts[i][1], raw_shifts[i][2], raw_shifts[i][3]), 27)
-    for shift in shifts_svec
+    for shift in periodic_shifts_svector(Float64, domain)
         acc = peskin_add_nearby_kernel!(acc, eleGma, triC, subC, triAreas,
                                        sv_coord, kernel, eps, shift)
     end
     return acc[1], acc[2], acc[3]
+end
+
+function _recompute_geometry!(ws::VortexWorkspace{T},
+                              triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
+                              domain::DomainSpec, gr::GridSpec) where T<:AbstractFloat
+    dx, dy, dz = grid_spacing(domain, gr)
+    max_segments = isqrt(ws.nsub_max)
+    segments = subtriangle_segment_count(triXC, triYC, triZC, (dx, dy, dz);
+                                         domain=domain, max_segments=max_segments)
+    nsub = segments * segments
+    ws.nsub[] = nsub
+
+    @inbounds for t in 1:size(triXC, 1)
+        p1 = (T(triXC[t,1]), T(triYC[t,1]), T(triZC[t,1]))
+        p2 = (T(triXC[t,2]), T(triYC[t,2]), T(triZC[t,2]))
+        p3 = (T(triXC[t,3]), T(triYC[t,3]), T(triZC[t,3]))
+
+        cx, cy, cz = periodic_centroid(p1, p2, p3, domain)
+        ws.triC[t,1] = T(cx)
+        ws.triC[t,2] = T(cy)
+        ws.triC[t,3] = T(cz)
+        ws.areas[t] = T(periodic_triangle_area(p1, p2, p3, domain))
+
+        subs = subtriangle_centroids(p1, p2, p3, segments; domain=domain)
+        for s in 1:nsub
+            ws.subC[t,s,1] = subs[s,1]
+            ws.subC[t,s,2] = subs[s,2]
+            ws.subC[t,s,3] = subs[s,3]
+        end
+    end
+
+    compute_triangle_geometry!(ws.geom, triXC, triYC, triZC; domain=domain)
+    return nothing
+end
+
+function copy_periodic_boundaries!(A::AbstractArray{T,3}) where T
+    @views begin
+        A[end, :, :] .= A[1, :, :]
+        A[:, end, :] .= A[:, 1, :]
+        A[:, :, end] .= A[:, :, 1]
+    end
+    return A
+end
+
+function spread_vorticity_to_grid_mpi!(ws::VortexWorkspace{T},
+                                       eleGma::AbstractMatrix{T},
+                                       triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
+                                       domain::DomainSpec, gr::GridSpec) where T<:AbstractFloat
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    nprocs = MPI.Comm_size(comm)
+
+    if ws.geom_dirty[]
+        _recompute_geometry!(ws, triXC, triYC, triZC, domain, gr)
+        ws.geom_dirty[] = false
+    end
+
+    dx, dy, dz = grid_spacing(domain, gr)
+    nx, ny, nz = gr.nx, gr.ny, gr.nz
+    nsub = ws.nsub[]
+    inv_cell_volume = one(T) / T(dx * dy * dz)
+    delr = T(4)
+    eps = SVector{3,T}(delr * T(dx), delr * T(dy), delr * T(dz))
+
+    fill!(ws.local_buf, zero(T))
+
+    idx = 1
+    @inbounds for i in 1:nx, j in 1:ny, k in 1:nz
+        if mod(idx - 1, nprocs) == rank
+            coord = SVector{3,T}(T(i - 1) * T(dx),
+                                 T(j - 1) * T(dy),
+                                 -T(domain.Lz) + T(k - 1) * T(dz))
+            acc = SVector{3,T}(zero(T), zero(T), zero(T))
+            for shift in ws.shifts
+                acc = peskin_add_nearby_nsub!(acc, eleGma, ws.triC, ws.subC,
+                                              ws.areas, nsub, coord, delr, eps, shift)
+            end
+            ws.local_buf[idx,1] = acc[1] * inv_cell_volume
+            ws.local_buf[idx,2] = acc[2] * inv_cell_volume
+            ws.local_buf[idx,3] = acc[3] * inv_cell_volume
+        end
+        idx += 1
+    end
+
+    MPI.Allreduce!(ws.local_buf, ws.global_buf, MPI.SUM, comm)
+
+    @inbounds for idx in 1:(nx * ny * nz)
+        ws.ζx[idx] = ws.global_buf[idx,1]
+        ws.ζy[idx] = ws.global_buf[idx,2]
+        ws.ζz[idx] = ws.global_buf[idx,3]
+    end
+
+    copy_periodic_boundaries!(ws.ζx)
+    copy_periodic_boundaries!(ws.ζy)
+    copy_periodic_boundaries!(ws.ζz)
+    return nothing
+end
+
+function interpolate_node_velocity_mpi!(ws::VortexWorkspace{T},
+                                        gridUx::Array{T,3}, gridUy::Array{T,3}, gridUz::Array{T,3},
+                                        nodeX::AbstractVector{T}, nodeY::AbstractVector{T},
+                                        nodeZ::AbstractVector{T},
+                                        domain::DomainSpec, gr::GridSpec) where T<:AbstractFloat
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    nprocs = MPI.Comm_size(comm)
+
+    nx, ny, nz = gr.nx, gr.ny, gr.nz
+    dx, dy, dz = grid_spacing(domain, gr)
+    delr = T(4)
+    epsx = delr * T(dx)
+    epsy = delr * T(dy)
+    epsz = delr * T(dz)
+    scale = one(T) / (T(8) * delr^3)
+
+    N = length(nodeX)
+    fill!(ws.local_buf, zero(T))
+
+    @inbounds for i in (rank + 1):nprocs:N
+        xc = nodeX[i]
+        yc = nodeY[i]
+        zc = nodeZ[i]
+        sx = zero(T)
+        sy = zero(T)
+        sz = zero(T)
+        for shift in ws.shifts
+            xq = xc - shift[1]
+            yq = yc - shift[2]
+            zq = zc - shift[3]
+            for k in 1:nz, j in 1:ny, ii in 1:nx
+                dxv = xq - T(ii - 1) * T(dx)
+                dyv = yq - T(j - 1) * T(dy)
+                dzv = zq - (-T(domain.Lz) + T(k - 1) * T(dz))
+                if abs(dxv) <= epsx && abs(dyv) <= epsy && abs(dzv) <= epsz
+                    w = (one(T) + cos(T(π) * dxv / epsx)) *
+                        (one(T) + cos(T(π) * dyv / epsy)) *
+                        (one(T) + cos(T(π) * dzv / epsz)) * scale
+                    sx += gridUx[k,j,ii] * w
+                    sy += gridUy[k,j,ii] * w
+                    sz += gridUz[k,j,ii] * w
+                end
+            end
+        end
+        ws.local_buf[i,1] = sx
+        ws.local_buf[i,2] = sy
+        ws.local_buf[i,3] = sz
+    end
+
+    MPI.Allreduce!(ws.local_buf, ws.global_buf, MPI.SUM, comm)
+
+    @inbounds for i in 1:N
+        ws.u1[i] = ws.global_buf[i,1]
+        ws.v1[i] = ws.global_buf[i,2]
+        ws.w1[i] = ws.global_buf[i,3]
+    end
+    return nothing
 end
 
 # MPI-parallel: spread element vorticity to grid with kernel selection
@@ -375,24 +554,15 @@ function spread_vorticity_to_grid_kernel_mpi(eleGma::AbstractMatrix,
     MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
 
     # Reshape to (nz,ny,nx) - column-major means nz varies fastest, matching loop order
-    VorX = reshape(view(global_buf,:,1), nz, ny, nx)
-    VorY = reshape(view(global_buf,:,2), nz, ny, nx)
-    VorZ = reshape(view(global_buf,:,3), nz, ny, nx)
+    ζx = reshape(view(global_buf,:,1), nz, ny, nx)
+    ζy = reshape(view(global_buf,:,2), nz, ny, nx)
+    ζz = reshape(view(global_buf,:,3), nz, ny, nx)
 
-    # Periodic wrap
-    VorX[end, :, :] .= VorX[1, :, :]
-    VorY[end, :, :] .= VorY[1, :, :]
-    VorZ[end, :, :] .= VorZ[1, :, :]
+    copy_periodic_boundaries!(ζx)
+    copy_periodic_boundaries!(ζy)
+    copy_periodic_boundaries!(ζz)
 
-    VorX[:, end, :] .= VorX[:, 1, :]
-    VorY[:, end, :] .= VorY[:, 1, :]
-    VorZ[:, end, :] .= VorZ[:, 1, :]
-
-    VorX[:, :, end] .= VorX[:, :, 1]
-    VorY[:, :, end] .= VorY[:, :, 1]
-    VorZ[:, :, end] .= VorZ[:, :, 1]
-
-    return VorX, VorY, VorZ
+    return ζx, ζy, ζz
 end
 
 # MPI-parallel: spread element vorticity to grid (original function)
@@ -438,24 +608,15 @@ function spread_vorticity_to_grid_mpi(eleGma::AbstractMatrix,
     MPI.Allreduce!(local_buf, global_buf, MPI.SUM, comm)
 
     # Reshape to (nz,ny,nx)
-    VorX = reshape(view(global_buf,:,1), nz, ny, nx)
-    VorY = reshape(view(global_buf,:,2), nz, ny, nx)
-    VorZ = reshape(view(global_buf,:,3), nz, ny, nx)
+    ζx = reshape(view(global_buf,:,1), nz, ny, nx)
+    ζy = reshape(view(global_buf,:,2), nz, ny, nx)
+    ζz = reshape(view(global_buf,:,3), nz, ny, nx)
 
-    # Periodic wrap like python
-    VorX[end, :, :] .= VorX[1, :, :]
-    VorY[end, :, :] .= VorY[1, :, :]
-    VorZ[end, :, :] .= VorZ[1, :, :]
+    copy_periodic_boundaries!(ζx)
+    copy_periodic_boundaries!(ζy)
+    copy_periodic_boundaries!(ζz)
 
-    VorX[:, end, :] .= VorX[:, 1, :]
-    VorY[:, end, :] .= VorY[:, 1, :]
-    VorZ[:, end, :] .= VorZ[:, 1, :]
-
-    VorX[:, :, end] .= VorX[:, :, 1]
-    VorY[:, :, end] .= VorY[:, :, 1]
-    VorZ[:, :, end] .= VorZ[:, :, 1]
-
-    return VorX, VorY, VorZ
+    return ζx, ζy, ζz
 end
 
 # Enhanced interpolation with kernel selection
@@ -566,6 +727,7 @@ end
 end # module
 
 using .Peskin3D: init_mpi!, finalize_mpi!, triangle_centroids, triangle_areas, subtriangle_centroids, subtriangle_centroids4,
-                          spread_vorticity_to_grid_mpi, interpolate_node_velocity_mpi,
+                          spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
+                          interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
                           spread_vorticity_to_grid_kernel_mpi, interpolate_node_velocity_kernel_mpi,
                           find_elements_nearby!

@@ -70,10 +70,10 @@ function apply_sfs_dissipation!(eleGma, tri, nodeX, nodeY, nodeZ, domain, gr, dt
     delta = isnothing(delta) ? grid_spacing(domain, gr)[1] : delta
 
     # 1. Spread vorticity to grid
-    VorX, VorY, VorZ = spread_vorticity_to_grid(eleGma, tri, nodeX, nodeY, nodeZ, domain, gr)
+    ζx, ζy, ζz = spread_vorticity_to_grid(eleGma, tri, nodeX, nodeY, nodeZ, domain, gr)
 
     # 2. Solve for velocity field
-    Ux, Uy, Uz = poisson_velocity_fft(curl_rhs(VorX, VorY, VorZ, domain, gr)..., domain)
+    Ux, Uy, Uz = poisson_velocity_fft(curl_rhs(ζx, ζy, ζz, domain, gr)..., domain)
 
     # 3. Compute velocity gradients
     dudx, dudy, dudz = gradient(Ux, domain, gr)
@@ -87,9 +87,9 @@ function apply_sfs_dissipation!(eleGma, tri, nodeX, nodeY, nodeZ, domain, gr, dt
     nu_T = (c_T * delta)^2 .* S_mag
 
     # 6. Vorticity diffusion (Laplacian)
-    dωdt_x = nu_T .* laplacian(VorX, domain, gr)
-    dωdt_y = nu_T .* laplacian(VorY, domain, gr)
-    dωdt_z = nu_T .* laplacian(VorZ, domain, gr)
+    dωdt_x = nu_T .* laplacian(ζx, domain, gr)
+    dωdt_y = nu_T .* laplacian(ζy, domain, gr)
+    dωdt_z = nu_T .* laplacian(ζz, domain, gr)
 
     # 7. Interpolate back to elements and update
     update_element_vorticity!(eleGma, tri, nodeX, nodeY, nodeZ, dωdt_x, dωdt_y, dωdt_z, domain, gr, dt)

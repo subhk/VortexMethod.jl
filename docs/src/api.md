@@ -39,8 +39,8 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 `VortexMethod.Poisson3D`:
 
-- `curl_rhs_centered(VorX,VorY,VorZ, dx,dy,dz)`
-- `curl_rhs_centered!(workspace, u_rhs,v_rhs,w_rhs, VorX,VorY,VorZ, dx,dy,dz)`
+- `curl_rhs_centered(ζx,ζy,ζz, dx,dy,dz)`
+- `curl_rhs_centered!(workspace, u_rhs,v_rhs,w_rhs, ζx,ζy,ζz, dx,dy,dz)`
 - `poisson_velocity_fft(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
 - `poisson_velocity_fft_mpi(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
 - `poisson_velocity_pencil_fft(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`

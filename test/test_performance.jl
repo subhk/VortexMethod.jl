@@ -1,3 +1,5 @@
+using StaticArrays
+
 @testset "Type stability and allocations" begin
     domain = VortexMethod.default_domain()
     gr = VortexMethod.GridSpec(6, 6, 6)
@@ -59,4 +61,73 @@
         copy(split_nodeX), copy(split_nodeY), copy(split_nodeZ), copy(split_tri),
         split_eleGma, domain; max_aspect_ratio=0.1, max_elements=10_000,
     )) < 100_000
+end
+
+@testset "Workspace spread/interpolation and SVector kernels" begin
+    domain = VortexMethod.default_domain()
+    gr = VortexMethod.GridSpec(4, 4, 4)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC =
+        VortexMethod.structured_mesh(3, 3; domain=domain, amp=0.0)
+    eleGma = fill(0.2, size(tri, 1), 3)
+    ws = VortexMethod.VortexWorkspace(Float64, length(nodeX), size(tri, 1), gr.nx, gr.ny, gr.nz, domain)
+
+    ζx, ζy, ζz = VortexMethod.spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
+    VortexMethod.spread_vorticity_to_grid_mpi!(ws, eleGma, triXC, triYC, triZC, domain, gr)
+    @test ws.geom_dirty[] == false
+    @test ws.ζx ≈ ζx
+    @test ws.ζy ≈ ζy
+    @test ws.ζz ≈ ζz
+
+    old_triC = copy(ws.triC)
+    ws.geom_dirty[] = false
+    VortexMethod.spread_vorticity_to_grid_mpi!(ws, eleGma, triXC .+ 0.125, triYC, triZC, domain, gr)
+    @test ws.triC == old_triC
+
+    Ux = reshape(Float64.(1:(gr.nx * gr.ny * gr.nz)), gr.nz, gr.ny, gr.nx)
+    Uy = fill(0.25, gr.nz, gr.ny, gr.nx)
+    Uz = fill(-0.5, gr.nz, gr.ny, gr.nx)
+    u, v, w = VortexMethod.interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ, domain, gr)
+    VortexMethod.interpolate_node_velocity_mpi!(ws, Ux, Uy, Uz, nodeX, nodeY, nodeZ, domain, gr)
+    @test ws.u1 ≈ collect(u)
+    @test ws.v1 ≈ collect(v)
+    @test ws.w1 ≈ collect(w)
+
+    p1 = SVector{3,Float64}(0.1, 0.2, 0.3)
+    p2 = SVector{3,Float64}(0.4, 0.5, 0.1)
+    p3 = SVector{3,Float64}(0.2, 0.7, 0.4)
+    @test VortexMethod.Peskin3D.bary_point(p1, p2, p3, 1, 1, 2) isa SVector{3,Float64}
+    @test VortexMethod.Peskin3D.centroid3(p1, p2, p3) isa SVector{3,Float64}
+
+    weights = zeros(Float32, 2)
+    dx = Float32[0.0, 0.25]
+    dy = Float32[0.0, 0.25]
+    dz = Float32[0.0, 0.25]
+    VortexMethod.kernel_function_vec!(weights, VortexMethod.PeskinStandard(), dx, dy, dz, Float32(1), Float32(1), Float32(1))
+    @test all(isfinite, weights)
+
+    triC32 = Float32.(VortexMethod.Peskin3D.triangle_centroids(triXC, triYC, triZC; domain=domain))
+    subC32 = Float32.(VortexMethod.Peskin3D.build_all_subcentroids(triXC, triYC, triZC; domain=domain, subsegments=2))
+    areas32 = Float32.(VortexMethod.Peskin3D.triangle_areas(triXC, triYC, triZC; domain=domain))
+    eleGma32 = Float32.(eleGma)
+    acc32 = SVector{3,Float32}(0, 0, 0)
+    coord32 = SVector{3,Float32}(0.2, 0.3, 0.0)
+    eps32 = SVector{3,Float32}(0.5, 0.5, 0.5)
+    shift32 = SVector{3,Float32}(0, 0, 0)
+    result32 = VortexMethod.Peskin3D.peskin_add_nearby_kernel!(
+        acc32, eleGma32, triC32, subC32, areas32, coord32,
+        VortexMethod.PeskinStandard(), eps32, shift32,
+    )
+    @test result32 isa SVector{3,Float32}
+end
+
+@testset "fast_linalg hot-path solver assertions removed" begin
+    source = read(joinpath(dirname(@__DIR__), "src", "fast_linalg.jl"), String)
+    for name in ("solve_4x3!", "batch_solve_3x3!", "solve_3x3!")
+        start = findfirst("function $name", source)
+        @test start !== nothing
+        tail = source[last(start):end]
+        next_function = findnext("\nfunction ", tail, 2)
+        body = next_function === nothing ? tail : tail[1:first(next_function)-1]
+        @test !occursin("@assert", body)
+    end
 end

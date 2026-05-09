@@ -39,9 +39,9 @@ struct VortexWorkspace{T<:AbstractFloat}
     # Spread / interpolation buffers
     local_buf::Matrix{T}      # (nx*ny*nz, 3) — MPI local accumulation
     global_buf::Matrix{T}     # (nx*ny*nz, 3) — post-Allreduce result
-    VorX::Array{T,3}          # (nz, ny, nx)
-    VorY::Array{T,3}
-    VorZ::Array{T,3}
+    ζx::Array{T,3}          # (nz, ny, nx)
+    ζy::Array{T,3}
+    ζz::Array{T,3}
 
     # Nearby element index scratch (used by find_elements_nearby!)
     nearby_buf::Vector{Int}

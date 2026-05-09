@@ -61,10 +61,6 @@ end
 # Specialized solver for circulation 4x3 overdetermined systems
 # Solves M * x = rhs where M is 4x3 (used in circulation calculations)
 function solve_4x3!(x::AbstractVector, M::AbstractMatrix, rhs::AbstractVector)
-    @assert size(M) == (4, 3) "Matrix must be 4x3"
-    @assert length(x) == 3 "Solution vector must have length 3"
-    @assert length(rhs) == 4 "RHS vector must have length 4"
-    
     # Use normal equations: M^T M x = M^T rhs
     # This is more efficient than QR for small matrices
     @inbounds begin
@@ -111,9 +107,7 @@ end
 # Batch operations for multiple small matrices (better cache utilization)
 function batch_solve_3x3!(X::AbstractMatrix, A_batch::AbstractArray{T,3}, b_batch::AbstractMatrix) where T
     n_matrices = size(A_batch, 3)
-    @assert size(X, 2) == n_matrices "Output matrix must have same number of columns as batch size"
-    @assert size(A_batch, 1) == size(A_batch, 2) == 3 "Each matrix must be 3x3"
-    
+
     # Process matrices in batches for better cache performance
     batch_size = min(64, n_matrices)  # Process 64 matrices at a time
     

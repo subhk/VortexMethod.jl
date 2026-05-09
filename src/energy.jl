@@ -19,9 +19,9 @@ end
 function gamma_ke(eleGma::AbstractMatrix,
                   triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::AbstractMatrix,
                   domain::DomainSpec, gr::GridSpec; poisson_mode::Symbol=:spectral, parallel_fft::Bool=false)
-    VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
+    ζx, ζy, ζz = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
     dx,dy,dz = grid_spacing(domain, gr)
-    u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+    u_rhs, v_rhs, w_rhs = curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
     if parallel_fft
         Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
     else

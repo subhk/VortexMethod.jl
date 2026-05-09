@@ -28,9 +28,9 @@ PoissonWorkspace(nz::Int, ny::Int, nx::Int) = PoissonWorkspace(Float64, nz, ny, 
 # In-place version; workspace is retained for API compatibility.
 function curl_rhs_centered!(_workspace::PoissonWorkspace{T}, 
                            u_rhs::AbstractArray{T,3}, v_rhs::AbstractArray{T,3}, w_rhs::AbstractArray{T,3},
-                           VorX::AbstractArray{T,3}, VorY::AbstractArray{T,3}, VorZ::AbstractArray{T,3},
+                           ζx::AbstractArray{T,3}, ζy::AbstractArray{T,3}, ζz::AbstractArray{T,3},
                            dx::T, dy::T, dz::T) where T<:AbstractFloat
-    nz, ny, nx = size(VorX)
+    nz, ny, nx = size(ζx)
 
     @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
         ip = next_periodic_index(i, nx)
@@ -40,12 +40,12 @@ function curl_rhs_centered!(_workspace::PoissonWorkspace{T},
         kp = next_periodic_index(k, nz)
         km = prev_periodic_index(k, nz)
 
-        dZ_dy = (VorZ[k,jp,i] - VorZ[k,jm,i]) / (2dy)
-        dY_dz = (VorY[kp,j,i] - VorY[km,j,i]) / (2dz)
-        dX_dz = (VorX[kp,j,i] - VorX[km,j,i]) / (2dz)
-        dZ_dx = (VorZ[k,j,ip] - VorZ[k,j,im]) / (2dx)
-        dY_dx = (VorY[k,j,ip] - VorY[k,j,im]) / (2dx)
-        dX_dy = (VorX[k,jp,i] - VorX[k,jm,i]) / (2dy)
+        dZ_dy = (ζz[k,jp,i] - ζz[k,jm,i]) / (2dy)
+        dY_dz = (ζy[kp,j,i] - ζy[km,j,i]) / (2dz)
+        dX_dz = (ζx[kp,j,i] - ζx[km,j,i]) / (2dz)
+        dZ_dx = (ζz[k,j,ip] - ζz[k,j,im]) / (2dx)
+        dY_dx = (ζy[k,j,ip] - ζy[k,j,im]) / (2dx)
+        dX_dy = (ζx[k,jp,i] - ζx[k,jm,i]) / (2dy)
 
         u_rhs[k,j,i] = -(dZ_dy - dY_dz)
         v_rhs[k,j,i] = -(dX_dz - dZ_dx)
@@ -56,14 +56,14 @@ function curl_rhs_centered!(_workspace::PoissonWorkspace{T},
 end
 
 # Backward-compatible wrapper that allocates
-function curl_rhs_centered(VorX::AbstractArray{Float64,3}, VorY::AbstractArray{Float64,3}, VorZ::AbstractArray{Float64,3},
+function curl_rhs_centered(ζx::AbstractArray{Float64,3}, ζy::AbstractArray{Float64,3}, ζz::AbstractArray{Float64,3},
                            dx::Float64, dy::Float64, dz::Float64)
-    nz, ny, nx = size(VorX)
+    nz, ny, nx = size(ζx)
     workspace = PoissonWorkspace(nz, ny, nx)
-    u_rhs = similar(VorX)
-    v_rhs = similar(VorX)
-    w_rhs = similar(VorX)
-    curl_rhs_centered!(workspace, u_rhs, v_rhs, w_rhs, VorX, VorY, VorZ, dx, dy, dz)
+    u_rhs = similar(ζx)
+    v_rhs = similar(ζx)
+    w_rhs = similar(ζx)
+    curl_rhs_centered!(workspace, u_rhs, v_rhs, w_rhs, ζx, ζy, ζz, dx, dy, dz)
     return u_rhs, v_rhs, w_rhs
 end
 

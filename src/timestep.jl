@@ -26,9 +26,9 @@ function grid_velocity(eleGma, triXC, triYC, triZC,
                     poisson_mode::Symbol=:spectral, 
                     parallel_fft::Bool=false)
 
-    VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
+    ζx, ζy, ζz = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
     dx,dy,dz = grid_spacing(domain, gr)
-    u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+    u_rhs, v_rhs, w_rhs = curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
 
     if parallel_fft
         return poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
@@ -69,9 +69,9 @@ function node_velocities(eleGma, triXC, triYC, triZC, nodeX, nodeY, nodeZ,
                     poisson_mode::Symbol=:spectral, 
                     parallel_fft::Bool=false)
                     
-    VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
+    ζx, ζy, ζz = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
     dx, dy, dz = grid_spacing(domain, gr)
-    u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+    u_rhs, v_rhs, w_rhs = curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
 
     if parallel_fft
         Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
@@ -89,9 +89,9 @@ function max_grid_speed(eleGma, triXC, triYC, triZC,
                         poisson_mode::Symbol=:spectral, 
                         parallel_fft::Bool=false)
                         
-    VorX, VorY, VorZ = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
+    ζx, ζy, ζz = spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)
     dx, dy, dz = grid_spacing(domain, gr)
-    u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+    u_rhs, v_rhs, w_rhs = curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
 
     if parallel_fft
         Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
@@ -235,9 +235,9 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma,
     
     # Use kernel-based spreading if specified
     if kernel != PeskinStandard()
-        VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma, triXC, triYC, triZC, domain, gr, kernel)
+        ζx, ζy, ζz = spread_vorticity_to_grid_kernel_mpi(eleGma, triXC, triYC, triZC, domain, gr, kernel)
         dx, dy, dz = grid_spacing(domain, gr)
-        u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+        u_rhs, v_rhs, w_rhs = curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
 
         if parallel_fft
             Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)
@@ -283,9 +283,9 @@ function rk2_step_with_dissipation!(nodeX, nodeY, nodeZ, tri, eleGma,
     eleGma_mid = apply_dissipation!(dissipation_model, eleGma_mid, triXC, triYC, triZC, domain, gr, 0.5*dt)
     
     if kernel != PeskinStandard()
-        VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma_mid, triXC, triYC, triZC, domain, gr, kernel)
+        ζx, ζy, ζz = spread_vorticity_to_grid_kernel_mpi(eleGma_mid, triXC, triYC, triZC, domain, gr, kernel)
         dx,dy,dz = grid_spacing(domain, gr)
-        u_rhs, v_rhs, w_rhs = curl_rhs_centered(VorX, VorY, VorZ, dx, dy, dz)
+        u_rhs, v_rhs, w_rhs = curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
         
         if parallel_fft
             Ux, Uy, Uz = poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain; mode=poisson_mode)

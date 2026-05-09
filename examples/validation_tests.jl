@@ -76,10 +76,10 @@ function test_interpolation_kernels()
     
     errors = Float64[]
     for (i, kernel) in enumerate(kernels)
-        VorX, VorY, VorZ = spread_vorticity_to_grid_kernel_mpi(eleGma, triXC, triYC, triZC, domain, gr, kernel)
+        ζx, ζy, ζz = spread_vorticity_to_grid_kernel_mpi(eleGma, triXC, triYC, triZC, domain, gr, kernel)
         
         # Compute L2 error (simplified)
-        total_vorticity = sum(VorZ) * (domain.Lx/gr.nx) * (domain.Ly/gr.ny) * (2*domain.Lz/gr.nz)
+        total_vorticity = sum(ζz) * (domain.Lx/gr.nx) * (domain.Ly/gr.ny) * (2*domain.Lz/gr.nz)
         expected_vorticity = sum(eleGma[:, 3])
         error = abs(total_vorticity - expected_vorticity) / abs(expected_vorticity)
         push!(errors, error)

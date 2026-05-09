@@ -92,9 +92,9 @@ Modules = [VortexMethod]
 - Circulation-aware remeshing: topology-changing paths accept and return
   `eleGma`, so element circulation is carried through splits and merges.
 - Thresholds (defaults):
-  - max_aspect_ratio=3.0, max_skewness=0.8
-  - min_angle_quality=0.4, min_jacobian_quality=0.4
-  - grad_threshold=0.2 (Frobenius norm of ∇U), curvature_threshold=0.6 rad
+  - `max_aspect_ratio=3.0`, `max_skewness=0.8`
+  - `min_angle_quality=0.4`, `min_jacobian_quality=0.4`
+  - `grad_threshold=0.2` (Frobenius norm of ∇U), `curvature_threshold=0.6` rad
 - Kernel-based interpolation options are available via `Kernels`.
 - New helper: `grid_velocity(eleGma, triXC, triYC, triZC, domain, gr)` computes `(Ux,Uy,Uz)` for reuse.
 

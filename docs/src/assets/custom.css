@@ -1,974 +1,482 @@
-/* VortexMethod.jl Custom Documentation Styles - Enhanced */
+/*
+   VortexMethod.jl documentation polish.
+   Keep this layer restrained: Documenter still handles layout, search,
+   navigation, and theme switching.
+*/
 
-/* ============================================
-   Web Fonts
-   ============================================ */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
-/* ============================================
-   Color Palette (Scientific Blue-Cyan Theme)
-   ============================================ */
 :root {
-    --primary-color: #2563eb;
-    --primary-dark: #1d4ed8;
-    --primary-light: #3b82f6;
-    --primary-lighter: #60a5fa;
-    --accent-color: #0891b2;
-    --accent-light: #22d3ee;
-    --success-color: #059669;
-    --success-light: #10b981;
-    --warning-color: #d97706;
-    --warning-light: #f59e0b;
-    --danger-color: #dc2626;
-    --danger-light: #ef4444;
-    --info-color: #0284c7;
-    --info-light: #0ea5e9;
-
-    --bg-light: #f8fafc;
-    --bg-code: #f1f5f9;
-    --bg-card: #ffffff;
-    --border-color: #e2e8f0;
-    --border-light: #f1f5f9;
-    --text-primary: #1e293b;
-    --text-secondary: #475569;
-    --text-muted: #64748b;
-
-    --gradient-primary: linear-gradient(135deg, #2563eb 0%, #0891b2 100%);
-    --gradient-accent: linear-gradient(135deg, #0891b2 0%, #22d3ee 100%);
-    --gradient-subtle: linear-gradient(135deg, #f8fafc 0%, #e0f2fe 100%);
-    --gradient-card: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.15);
+    --vm-accent: #0e7490;
+    --vm-accent-strong: #155e75;
+    --vm-accent-soft: #e0f2fe;
+    --vm-ink: #172033;
+    --vm-muted: #5f6f86;
+    --vm-surface: #ffffff;
+    --vm-surface-soft: #f8fafc;
+    --vm-border: #d8e2ee;
+    --vm-code-bg: #0f172a;
+    --vm-code-fg: #dbeafe;
+    --vm-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    --vm-radius: 8px;
 }
 
-/* ============================================
-   Base Typography
-   ============================================ */
+html.theme--documenter-dark,
+html.theme--catppuccin-mocha,
+html.theme--catppuccin-macchiato,
+html.theme--catppuccin-frappe {
+    --vm-accent: #67e8f9;
+    --vm-accent-strong: #a5f3fc;
+    --vm-accent-soft: rgba(103, 232, 249, 0.12);
+    --vm-ink: #ecfeff;
+    --vm-muted: #b6c5d6;
+    --vm-surface: #172033;
+    --vm-surface-soft: #111827;
+    --vm-border: #334155;
+    --vm-code-bg: #020617;
+    --vm-code-fg: #dbeafe;
+    --vm-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+}
+
 html {
-    font-size: 16px;
     scroll-behavior: smooth;
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "kern", "liga";
 }
 
-article {
-    line-height: 1.8;
-    color: var(--text-primary);
-    max-width: 100%;
+#documenter .docs-main > article {
+    color: var(--vm-ink);
+    line-height: 1.75;
 }
 
-article p {
-    margin-bottom: 1.5rem;
-    letter-spacing: -0.01em;
+@media screen and (min-width: 1056px) {
+    #documenter .docs-main {
+        max-width: 58rem;
+        padding-right: 1.5rem;
+    }
 }
 
-/* ============================================
-   Headings with Decorative Elements
-   ============================================ */
-article h1 {
-    font-family: 'Inter', sans-serif;
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-top: 0;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    position: relative;
-    letter-spacing: -0.025em;
+/* Sidebar and top navigation */
+#documenter .docs-sidebar {
+    border-right: 1px solid var(--vm-border);
 }
 
-article h1::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 80px;
-    height: 4px;
-    background: var(--gradient-primary);
-    border-radius: 2px;
+#documenter .docs-sidebar .docs-package-name {
+    background:
+        linear-gradient(135deg, rgba(14, 116, 144, 0.20), transparent 70%),
+        var(--vm-surface-soft);
+    border-bottom: 1px solid var(--vm-border);
+    letter-spacing: 0;
 }
 
-article h2 {
-    font-family: 'Inter', sans-serif;
-    font-size: 1.875rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-top: 3rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 0.75rem;
-    border-bottom: 2px solid var(--border-color);
-    letter-spacing: -0.02em;
+#documenter .docs-sidebar .docs-package-name a {
+    color: var(--vm-accent-strong);
 }
 
-article h3 {
-    font-family: 'Inter', sans-serif;
-    font-size: 1.375rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-top: 2.5rem;
-    margin-bottom: 1rem;
-    letter-spacing: -0.015em;
+#documenter .docs-sidebar .docs-search-query {
+    border: 1px solid var(--vm-border);
+    border-radius: 999px;
+    background: var(--vm-surface);
+    color: var(--vm-muted);
+    box-shadow: none;
 }
 
-article h4 {
-    font-family: 'Inter', sans-serif;
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-top: 2rem;
-    margin-bottom: 0.75rem;
+#documenter .docs-sidebar .docs-search-query:hover,
+#documenter .docs-sidebar .docs-search-query:focus {
+    border-color: var(--vm-accent);
+    color: var(--vm-accent-strong);
 }
 
-/* ============================================
-   Code Blocks with Enhanced Styling
-   ============================================ */
-article pre {
-    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-    border: 1px solid #334155;
-    border-radius: 12px;
-    padding: 1.5rem;
-    overflow-x: auto;
-    margin: 2rem 0;
-    box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-    position: relative;
-}
-
-article pre::before {
-    content: '';
-    position: absolute;
-    top: 12px;
-    left: 16px;
-    width: 12px;
-    height: 12px;
-    background: #ef4444;
-    border-radius: 50%;
-    box-shadow: 20px 0 0 #f59e0b, 40px 0 0 #22c55e;
-}
-
-article pre code {
-    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
-    font-size: 0.875rem;
-    line-height: 1.7;
-    color: #e2e8f0;
-    display: block;
-    padding-top: 1rem;
-}
-
-article code {
-    font-family: 'JetBrains Mono', 'Fira Code', 'Monaco', 'Consolas', monospace;
-    font-size: 0.85em;
-    background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
-    padding: 0.2em 0.5em;
+#documenter .docs-sidebar ul.docs-menu .tocitem {
     border-radius: 6px;
-    color: var(--primary-dark);
-    border: 1px solid #bae6fd;
-    font-weight: 500;
+    margin: 0.125rem 0.5rem;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
 }
 
-/* ============================================
-   Math Blocks with Premium Styling
-   ============================================ */
-article .MathJax_Display,
-article mjx-container[display="true"] {
-    background: var(--gradient-subtle);
-    border-left: 5px solid var(--primary-color);
-    padding: 1.5rem 2rem;
+#documenter .docs-sidebar ul.docs-menu a.tocitem:hover,
+#documenter .docs-sidebar ul.docs-menu label.tocitem:hover {
+    background: var(--vm-accent-soft);
+    color: var(--vm-accent-strong);
+}
+
+#documenter .docs-sidebar ul.docs-menu li.is-active {
+    border-color: transparent;
+    background: transparent;
+}
+
+#documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem,
+#documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem:hover {
+    background: var(--vm-accent-soft);
+    color: var(--vm-accent-strong);
+    box-shadow: inset 3px 0 0 var(--vm-accent);
+}
+
+#documenter .docs-main header.docs-navbar {
+    border-bottom: 1px solid var(--vm-border);
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+#documenter .docs-navbar-link:hover {
+    color: var(--vm-accent-strong);
+}
+
+/*
+   Documenter themes use highly specific sidebar selectors. Mirror that
+   specificity here so this polish survives theme switching.
+*/
+html[class*="theme--"] #documenter .docs-sidebar {
+    border-right: 1px solid var(--vm-border);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar .docs-package-name {
+    background:
+        linear-gradient(135deg, rgba(14, 116, 144, 0.20), transparent 70%),
+        var(--vm-surface-soft);
+    border-bottom: 1px solid var(--vm-border);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar .docs-package-name a,
+html[class*="theme--"] #documenter .docs-sidebar .docs-package-name a:hover {
+    color: var(--vm-accent-strong);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar #documenter-search-query {
+    border: 1px solid var(--vm-border);
+    border-radius: 999px;
+    background: var(--vm-surface);
+    color: var(--vm-muted);
+    box-shadow: none;
+}
+
+html[class*="theme--"] #documenter .docs-sidebar #documenter-search-query:hover,
+html[class*="theme--"] #documenter .docs-sidebar #documenter-search-query:focus {
+    border-color: var(--vm-accent);
+    color: var(--vm-accent-strong);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu .tocitem {
+    border-radius: 6px;
+}
+
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu a.tocitem:hover,
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu label.tocitem:hover {
+    background: var(--vm-accent-soft);
+    color: var(--vm-accent-strong);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu li.is-active {
+    border-color: transparent;
+    background: transparent;
+}
+
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem,
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem:hover {
+    background: var(--vm-accent-soft);
+    color: var(--vm-accent-strong);
+    box-shadow: inset 3px 0 0 var(--vm-accent);
+}
+
+html[class*="theme--"] #documenter .docs-main header.docs-navbar {
+    border-bottom: 1px solid var(--vm-border);
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+/* Hero treatment for each page heading */
+#documenter-page > h1:first-child {
+    margin: 0 0 1rem;
+    padding: 2rem;
+    border-radius: var(--vm-radius);
+    color: #ffffff;
+    background:
+        linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(21, 94, 117, 0.92)),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 22px);
+    box-shadow: var(--vm-shadow);
+}
+
+#documenter-page > h1:first-child .docs-heading-anchor,
+#documenter-page > h1:first-child .docs-heading-anchor-permalink {
+    color: #ffffff;
+}
+
+#documenter-page > h1:first-child .docs-heading-anchor:hover {
+    color: #cffafe;
+}
+
+#documenter-page > h1:first-child + blockquote {
+    margin: -0.25rem 0 2rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--vm-border);
+    border-left: 4px solid var(--vm-accent);
+    border-radius: var(--vm-radius);
+    background: var(--vm-surface);
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
+    color: var(--vm-muted);
+    font-style: normal;
+}
+
+#documenter-page > h1:first-child + blockquote p {
+    margin: 0;
+}
+
+/* Typography */
+#documenter-page h1,
+#documenter-page h2,
+#documenter-page h3,
+#documenter-page h4 {
+    color: var(--vm-ink);
+    letter-spacing: 0;
+}
+
+#documenter-page h2 {
+    margin-top: 2.8rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--vm-border);
+}
+
+#documenter-page h2 .docs-heading-anchor {
+    color: var(--vm-ink);
+}
+
+#documenter-page h2::after {
+    content: "";
+    display: block;
+    width: 3rem;
+    height: 3px;
+    margin-top: 0.45rem;
+    border-radius: 999px;
+    background: var(--vm-accent);
+}
+
+#documenter-page h3 {
+    margin-top: 2rem;
+}
+
+#documenter-page p {
+    color: var(--vm-ink);
+}
+
+#documenter-page a {
+    color: var(--vm-accent-strong);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.16em;
+}
+
+#documenter-page a:hover {
+    color: var(--vm-accent);
+}
+
+#documenter-page hr {
+    height: 1px;
     margin: 2rem 0;
-    border-radius: 0 12px 12px 0;
-    overflow-x: auto;
-    box-shadow: var(--shadow-md);
-    position: relative;
+    border: 0;
+    background: var(--vm-border);
 }
 
-article mjx-container[display="true"]::before {
-    content: 'EQUATION';
-    position: absolute;
-    top: -10px;
-    left: 20px;
-    background: var(--gradient-primary);
-    color: white;
-    font-size: 0.65rem;
-    font-weight: 600;
-    padding: 2px 10px;
-    border-radius: 4px;
-    letter-spacing: 0.05em;
-}
-
-article mjx-container:not([display="true"]) {
-    color: var(--primary-dark);
-}
-
-/* ============================================
-   Tables with Modern Design
-   ============================================ */
-article table {
+/* Tables */
+#documenter-page table {
     width: 100%;
+    margin: 1.6rem 0;
+    overflow: hidden;
+    border: 1px solid var(--vm-border);
+    border-radius: var(--vm-radius);
     border-collapse: separate;
     border-spacing: 0;
-    margin: 2rem 0;
-    font-size: 0.95rem;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: var(--shadow-lg);
-    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
 }
 
-article table thead {
-    background: var(--gradient-primary);
-    color: white;
-}
-
-article table th {
-    padding: 1rem 1.25rem;
-    text-align: left;
-    font-weight: 600;
+#documenter-page table th {
+    border-bottom: 1px solid var(--vm-border);
+    background: var(--vm-surface-soft);
+    color: var(--vm-accent-strong);
+    font-size: 0.82rem;
+    font-weight: 700;
     text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.08em;
-    border-bottom: none;
+    letter-spacing: 0.04em;
 }
 
-article table td {
-    padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--border-light);
-    background: var(--bg-card);
-    transition: background 0.2s ease;
+#documenter-page table td,
+#documenter-page table th {
+    padding: 0.75rem 0.9rem;
+    vertical-align: top;
 }
 
-article table tbody tr:nth-child(even) td {
-    background-color: var(--bg-light);
+#documenter-page table tr:not(:last-child) td {
+    border-bottom: 1px solid var(--vm-border);
 }
 
-article table tbody tr:hover td {
-    background-color: #dbeafe;
+#documenter-page table tr:nth-child(even) td {
+    background: rgba(14, 116, 144, 0.035);
 }
 
-article table tbody tr:last-child td {
-    border-bottom: none;
-}
-
-/* First column emphasis */
-article table td:first-child {
-    font-weight: 500;
-    color: var(--primary-dark);
-}
-
-/* ============================================
-   Admonitions with Card Design
-   ============================================ */
-.admonition {
-    border-radius: 12px;
-    padding: 0;
-    margin: 2rem 0;
-    border: none;
-    box-shadow: var(--shadow-md);
-    overflow: hidden;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.admonition:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-}
-
-.admonition-header {
-    font-weight: 600;
-    padding: 0.875rem 1.25rem;
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-    font-size: 0.9rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-.admonition-body {
-    padding: 1rem 1.25rem 1.25rem;
-    background: white;
-}
-
-.admonition-body p:last-child {
-    margin-bottom: 0;
-}
-
-/* Info admonition */
-.admonition.info {
-    border-left: 4px solid var(--info-color);
-}
-
-.admonition.info .admonition-header {
-    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 100%);
-    color: white;
-}
-
-.admonition.info .admonition-header::before {
-    content: 'i';
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 50%;
-    font-style: italic;
+#documenter-page table td:first-child {
+    color: var(--vm-accent-strong);
     font-weight: 700;
 }
 
-/* Note admonition */
-.admonition.note {
-    border-left: 4px solid var(--accent-color);
+/* Code and math */
+#documenter-page code {
+    border: 1px solid var(--vm-border);
+    border-radius: 5px;
+    background: var(--vm-surface-soft);
+    color: var(--vm-accent-strong);
+    font-family: "JuliaMono", "SFMono-Regular", "Menlo", "Consolas", monospace;
+    font-size: 0.88em;
+    padding: 0.1em 0.35em;
 }
 
-.admonition.note .admonition-header {
-    background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
-    color: white;
+#documenter-page pre {
+    margin: 1.6rem 0;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: var(--vm-radius);
+    background: var(--vm-code-bg);
+    box-shadow: var(--vm-shadow);
 }
 
-.admonition.note .admonition-header::before {
-    content: '📝';
-    font-size: 1rem;
+#documenter-page pre code {
+    border: 0;
+    background: transparent;
+    color: var(--vm-code-fg);
+    font-size: 0.9rem;
+    line-height: 1.65;
+    padding: 1.1rem 1.25rem;
 }
 
-/* Tip admonition */
-.admonition.tip {
-    border-left: 4px solid var(--success-color);
+#documenter-page .katex-display,
+#documenter-page mjx-container[display="true"],
+#documenter-page .MathJax_Display {
+    margin: 1.6rem 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--vm-border);
+    border-left: 4px solid var(--vm-accent);
+    border-radius: var(--vm-radius);
+    background: var(--vm-surface-soft);
+    overflow-x: auto;
 }
 
-.admonition.tip .admonition-header {
-    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-    color: white;
+/* Admonitions */
+#documenter-page .admonition {
+    margin: 1.6rem 0;
+    overflow: hidden;
+    border: 1px solid var(--vm-border);
+    border-left: 4px solid var(--vm-accent);
+    border-radius: var(--vm-radius);
+    background: var(--vm-surface);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
-.admonition.tip .admonition-header::before {
-    content: '💡';
-    font-size: 1rem;
+#documenter-page .admonition-header {
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--vm-border);
+    background: var(--vm-surface-soft);
+    color: var(--vm-accent-strong);
+    font-weight: 700;
 }
 
-/* Warning admonition */
-.admonition.warning {
-    border-left: 4px solid var(--warning-color);
+#documenter-page .admonition-body {
+    padding: 0.85rem 0.9rem;
 }
 
-.admonition.warning .admonition-header {
-    background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
-    color: white;
-}
-
-.admonition.warning .admonition-header::before {
-    content: '⚠️';
-    font-size: 1rem;
-}
-
-/* Danger admonition */
-.admonition.danger {
-    border-left: 4px solid var(--danger-color);
-}
-
-.admonition.danger .admonition-header {
-    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
-    color: white;
-}
-
-.admonition.danger .admonition-header::before {
-    content: '🚨';
-    font-size: 1rem;
-}
-
-/* ============================================
-   Blockquotes
-   ============================================ */
-article blockquote {
-    border-left: 4px solid var(--accent-color);
-    background: var(--gradient-subtle);
-    padding: 1.25rem 1.75rem;
-    margin: 2rem 0;
-    border-radius: 0 12px 12px 0;
-    color: var(--text-secondary);
-    font-style: italic;
-    box-shadow: var(--shadow-sm);
-    position: relative;
-}
-
-article blockquote::before {
-    content: '"';
-    position: absolute;
-    top: -10px;
-    left: 20px;
-    font-size: 4rem;
-    color: var(--accent-color);
-    opacity: 0.2;
-    font-family: Georgia, serif;
-    line-height: 1;
-}
-
-article blockquote p:last-child {
+#documenter-page .admonition-body p:last-child {
     margin-bottom: 0;
 }
 
-/* ============================================
-   Lists with Custom Bullets
-   ============================================ */
-article ul {
+#documenter-page .admonition.is-info {
+    border-left-color: #0284c7;
+}
+
+#documenter-page .admonition.is-success {
+    border-left-color: #059669;
+}
+
+#documenter-page .admonition.is-warning {
+    border-left-color: #d97706;
+}
+
+#documenter-page .admonition.is-danger {
+    border-left-color: #dc2626;
+}
+
+/* Quotes and lists */
+#documenter-page blockquote {
     margin: 1.5rem 0;
-    padding-left: 0;
-    list-style: none;
+    padding: 0.9rem 1rem;
+    border-left: 4px solid var(--vm-accent);
+    border-radius: 0 var(--vm-radius) var(--vm-radius) 0;
+    background: var(--vm-surface-soft);
+    color: var(--vm-muted);
 }
 
-article ul li {
-    margin-bottom: 0.75rem;
-    line-height: 1.7;
-    padding-left: 1.75rem;
-    position: relative;
+#documenter-page blockquote p:last-child {
+    margin-bottom: 0;
 }
 
-article ul li::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0.6em;
-    width: 8px;
-    height: 8px;
-    background: var(--gradient-primary);
-    border-radius: 50%;
+#documenter-page li {
+    margin: 0.32rem 0;
 }
 
-article ol {
+#documenter-page ul,
+#documenter-page ol {
+    padding-left: 1.35rem;
+}
+
+/* API and generated doc blocks */
+#documenter-page details.docstring,
+#documenter-page .docstring {
     margin: 1.5rem 0;
-    padding-left: 0;
-    list-style: none;
-    counter-reset: ol-counter;
+    border: 1px solid var(--vm-border);
+    border-radius: var(--vm-radius);
+    background: var(--vm-surface);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
 }
 
-article ol li {
-    margin-bottom: 0.75rem;
-    line-height: 1.7;
-    padding-left: 2.5rem;
-    position: relative;
-    counter-increment: ol-counter;
+#documenter-page details.docstring > summary,
+#documenter-page .docstring > header {
+    background: var(--vm-surface-soft);
+    color: var(--vm-accent-strong);
 }
 
-article ol li::before {
-    content: counter(ol-counter);
-    position: absolute;
-    left: 0;
-    top: 0.1em;
-    width: 24px;
-    height: 24px;
-    background: var(--gradient-primary);
-    color: white;
-    border-radius: 50%;
-    font-size: 0.75rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+/* Footer */
+#documenter .docs-footer {
+    border-top: 1px solid var(--vm-border);
 }
 
-article li > ul, article li > ol {
-    margin-top: 0.75rem;
-    margin-bottom: 0.5rem;
+#documenter .docs-footer .docs-footer-prevpage,
+#documenter .docs-footer .docs-footer-nextpage {
+    color: var(--vm-accent-strong);
+    font-weight: 700;
 }
 
-/* Nested list styling */
-article ul ul li::before {
-    background: var(--accent-color);
-    width: 6px;
-    height: 6px;
-}
-
-/* ============================================
-   Links with Animated Underline
-   ============================================ */
-article a {
-    color: var(--primary-color);
-    text-decoration: none;
-    position: relative;
-    font-weight: 500;
-    transition: color 0.2s ease;
-}
-
-article a::after {
-    content: '';
-    position: absolute;
-    bottom: -2px;
-    left: 0;
-    width: 0;
-    height: 2px;
-    background: var(--gradient-primary);
-    transition: width 0.3s ease;
-}
-
-article a:hover {
-    color: var(--primary-dark);
-}
-
-article a:hover::after {
-    width: 100%;
-}
-
-/* ============================================
-   Images and Figures
-   ============================================ */
-article img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 12px;
-    box-shadow: var(--shadow-lg);
-    margin: 2rem auto;
-    display: block;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-article img:hover {
-    transform: scale(1.02);
-    box-shadow: var(--shadow-xl);
-}
-
-article figure {
-    margin: 2.5rem 0;
-    text-align: center;
-}
-
-article figcaption {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    margin-top: 1rem;
-    font-style: italic;
-    padding: 0 1rem;
-}
-
-/* ============================================
-   Sidebar / Navigation
-   ============================================ */
-.docs-sidebar {
-    background: linear-gradient(180deg, var(--bg-light) 0%, #ffffff 100%);
-    border-right: 1px solid var(--border-color);
-}
-
-.docs-sidebar .docs-logo {
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.docs-sidebar .docs-logo img {
-    border-radius: 12px;
-    box-shadow: var(--shadow-md);
-}
-
-.docs-menu {
-    padding: 1rem;
-}
-
-.docs-menu a {
-    transition: all 0.2s ease;
-    border-radius: 8px;
-    padding: 0.625rem 1rem;
-    margin: 0.25rem 0;
-    display: block;
-    font-weight: 500;
-}
-
-.docs-menu a:hover {
-    background: var(--gradient-primary);
-    color: white !important;
-    transform: translateX(4px);
-}
-
-.docs-menu a.is-active {
-    background: var(--gradient-primary);
-    color: white !important;
-    font-weight: 600;
-    box-shadow: var(--shadow-md);
-}
-
-/* Menu section headers */
-.docs-menu .menu-label {
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 1rem 1rem 0.5rem;
-}
-
-/* ============================================
-   Search Box
-   ============================================ */
-.docs-search > input {
-    border-radius: 10px;
-    border: 2px solid var(--border-color);
-    padding: 0.75rem 1rem;
-    transition: all 0.2s ease;
-    background: white;
-}
-
-.docs-search > input:focus {
-    border-color: var(--primary-color);
-    outline: none;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1), var(--shadow-md);
-}
-
-/* ============================================
-   API Documentation
-   ============================================ */
-.docstring {
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    margin: 2rem 0;
-    overflow: hidden;
-    box-shadow: var(--shadow-md);
-    transition: box-shadow 0.2s ease;
-}
-
-.docstring:hover {
-    box-shadow: var(--shadow-lg);
-}
-
-.docstring header {
-    background: var(--gradient-subtle);
-    padding: 1rem 1.25rem;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.docstring header a.docstring-binding {
-    font-family: 'JetBrains Mono', monospace;
-    font-weight: 600;
-    color: var(--primary-dark);
-    font-size: 1.05rem;
-}
-
-.docstring section {
-    padding: 1.25rem;
-}
-
-.docstring .docstring-category {
-    background: var(--gradient-primary);
-    color: white;
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.25rem 0.625rem;
-    border-radius: 4px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-/* ============================================
-   Footer
-   ============================================ */
-footer.footer {
-    background: var(--gradient-subtle);
-    border-top: 1px solid var(--border-color);
-    padding: 2rem;
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    text-align: center;
-}
-
-footer.footer a {
-    color: var(--primary-color);
-    font-weight: 500;
-}
-
-/* ============================================
-   Definition Lists
-   ============================================ */
-article dl {
-    margin: 2rem 0;
-    background: var(--bg-light);
-    border-radius: 12px;
-    padding: 1.5rem;
-}
-
-article dt {
-    font-weight: 600;
-    color: var(--primary-dark);
-    margin-top: 1rem;
-    font-size: 1.05rem;
-}
-
-article dt:first-child {
-    margin-top: 0;
-}
-
-article dd {
-    margin-left: 1.5rem;
-    margin-top: 0.5rem;
-    color: var(--text-secondary);
-    padding-left: 1rem;
-    border-left: 3px solid var(--border-color);
-}
-
-/* ============================================
-   Horizontal Rules
-   ============================================ */
-article hr {
-    border: none;
-    height: 3px;
-    background: var(--gradient-primary);
-    margin: 3rem 0;
-    border-radius: 2px;
-    opacity: 0.3;
-}
-
-/* ============================================
-   Selection Highlighting
-   ============================================ */
-::selection {
-    background: rgba(37, 99, 235, 0.2);
-    color: var(--text-primary);
-}
-
-/* ============================================
-   Custom Scrollbar (WebKit)
-   ============================================ */
-::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-
-::-webkit-scrollbar-track {
-    background: var(--bg-light);
-    border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, var(--primary-light) 0%, var(--primary-color) 100%);
-    border-radius: 5px;
-    border: 2px solid var(--bg-light);
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-dark);
-}
-
-/* ============================================
-   Responsive Design
-   ============================================ */
-@media screen and (max-width: 1024px) {
-    article h1 {
-        font-size: 2rem;
-    }
-
-    article h2 {
-        font-size: 1.5rem;
-    }
-
-    article h3 {
-        font-size: 1.25rem;
-    }
-}
-
+/* Small screens */
 @media screen and (max-width: 768px) {
-    article h1 {
-        font-size: 1.75rem;
+    #documenter-page > h1:first-child {
+        padding: 1.35rem;
     }
 
-    article h2 {
-        font-size: 1.375rem;
-        margin-top: 2rem;
-    }
-
-    article h3 {
-        font-size: 1.125rem;
-    }
-
-    article pre {
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 1.5rem -1rem;
-        border-radius: 0;
-    }
-
-    article pre code {
-        font-size: 0.8rem;
-    }
-
-    article table {
-        font-size: 0.85rem;
+    #documenter-page table {
         display: block;
         overflow-x: auto;
     }
 
-    article table th,
-    article table td {
-        padding: 0.625rem 0.875rem;
+    #documenter-page pre {
+        margin-left: -0.5rem;
+        margin-right: -0.5rem;
+        border-radius: 0;
     }
 
-    .admonition {
-        margin: 1.5rem 0;
-    }
-
-    article ul li, article ol li {
-        padding-left: 1.5rem;
-    }
-
-    article ol li {
-        padding-left: 2rem;
-    }
-
-    article ol li::before {
-        width: 20px;
-        height: 20px;
-        font-size: 0.7rem;
+    #documenter-page pre code {
+        font-size: 0.82rem;
     }
 }
 
-/* ============================================
-   Print Styles
-   ============================================ */
 @media print {
-    article pre {
-        background: #f5f5f5 !important;
-        color: #333 !important;
-        border: 1px solid #ddd;
+    #documenter-page > h1:first-child {
+        color: #000000;
+        background: transparent;
         box-shadow: none;
+        border: 1px solid #dddddd;
     }
 
-    article pre code {
-        color: #333 !important;
-    }
-
-    article a {
-        color: inherit;
-        text-decoration: underline;
-    }
-
-    article a::after {
-        display: none;
-    }
-
-    .docs-sidebar {
-        display: none;
-    }
-
-    .admonition {
-        box-shadow: none;
-        border: 1px solid #ddd;
-    }
-
-    article img {
+    #documenter-page pre {
         box-shadow: none;
     }
 }
-
-/* ============================================
-   Animations
-   ============================================ */
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-article > * {
-    animation: fadeIn 0.4s ease-out;
-}
-
-/* Staggered animation for list items */
-article ul li, article ol li {
-    animation: fadeIn 0.4s ease-out;
-    animation-fill-mode: both;
-}
-
-article ul li:nth-child(1), article ol li:nth-child(1) { animation-delay: 0.05s; }
-article ul li:nth-child(2), article ol li:nth-child(2) { animation-delay: 0.1s; }
-article ul li:nth-child(3), article ol li:nth-child(3) { animation-delay: 0.15s; }
-article ul li:nth-child(4), article ol li:nth-child(4) { animation-delay: 0.2s; }
-article ul li:nth-child(5), article ol li:nth-child(5) { animation-delay: 0.25s; }
-
-/* ============================================
-   Special Components
-   ============================================ */
-
-/* Feature cards */
-.feature-box {
-    background: var(--gradient-card);
-    border: 1px solid var(--border-color);
-    border-radius: 16px;
-    padding: 2rem;
-    margin: 2rem 0;
-    box-shadow: var(--shadow-md);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.feature-box:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-xl);
-}
-
-.feature-box h4 {
-    color: var(--primary-dark);
-    margin-top: 0;
-    margin-bottom: 1rem;
-}
-
-/* Equation numbering */
-.equation-label {
-    float: right;
-    color: var(--text-muted);
-    font-size: 0.85rem;
-    font-weight: 500;
-}
-
-/* Key terms */
-strong {
-    color: var(--text-primary);
-    font-weight: 600;
-}
-
-em {
-    color: var(--text-secondary);
-    font-style: italic;
-}
-
-/* Badge styles */
-.badge {
-    display: inline-block;
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    border-radius: 9999px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-.badge-primary {
-    background: var(--gradient-primary);
-    color: white;
-}
-
-.badge-success {
-    background: linear-gradient(135deg, var(--success-color) 0%, var(--success-light) 100%);
-    color: white;
-}
-
-.badge-warning {
-    background: linear-gradient(135deg, var(--warning-color) 0%, var(--warning-light) 100%);
-    color: white;
-}
-
-/* ============================================
-   Syntax Highlighting Enhancements
-   ============================================ */
-article pre .hljs-keyword { color: #c678dd; }
-article pre .hljs-string { color: #98c379; }
-article pre .hljs-number { color: #d19a66; }
-article pre .hljs-comment { color: #5c6370; font-style: italic; }
-article pre .hljs-function { color: #61afef; }
-article pre .hljs-built_in { color: #e5c07b; }
-article pre .hljs-type { color: #e5c07b; }
-article pre .hljs-params { color: #abb2bf; }
-article pre .hljs-literal { color: #56b6c2; }

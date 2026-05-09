@@ -5,6 +5,7 @@ using ..Mesh
 using ..TimeStepper
 using ..Dissipation
 using ..Kernels
+using ..Workspace: VortexWorkspace
 
 export Periodic, Bounded, Flat, RectilinearGrid, Clock, VortexSheetModel,
        Simulation, set!, time_step!, run!
@@ -44,11 +45,11 @@ The current vortex solver assumes `x` and `y` start at zero and `z` is centered
 around zero, so this constructor validates those restrictions instead of hiding
 an origin shift.
 """
-struct RectilinearGrid
+struct RectilinearGrid{T<:AbstractFloat}
     size::NTuple{3,Int}
-    x::NTuple{2,Float64}
-    y::NTuple{2,Float64}
-    z::NTuple{2,Float64}
+    x::NTuple{2,T}
+    y::NTuple{2,T}
+    z::NTuple{2,T}
     topology::NTuple{3,DataType}
     domain::DomainSpec
     grid::GridSpec
@@ -87,11 +88,11 @@ function RectilinearGrid(; size,
     topo = _validate_periodic_topology(topology)
     domain = DomainSpec(Lx, Ly, Lz_total / 2)
     gr = GridSpec(grid_size...)
-    return RectilinearGrid(grid_size, (x₁, x₂), (y₁, y₂), (z₁, z₂), topo, domain, gr)
+    return RectilinearGrid{Float64}(grid_size, (x₁, x₂), (y₁, y₂), (z₁, z₂), topo, domain, gr)
 end
 
-Base.show(io::IO, grid::RectilinearGrid) =
-    print(io, "$(grid.size[1])×$(grid.size[2])×$(grid.size[3]) RectilinearGrid{Float64, Periodic, Periodic, Periodic}")
+Base.show(io::IO, grid::RectilinearGrid{T}) where T =
+    print(io, "$(grid.size[1])×$(grid.size[2])×$(grid.size[3]) RectilinearGrid{$T, Periodic, Periodic, Periodic}")
 
 mutable struct Clock
     time::Float64
@@ -101,40 +102,46 @@ end
 
 Clock() = Clock(0.0, 0, 0.0)
 
-mutable struct VortexSheetModel
-    grid::RectilinearGrid
+mutable struct VortexSheetModel{T<:AbstractFloat,A}
+    grid::RectilinearGrid{T}
     clock::Clock
-    nodeX::Vector{Float64}
-    nodeY::Vector{Float64}
-    nodeZ::Vector{Float64}
+    nodeX::Vector{T}
+    nodeY::Vector{T}
+    nodeZ::Vector{T}
     tri::Matrix{Int}
-    eleGma::Matrix{Float64}
-    At
+    eleGma::Matrix{T}
+    At::A
     adaptive::Bool
-    CFL::Float64
+    CFL::T
     poisson_mode::Symbol
     parallel_fft::Bool
     dissipation::DissipationModel
     kernel::KernelType
+    workspace::VortexWorkspace{T}
 end
 
-function VortexSheetModel(; grid::RectilinearGrid,
+function VortexSheetModel(; grid::RectilinearGrid{T},
                           sheet_size::Tuple{Int,Int}=(16, 16),
                           circulation=(0.0, 1.0, 0.0),
                           amp::Float64=1e-2,
-                          At=0.0,
+                          At=nothing,
                           adaptive::Bool=false,
                           CFL::Float64=0.5,
                           poisson_mode::Symbol=:spectral,
                           parallel_fft::Bool=false,
                           dissipation::DissipationModel=NoDissipation(),
-                          kernel::KernelType=PeskinStandard())
+                          kernel::KernelType=PeskinStandard()) where T
     nodeX, nodeY, nodeZ, tri, _, _, _ =
         structured_mesh(Int(sheet_size[1]), Int(sheet_size[2]); domain=grid.domain, amp=amp)
-    eleGma = zeros(Float64, size(tri, 1), 3)
-    model = VortexSheetModel(grid, Clock(), nodeX, nodeY, nodeZ, tri, eleGma,
-                             At, adaptive, CFL, poisson_mode, parallel_fft,
-                             dissipation, kernel)
+    eleGma = zeros(T, size(tri, 1), 3)
+    nx, ny, nz = grid.grid.nx, grid.grid.ny, grid.grid.nz
+    ws = VortexWorkspace(T, length(nodeX), size(tri, 1), nx, ny, nz, grid.domain)
+    At_value = At === nothing ? zero(T) : At
+    A = typeof(At_value)
+    model = VortexSheetModel{T,A}(grid, Clock(), Vector{T}(nodeX), Vector{T}(nodeY),
+                                  Vector{T}(nodeZ), tri, eleGma, At_value, adaptive,
+                                  T(CFL), poisson_mode, parallel_fft, dissipation,
+                                  kernel, ws)
     set!(model; circulation=circulation)
     return model
 end
@@ -148,7 +155,8 @@ end
 
 function _assign_circulation!(eleGma::AbstractMatrix, Γ)
     length(Γ) == 3 || throw(ArgumentError("circulation must have three components"))
-    γ₁, γ₂, γ₃ = Float64(Γ[1]), Float64(Γ[2]), Float64(Γ[3])
+    T = eltype(eleGma)
+    γ₁, γ₂, γ₃ = T(Γ[1]), T(Γ[2]), T(Γ[3])
     @inbounds for t in axes(eleGma, 1)
         eleGma[t, 1] = γ₁
         eleGma[t, 2] = γ₂
@@ -167,7 +175,7 @@ function set!(model::VortexSheetModel; Γ=nothing, gamma=nothing, circulation=no
     return model
 end
 
-function time_step!(model::VortexSheetModel, Δt::Real; kwargs...)
+function time_step!(model::VortexSheetModel{T,A}, Δt::Real; kwargs...) where {T,A}
     dt = Float64(Δt)
     if model.dissipation isa NoDissipation && model.kernel == PeskinStandard()
         dt_used = rk2_step!(model.nodeX, model.nodeY, model.nodeZ, model.tri, model.eleGma,

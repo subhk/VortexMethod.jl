@@ -9,6 +9,10 @@
 
     @test grid.domain == VortexMethod.DomainSpec(1.0, 1.0, 1.0)
     @test grid.grid == VortexMethod.GridSpec(6, 6, 5)
+    @test VortexMethod.RectilinearGrid isa UnionAll
+    if VortexMethod.RectilinearGrid isa UnionAll
+        @test grid isa VortexMethod.RectilinearGrid{Float64}
+    end
 
     model = VortexMethod.VortexSheetModel(;
         grid,
@@ -18,6 +22,14 @@
     )
 
     @test model.grid === grid
+    @test VortexMethod.VortexSheetModel isa UnionAll
+    if VortexMethod.VortexSheetModel isa UnionAll
+        @test model isa VortexMethod.VortexSheetModel{Float64, Float64}
+    end
+    @test hasproperty(model, :workspace)
+    if hasproperty(model, :workspace)
+        @test model.workspace isa VortexMethod.VortexWorkspace{Float64}
+    end
     @test model.clock.iteration == 0
     @test model.clock.time == 0.0
     @test size(model.eleGma, 1) == size(model.tri, 1)
@@ -33,6 +45,12 @@
     Γ = fill(0.25, size(model.eleGma))
     VortexMethod.set!(model; circulation=Γ)
     @test model.eleGma == Γ
+
+    model_with_vector_at = VortexMethod.VortexSheetModel(; grid, sheet_size=(4, 4), At=zeros(size(model.tri, 1)))
+    if VortexMethod.VortexSheetModel isa UnionAll
+        @test model_with_vector_at isa VortexMethod.VortexSheetModel{Float64, Vector{Float64}}
+    end
+    @test model_with_vector_at.At isa Vector{Float64}
 
     simulation = VortexMethod.Simulation(model; Δt=0.0, stop_iteration=1)
     VortexMethod.run!(simulation)
