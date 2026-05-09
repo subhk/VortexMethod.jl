@@ -78,6 +78,12 @@ end
     @test ws.ζy ≈ ζy
     @test ws.ζz ≈ ζz
 
+    ws.geom_dirty[] = true
+    VortexMethod.spread_vorticity_to_grid_mpi!(ws, eleGma, triXC, triYC, triZC, domain, gr)
+    GC.gc()
+    ws.geom_dirty[] = true
+    @test @allocated(VortexMethod.spread_vorticity_to_grid_mpi!(ws, eleGma, triXC, triYC, triZC, domain, gr)) < 1024
+
     old_triC = copy(ws.triC)
     ws.geom_dirty[] = false
     VortexMethod.spread_vorticity_to_grid_mpi!(ws, eleGma, triXC .+ 0.125, triYC, triZC, domain, gr)
@@ -91,6 +97,8 @@ end
     @test ws.u1 ≈ collect(u)
     @test ws.v1 ≈ collect(v)
     @test ws.w1 ≈ collect(w)
+    GC.gc()
+    @test @allocated(VortexMethod.interpolate_node_velocity_mpi!(ws, Ux, Uy, Uz, nodeX, nodeY, nodeZ, domain, gr)) < 1024
 
     p1 = SVector{3,Float64}(0.1, 0.2, 0.3)
     p2 = SVector{3,Float64}(0.4, 0.5, 0.1)
@@ -118,6 +126,29 @@ end
         VortexMethod.PeskinStandard(), eps32, shift32,
     )
     @test result32 isa SVector{3,Float32}
+end
+
+@testset "High-level workspace hot paths" begin
+    domain = VortexMethod.default_domain()
+    gr = VortexMethod.GridSpec(6, 6, 6)
+    nodeX, nodeY, nodeZ, tri, triXC, triYC, triZC =
+        VortexMethod.structured_mesh(4, 4; domain=domain, amp=0.0)
+    eleGma = fill(0.2, size(tri, 1), 3)
+
+    sampler = VortexMethod.make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr)
+    sampler(0.1, 0.2, 0.0)
+    GC.gc()
+    @test @allocated(sampler(0.1, 0.2, 0.0)) < 512
+
+    model = VortexMethod.VortexSheetModel(;
+        grid=VortexMethod.RectilinearGrid(size=(6, 6, 6)),
+        sheet_size=(4, 4),
+        Γ=(0.0, 0.2, 0.0),
+        amp=0.0,
+    )
+    VortexMethod.time_step!(model, 0.0)
+    GC.gc()
+    @test @allocated(VortexMethod.time_step!(model, 0.0)) < 80_000
 end
 
 @testset "fast_linalg hot-path solver assertions removed" begin

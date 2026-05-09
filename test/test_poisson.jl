@@ -21,6 +21,33 @@
     @test maximum(abs.(Uz)) < 1e-12
 end
 
+@testset "In-place Poisson solver matches allocating solver" begin
+    domain = VortexMethod.default_domain()
+    gr = VortexMethod.GridSpec(6, 6, 6)
+    nz, ny, nx = gr.nz, gr.ny, gr.nx
+    u_rhs = reshape(sin.(1:(nx * ny * nz)), nz, ny, nx)
+    v_rhs = reshape(cos.(1:(nx * ny * nz)), nz, ny, nx)
+    w_rhs = fill(0.125, nz, ny, nx)
+
+    Ux, Uy, Uz = VortexMethod.poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs, domain)
+    outx = similar(u_rhs)
+    outy = similar(u_rhs)
+    outz = similar(u_rhs)
+    workx = Array{ComplexF64}(undef, nz, ny, nx)
+    worky = similar(workx)
+    workz = similar(workx)
+
+    VortexMethod.poisson_velocity_fft_mpi!(outx, outy, outz, workx, worky, workz,
+                                           u_rhs, v_rhs, w_rhs, domain)
+    @test outx ≈ Ux
+    @test outy ≈ Uy
+    @test outz ≈ Uz
+
+    GC.gc()
+    @test @allocated(VortexMethod.poisson_velocity_fft_mpi!(outx, outy, outz, workx, worky, workz,
+                                                            u_rhs, v_rhs, w_rhs, domain)) < 10_000
+end
+
 @testset "Curl RHS uses second-order periodic differences" begin
     domain = VortexMethod.default_domain()
     nx, ny, nz = 6, 5, 4

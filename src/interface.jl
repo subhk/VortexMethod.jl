@@ -185,7 +185,8 @@ end
 function time_step!(model::VortexSheetModel{T,A}, Δt::Real; kwargs...) where {T,A}
     dt = Float64(Δt)
     if model.dissipation isa NoDissipation && model.kernel == PeskinStandard()
-        dt_used = rk2_step!(model.nodeX, model.nodeY, model.nodeZ, model.tri, model.eleGma,
+        dt_used = rk2_step!(model.workspace,
+                            model.nodeX, model.nodeY, model.nodeZ, model.tri, model.eleGma,
                             model.grid.domain, model.grid.grid, dt;
                             At=model.At, adaptive=model.adaptive, CFL=model.CFL,
                             poisson_mode=model.poisson_mode, parallel_fft=model.parallel_fft,

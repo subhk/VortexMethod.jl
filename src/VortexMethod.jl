@@ -52,7 +52,9 @@ export DomainSpec, GridSpec,
        find_elements_nearby!,
 
 # poisson3d.jl - FFT-based Poisson solvers
-       poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft,
+       poisson_velocity_fft, poisson_velocity_fft!, poisson_velocity_fft_mpi,
+       poisson_velocity_fft_mpi!, poisson_velocity_pencil_fft,
+       poisson_velocity_pencil_fft!,
 
 # mesh.jl - Mesh generation and connectivity
        structured_mesh,
@@ -73,8 +75,8 @@ export DomainSpec, GridSpec,
        apply_dissipation!, compute_eddy_viscosity, filter_width,
 
 # timestep.jl - Time integration and velocity computation
-       node_velocities, rk2_step!, rk2_step_with_dissipation!,
-       grid_velocity, make_velocity_sampler,
+       node_velocities, node_velocities!, rk2_step!, rk2_step_with_dissipation!,
+       grid_velocity, grid_velocity!, make_velocity_sampler,
 
 # interface.jl - High-level user-facing API
        Periodic, Bounded, Flat, RectilinearGrid, Clock, VortexSheetModel,

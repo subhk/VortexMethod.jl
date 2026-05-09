@@ -42,6 +42,16 @@ struct VortexWorkspace{T<:AbstractFloat}
     ζx::Array{T,3}          # (nz, ny, nx)
     ζy::Array{T,3}
     ζz::Array{T,3}
+    rhs_x::Array{T,3}
+    rhs_y::Array{T,3}
+    rhs_z::Array{T,3}
+    gridUx::Array{T,3}
+    gridUy::Array{T,3}
+    gridUz::Array{T,3}
+    fft_x::Array{Complex{T},3}
+    fft_y::Array{Complex{T},3}
+    fft_z::Array{Complex{T},3}
+    pencil_poisson::Base.RefValue{Any}
 
     # Nearby element index scratch (used by find_elements_nearby!)
     nearby_buf::Vector{Int}
@@ -86,6 +96,16 @@ function VortexWorkspace(::Type{T}, nnodes::Int, ntri::Int,
         Array{T}(undef, nz, ny, nx),
         Array{T}(undef, nz, ny, nx),
         Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{T}(undef, nz, ny, nx),
+        Array{Complex{T}}(undef, nz, ny, nx),
+        Array{Complex{T}}(undef, nz, ny, nx),
+        Array{Complex{T}}(undef, nz, ny, nx),
+        Ref{Any}(nothing),
         # Nearby element index scratch
         Vector{Int}(undef, ntri),
         # Shifts NTuple

@@ -9,7 +9,9 @@ using LinearAlgebra
 using ..DomainImpl
 
 export curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace, 
-       poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
+       poisson_velocity_fft, poisson_velocity_fft!, poisson_velocity_fft_mpi,
+       poisson_velocity_fft_mpi!, poisson_velocity_pencil_fft,
+       poisson_velocity_pencil_fft!
 
 # Compatibility token for the in-place curl RHS API. The second-order periodic
 # stencil computes directly into the output arrays and needs no derivative buffers.
@@ -73,10 +75,75 @@ function require_periodic_boundary(boundary_condition::Symbol)
     throw(ArgumentError("poisson_velocity_fft supports only periodic FFT boundaries; requested boundary_condition=$boundary_condition"))
 end
 
+@inline function _spectral_wavenumber(i::Int, n::Int, L::Float64, ::Type{T}) where T<:AbstractFloat
+    m = i - 1
+    n2 = fld(n, 2)
+    return m <= n2 ? T(2π * m / L) : T(-2π * (n - m) / L)
+end
+
 function init_mpi!()
     MPI.Finalized() && throw(ErrorException("MPI has already been finalized"))
     MPI.Initialized() || MPI.Init()
     return nothing
+end
+
+struct PencilPoissonWorkspace{T<:AbstractFloat,P,In,Out}
+    dims::NTuple{3,Int}
+    comm_size::Int
+    fft_plan::P
+    u_local::In
+    v_local::In
+    w_local::In
+    Fu::Out
+    Fv::Out
+    Fw::Out
+    ux_local::In
+    uy_local::In
+    uz_local::In
+    ux_local_global::Array{T,3}
+    uy_local_global::Array{T,3}
+    uz_local_global::Array{T,3}
+end
+
+function PencilPoissonWorkspace(::Type{T}, dims::NTuple{3,Int}, comm::MPI.Comm) where T<:AbstractFloat
+    pen = Pencil(dims, comm)
+    fft_plan = PencilFFTPlan(pen, Transforms.FFT(), T)
+    u_local = allocate_input(fft_plan)
+    v_local = allocate_input(fft_plan)
+    w_local = allocate_input(fft_plan)
+    Fu = allocate_output(fft_plan)
+    Fv = allocate_output(fft_plan)
+    Fw = allocate_output(fft_plan)
+    ux_local = allocate_input(fft_plan)
+    uy_local = allocate_input(fft_plan)
+    uz_local = allocate_input(fft_plan)
+    nz, ny, nx = dims
+    return PencilPoissonWorkspace{T,typeof(fft_plan),typeof(u_local),typeof(Fu)}(
+        dims,
+        MPI.Comm_size(comm),
+        fft_plan,
+        u_local, v_local, w_local,
+        Fu, Fv, Fw,
+        ux_local, uy_local, uz_local,
+        zeros(T, nz, ny, nx),
+        zeros(T, nz, ny, nx),
+        zeros(T, nz, ny, nx),
+    )
+end
+
+function _pencil_poisson_workspace!(cache::Base.RefValue{Any},
+                                    ::Type{T},
+                                    dims::NTuple{3,Int},
+                                    comm::MPI.Comm) where T<:AbstractFloat
+    cached = cache[]
+    if cached isa PencilPoissonWorkspace{T} &&
+       cached.dims == dims &&
+       cached.comm_size == MPI.Comm_size(comm)
+        return cached
+    end
+    workspace = PencilPoissonWorkspace(T, dims, comm)
+    cache[] = workspace
+    return workspace
 end
 
 # FFT-based Poisson solve (periodic): ∇^2 U = RHS -> Û = -RHŜ/k^2
@@ -136,6 +203,73 @@ function poisson_velocity_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, 
     uz = real(FFTW.ifft(Ŵ))
 
     # Note: Periodic boundary conditions are handled automatically by FFT
+
+    return ux, uy, uz
+end
+
+function poisson_velocity_fft!(ux::Array{T,3}, uy::Array{T,3}, uz::Array{T,3},
+                               Fu::Array{Complex{T},3},
+                               Fv::Array{Complex{T},3},
+                               Fw::Array{Complex{T},3},
+                               u_rhs::Array{T,3}, v_rhs::Array{T,3}, w_rhs::Array{T,3},
+                               domain::DomainSpec; mode::Symbol=:spectral,
+                               boundary_condition::Symbol=:periodic) where T<:AbstractFloat
+    require_periodic_boundary(boundary_condition)
+    mode == :spectral || mode == :fd ||
+        throw(ArgumentError("Unknown Poisson mode: $mode (use :spectral or :fd)"))
+    size(ux) == size(u_rhs) == size(Fu) ||
+        throw(DimensionMismatch("ux, Fu, and u_rhs must have matching sizes"))
+    size(uy) == size(v_rhs) == size(Fv) ||
+        throw(DimensionMismatch("uy, Fv, and v_rhs must have matching sizes"))
+    size(uz) == size(w_rhs) == size(Fw) ||
+        throw(DimensionMismatch("uz, Fw, and w_rhs must have matching sizes"))
+
+    nz, ny, nx = size(u_rhs)
+    dx = T(domain.Lx / nx)
+    dy = T(domain.Ly / ny)
+    dz = T((2 * domain.Lz) / nz)
+    fd_scale = T(0.5 / (domain.Lx * domain.Ly * domain.Lz))
+
+    @inbounds for I in eachindex(u_rhs, v_rhs, w_rhs, Fu, Fv, Fw)
+        Fu[I] = Complex{T}(u_rhs[I], zero(T))
+        Fv[I] = Complex{T}(v_rhs[I], zero(T))
+        Fw[I] = Complex{T}(w_rhs[I], zero(T))
+    end
+
+    FFTW.fft!(Fu)
+    FFTW.fft!(Fv)
+    FFTW.fft!(Fw)
+
+    @inbounds for k in 1:nz, j in 1:ny, i in 1:nx
+        if mode == :spectral
+            kx = _spectral_wavenumber(i, nx, domain.Lx, T)
+            ky = _spectral_wavenumber(j, ny, domain.Ly, T)
+            kz = _spectral_wavenumber(k, nz, 2 * domain.Lz, T)
+            sym = kx*kx + ky*ky + kz*kz
+            factor = iszero(sym) ? zero(T) : -one(T) / sym
+        else
+            mx = T(i - 1)
+            my = T(j - 1)
+            mz = T(k - 1)
+            sym = T(2) * (cos(T(2π) * mx / T(nx)) - one(T)) / (dx * dx) +
+                  T(2) * (cos(T(2π) * my / T(ny)) - one(T)) / (dy * dy) +
+                  T(2) * (cos(T(2π) * mz / T(nz)) - one(T)) / (dz * dz)
+            factor = iszero(sym) ? zero(T) : fd_scale / sym
+        end
+        Fu[k,j,i] *= factor
+        Fv[k,j,i] *= factor
+        Fw[k,j,i] *= factor
+    end
+
+    FFTW.ifft!(Fu)
+    FFTW.ifft!(Fv)
+    FFTW.ifft!(Fw)
+
+    @inbounds for I in eachindex(ux, uy, uz, Fu, Fv, Fw)
+        ux[I] = real(Fu[I])
+        uy[I] = real(Fv[I])
+        uz[I] = real(Fw[I])
+    end
 
     return ux, uy, uz
 end
@@ -253,6 +387,102 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
     return ux_gathered, uy_gathered, uz_gathered
 end
 
+function _poisson_velocity_pencil_fft!(workspace::PencilPoissonWorkspace{T},
+                                       ux::Array{T,3}, uy::Array{T,3}, uz::Array{T,3},
+                                       u_rhs::Array{T,3}, v_rhs::Array{T,3}, w_rhs::Array{T,3},
+                                       domain::DomainSpec, comm::MPI.Comm,
+                                       mode::Symbol) where T<:AbstractFloat
+    nz, ny, nx = workspace.dims
+    dx = T(domain.Lx / nx)
+    dy = T(domain.Ly / ny)
+    dz = T((2 * domain.Lz) / nz)
+
+    u_view = global_view(workspace.u_local)
+    v_view = global_view(workspace.v_local)
+    w_view = global_view(workspace.w_local)
+    @inbounds for I in CartesianIndices(u_view)
+        u_view[I] = u_rhs[I]
+        v_view[I] = v_rhs[I]
+        w_view[I] = w_rhs[I]
+    end
+
+    mul!(workspace.Fu, workspace.fft_plan, workspace.u_local)
+    mul!(workspace.Fv, workspace.fft_plan, workspace.v_local)
+    mul!(workspace.Fw, workspace.fft_plan, workspace.w_local)
+
+    Fu_view = global_view(workspace.Fu)
+    Fv_view = global_view(workspace.Fv)
+    Fw_view = global_view(workspace.Fw)
+    fd_scale = T(0.5 / (domain.Lx * domain.Ly * domain.Lz))
+    @inbounds for I in CartesianIndices(Fu_view)
+        k, j, i = Tuple(I)
+        if mode == :spectral
+            kx = _spectral_wavenumber(i, nx, domain.Lx, T)
+            ky = _spectral_wavenumber(j, ny, domain.Ly, T)
+            kz = _spectral_wavenumber(k, nz, 2 * domain.Lz, T)
+            sym = kx*kx + ky*ky + kz*kz
+            factor = iszero(sym) ? zero(T) : -one(T) / sym
+        else
+            mx = T(i - 1)
+            my = T(j - 1)
+            mz = T(k - 1)
+            sym = T(2) * (cos(T(2π) * mx / T(nx)) - one(T)) / (dx * dx) +
+                  T(2) * (cos(T(2π) * my / T(ny)) - one(T)) / (dy * dy) +
+                  T(2) * (cos(T(2π) * mz / T(nz)) - one(T)) / (dz * dz)
+            factor = iszero(sym) ? zero(T) : fd_scale / sym
+        end
+        Fu_view[I] *= factor
+        Fv_view[I] *= factor
+        Fw_view[I] *= factor
+    end
+
+    ldiv!(workspace.ux_local, workspace.fft_plan, workspace.Fu)
+    ldiv!(workspace.uy_local, workspace.fft_plan, workspace.Fv)
+    ldiv!(workspace.uz_local, workspace.fft_plan, workspace.Fw)
+
+    fill!(workspace.ux_local_global, zero(T))
+    fill!(workspace.uy_local_global, zero(T))
+    fill!(workspace.uz_local_global, zero(T))
+
+    ux_view = global_view(workspace.ux_local)
+    uy_view = global_view(workspace.uy_local)
+    uz_view = global_view(workspace.uz_local)
+    @inbounds for I in CartesianIndices(ux_view)
+        workspace.ux_local_global[I] = real(ux_view[I])
+        workspace.uy_local_global[I] = real(uy_view[I])
+        workspace.uz_local_global[I] = real(uz_view[I])
+    end
+
+    MPI.Allreduce!(workspace.ux_local_global, ux, MPI.SUM, comm)
+    MPI.Allreduce!(workspace.uy_local_global, uy, MPI.SUM, comm)
+    MPI.Allreduce!(workspace.uz_local_global, uz, MPI.SUM, comm)
+    return ux, uy, uz
+end
+
+function poisson_velocity_pencil_fft!(cache::Base.RefValue{Any},
+                                      ux::Array{T,3}, uy::Array{T,3}, uz::Array{T,3},
+                                      u_rhs::Array{T,3}, v_rhs::Array{T,3}, w_rhs::Array{T,3},
+                                      domain::DomainSpec; mode::Symbol=:spectral,
+                                      boundary_condition::Symbol=:periodic) where T<:AbstractFloat
+    require_periodic_boundary(boundary_condition)
+    mode == :spectral || mode == :fd ||
+        throw(ArgumentError("Unknown Poisson mode: $mode (use :spectral or :fd)"))
+    size(ux) == size(u_rhs) ||
+        throw(DimensionMismatch("ux and u_rhs must have matching sizes"))
+    size(uy) == size(v_rhs) ||
+        throw(DimensionMismatch("uy and v_rhs must have matching sizes"))
+    size(uz) == size(w_rhs) ||
+        throw(DimensionMismatch("uz and w_rhs must have matching sizes"))
+
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+    dims = size(u_rhs)
+    workspace = _pencil_poisson_workspace!(cache, T, dims, comm)
+    return _poisson_velocity_pencil_fft!(workspace, ux, uy, uz,
+                                         u_rhs, v_rhs, w_rhs,
+                                         domain, comm, mode)
+end
+
 # MPI wrapper: compute Poisson solve on rank 0 and broadcast to all ranks (original implementation)
 function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3},
                                   domain::DomainSpec; mode::Symbol=:spectral,
@@ -275,7 +505,30 @@ function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,
     return Ux, Uy, Uz
 end
 
+function poisson_velocity_fft_mpi!(Ux::Array{T,3}, Uy::Array{T,3}, Uz::Array{T,3},
+                                   Fu::Array{Complex{T},3},
+                                   Fv::Array{Complex{T},3},
+                                   Fw::Array{Complex{T},3},
+                                   u_rhs::Array{T,3}, v_rhs::Array{T,3}, w_rhs::Array{T,3},
+                                   domain::DomainSpec; mode::Symbol=:spectral,
+                                   boundary_condition::Symbol=:periodic) where T<:AbstractFloat
+    require_periodic_boundary(boundary_condition)
+    init_mpi!()
+    comm = MPI.COMM_WORLD
+    rank = MPI.Comm_rank(comm)
+    if rank == 0
+        poisson_velocity_fft!(Ux, Uy, Uz, Fu, Fv, Fw, u_rhs, v_rhs, w_rhs, domain;
+                              mode=mode, boundary_condition=boundary_condition)
+    end
+    MPI.Bcast!(Ux, 0, comm)
+    MPI.Bcast!(Uy, 0, comm)
+    MPI.Bcast!(Uz, 0, comm)
+    return Ux, Uy, Uz
+end
+
 end # module
 
 using .Poisson3D: curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace, 
-                   poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft
+                  poisson_velocity_fft, poisson_velocity_fft!, poisson_velocity_fft_mpi,
+                  poisson_velocity_fft_mpi!, poisson_velocity_pencil_fft,
+                  poisson_velocity_pencil_fft!

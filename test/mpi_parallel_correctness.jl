@@ -109,12 +109,24 @@ end
     spread_mpi = VortexMethod.spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC,
                                                            domain, gr)
     @test all(isapprox.(spread_mpi, spread_ref; rtol=1e-12, atol=1e-12))
+    ws = VortexMethod.VortexWorkspace(Float64, length(nodeX), size(tri, 1),
+                                      gr.nx, gr.ny, gr.nz, domain)
+    VortexMethod.spread_vorticity_to_grid_mpi!(ws, eleGma, triXC, triYC, triZC,
+                                               domain, gr)
+    @test ws.ζx ≈ spread_ref[1] rtol=1e-12 atol=1e-12
+    @test ws.ζy ≈ spread_ref[2] rtol=1e-12 atol=1e-12
+    @test ws.ζz ≈ spread_ref[3] rtol=1e-12 atol=1e-12
 
     Ux, Uy, Uz = sample_rhs(domain, gr)
     interp_ref = serial_interpolate_reference(Ux, Uy, Uz, nodeX, nodeY, nodeZ, domain, gr)
     interp_mpi = VortexMethod.interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ,
                                                             domain, gr)
     @test all(isapprox.(map(collect, interp_mpi), interp_ref; rtol=1e-12, atol=1e-12))
+    VortexMethod.interpolate_node_velocity_mpi!(ws, Ux, Uy, Uz, nodeX, nodeY, nodeZ,
+                                                domain, gr)
+    @test ws.u1 ≈ interp_ref[1] rtol=1e-12 atol=1e-12
+    @test ws.v1 ≈ interp_ref[2] rtol=1e-12 atol=1e-12
+    @test ws.w1 ≈ interp_ref[3] rtol=1e-12 atol=1e-12
 
     τ_ref = VortexMethod.node_circulation_from_ele_gamma(triXC, triYC, triZC, eleGma;
                                                          domain=domain)
@@ -133,6 +145,12 @@ end
         broadcast_poisson = VortexMethod.poisson_velocity_fft_mpi(u_rhs, v_rhs, w_rhs,
                                                                   domain; mode=mode)
         @test all(isapprox.(broadcast_poisson, serial_poisson; rtol=1e-12, atol=1e-12))
+        VortexMethod.poisson_velocity_fft_mpi!(ws.gridUx, ws.gridUy, ws.gridUz,
+                                               ws.fft_x, ws.fft_y, ws.fft_z,
+                                               u_rhs, v_rhs, w_rhs, domain; mode=mode)
+        @test ws.gridUx ≈ serial_poisson[1] rtol=1e-12 atol=1e-12
+        @test ws.gridUy ≈ serial_poisson[2] rtol=1e-12 atol=1e-12
+        @test ws.gridUz ≈ serial_poisson[3] rtol=1e-12 atol=1e-12
 
         pencil_poisson = VortexMethod.poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs,
                                                                   domain; mode=mode)
@@ -145,6 +163,21 @@ end
                                                  domain, gr; poisson_mode=mode,
                                                  parallel_fft=true)
         @test all(isapprox.(grid_pencil, grid_broadcast; rtol=1e-10, atol=1e-10))
+        ws.geom_dirty[] = true
+        grid_workspace = VortexMethod.grid_velocity!(ws, eleGma, triXC, triYC, triZC,
+                                                     domain, gr; poisson_mode=mode,
+                                                     parallel_fft=false)
+        @test all(isapprox.(grid_workspace, grid_broadcast; rtol=1e-12, atol=1e-12))
+        ws.geom_dirty[] = true
+        grid_workspace_pencil = VortexMethod.grid_velocity!(ws, eleGma, triXC, triYC, triZC,
+                                                            domain, gr; poisson_mode=mode,
+                                                            parallel_fft=true)
+        @test all(isapprox.(grid_workspace_pencil, grid_broadcast; rtol=1e-10, atol=1e-10))
+        GC.gc()
+        ws.geom_dirty[] = true
+        @test @allocated(VortexMethod.grid_velocity!(ws, eleGma, triXC, triYC, triZC,
+                                                     domain, gr; poisson_mode=mode,
+                                                     parallel_fft=true)) < 130_000
 
         node_broadcast = VortexMethod.node_velocities(eleGma, triXC, triYC, triZC,
                                                       nodeX, nodeY, nodeZ, domain, gr;
@@ -155,6 +188,20 @@ end
                                                    poisson_mode=mode,
                                                    parallel_fft=true)
         @test all(isapprox.(node_pencil, node_broadcast; rtol=1e-10, atol=1e-10))
+        ws.geom_dirty[] = true
+        node_workspace = VortexMethod.node_velocities!(ws, ws.u1, ws.v1, ws.w1,
+                                                       eleGma, triXC, triYC, triZC,
+                                                       nodeX, nodeY, nodeZ, domain, gr;
+                                                       poisson_mode=mode,
+                                                       parallel_fft=false)
+        @test all(isapprox.(node_workspace, node_broadcast; rtol=1e-12, atol=1e-12))
+        ws.geom_dirty[] = true
+        node_workspace_pencil = VortexMethod.node_velocities!(ws, ws.u1, ws.v1, ws.w1,
+                                                              eleGma, triXC, triYC, triZC,
+                                                              nodeX, nodeY, nodeZ, domain, gr;
+                                                              poisson_mode=mode,
+                                                              parallel_fft=true)
+        @test all(isapprox.(node_workspace_pencil, node_broadcast; rtol=1e-10, atol=1e-10))
     end
 end
 

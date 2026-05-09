@@ -146,6 +146,59 @@ function subtriangle_centroids(p1::NTuple{3,T}, p2::NTuple{3,T},
     return C
 end
 
+function write_subtriangle_centroids!(subC::Array{T,3}, t::Int,
+                                      p1::NTuple{3,T}, p2::NTuple{3,T},
+                                      p3::NTuple{3,T}, M::Integer,
+                                      domain::Union{Nothing,DomainSpec}) where {T<:AbstractFloat}
+    raw_a, raw_b, raw_c = domain === nothing ? (p1, p2, p3) : unwrap_triangle(p1, p2, p3, domain)
+    a = SVector{3,T}(T(raw_a[1]), T(raw_a[2]), T(raw_a[3]))
+    b = SVector{3,T}(T(raw_b[1]), T(raw_b[2]), T(raw_b[3]))
+    c = SVector{3,T}(T(raw_c[1]), T(raw_c[2]), T(raw_c[3]))
+    idx = 1
+
+    if M == 2
+        order = (
+            ((0, 0), (1, 0), (0, 1)),
+            ((1, 0), (1, 1), (0, 1)),
+            ((1, 0), (2, 0), (1, 1)),
+            ((1, 1), (0, 2), (0, 1)),
+        )
+        @inbounds for tri_idx in order
+            v1 = bary_point(a, b, c, tri_idx[1][1], tri_idx[1][2], M)
+            v2 = bary_point(a, b, c, tri_idx[2][1], tri_idx[2][2], M)
+            v3 = bary_point(a, b, c, tri_idx[3][1], tri_idx[3][2], M)
+            ct = maybe_wrap(centroid3(v1, v2, v3), domain)
+            subC[t, idx, 1] = ct[1]
+            subC[t, idx, 2] = ct[2]
+            subC[t, idx, 3] = ct[3]
+            idx += 1
+        end
+        return nothing
+    end
+
+    @inbounds for i in 0:M-1, j in 0:M-1-i
+        v1 = bary_point(a, b, c, i, j, M)
+        v2 = bary_point(a, b, c, i + 1, j, M)
+        v3 = bary_point(a, b, c, i, j + 1, M)
+        ct = maybe_wrap(centroid3(v1, v2, v3), domain)
+        subC[t, idx, 1] = ct[1]
+        subC[t, idx, 2] = ct[2]
+        subC[t, idx, 3] = ct[3]
+        idx += 1
+        if i + j <= M - 2
+            v1 = bary_point(a, b, c, i + 1, j, M)
+            v2 = bary_point(a, b, c, i + 1, j + 1, M)
+            v3 = bary_point(a, b, c, i, j + 1, M)
+            ct = maybe_wrap(centroid3(v1, v2, v3), domain)
+            subC[t, idx, 1] = ct[1]
+            subC[t, idx, 2] = ct[2]
+            subC[t, idx, 3] = ct[3]
+            idx += 1
+        end
+    end
+    return nothing
+end
+
 subtriangle_centroids4(p1::NTuple{3,T}, p2::NTuple{3,T}, p3::NTuple{3,T}) where T<:AbstractFloat =
     subtriangle_centroids(p1, p2, p3, 2)
 
@@ -372,12 +425,7 @@ function _recompute_geometry!(ws::VortexWorkspace{T},
         ws.triC[t,3] = T(cz)
         ws.areas[t] = T(periodic_triangle_area(p1, p2, p3, domain))
 
-        subs = subtriangle_centroids(p1, p2, p3, segments; domain=domain)
-        for s in 1:nsub
-            ws.subC[t,s,1] = subs[s,1]
-            ws.subC[t,s,2] = subs[s,2]
-            ws.subC[t,s,3] = subs[s,3]
-        end
+        write_subtriangle_centroids!(ws.subC, t, p1, p2, p3, segments, domain)
     end
 
     compute_triangle_geometry!(ws.geom, triXC, triYC, triZC; domain=domain)
@@ -453,6 +501,18 @@ function interpolate_node_velocity_mpi!(ws::VortexWorkspace{T},
                                         nodeX::AbstractVector{T}, nodeY::AbstractVector{T},
                                         nodeZ::AbstractVector{T},
                                         domain::DomainSpec, gr::GridSpec) where T<:AbstractFloat
+    return interpolate_node_velocity_mpi!(ws.u1, ws.v1, ws.w1, ws, gridUx, gridUy, gridUz,
+                                          nodeX, nodeY, nodeZ, domain, gr)
+end
+
+function interpolate_node_velocity_mpi!(out_u::AbstractVector{T},
+                                        out_v::AbstractVector{T},
+                                        out_w::AbstractVector{T},
+                                        ws::VortexWorkspace{T},
+                                        gridUx::Array{T,3}, gridUy::Array{T,3}, gridUz::Array{T,3},
+                                        nodeX::AbstractVector{T}, nodeY::AbstractVector{T},
+                                        nodeZ::AbstractVector{T},
+                                        domain::DomainSpec, gr::GridSpec) where T<:AbstractFloat
     init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
@@ -502,9 +562,9 @@ function interpolate_node_velocity_mpi!(ws::VortexWorkspace{T},
     MPI.Allreduce!(ws.local_buf, ws.global_buf, MPI.SUM, comm)
 
     @inbounds for i in 1:N
-        ws.u1[i] = ws.global_buf[i,1]
-        ws.v1[i] = ws.global_buf[i,2]
-        ws.w1[i] = ws.global_buf[i,3]
+        out_u[i] = ws.global_buf[i,1]
+        out_v[i] = ws.global_buf[i,2]
+        out_w[i] = ws.global_buf[i,3]
     end
     return nothing
 end

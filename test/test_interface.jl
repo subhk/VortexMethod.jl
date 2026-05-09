@@ -76,6 +76,38 @@
     @test model.clock.last_Δt == 0.0
 end
 
+@testset "Workspace-backed time_step! matches allocating RK2 path" begin
+    domain = VortexMethod.default_domain()
+    grid = VortexMethod.RectilinearGrid(size=(6, 6, 6))
+    nodeX, nodeY, nodeZ, tri, _, _, _ =
+        VortexMethod.structured_mesh(4, 4; domain=domain, amp=0.0)
+    eleGma = fill(0.2, size(tri, 1), 3)
+    expected_x = copy(nodeX)
+    expected_y = copy(nodeY)
+    expected_z = copy(nodeZ)
+    expected_Γ = copy(eleGma)
+
+    VortexMethod.rk2_step!(expected_x, expected_y, expected_z, tri, expected_Γ,
+                           domain, grid.grid, 0.01)
+
+    model = VortexMethod.VortexSheetModel(;
+        grid,
+        sheet_size=(4, 4),
+        Γ=(0.0, 0.2, 0.0),
+        amp=0.0,
+    )
+    model.nodeX .= nodeX
+    model.nodeY .= nodeY
+    model.nodeZ .= nodeZ
+    model.eleGma .= eleGma
+    VortexMethod.time_step!(model, 0.01)
+
+    @test model.nodeX ≈ expected_x
+    @test model.nodeY ≈ expected_y
+    @test model.nodeZ ≈ expected_z
+    @test model.eleGma ≈ expected_Γ
+end
+
 @testset "No external interface naming in repository text" begin
     repo_root = dirname(@__DIR__)
     this_file = @__FILE__
