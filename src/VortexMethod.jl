@@ -3,32 +3,32 @@ module VortexMethod
 using FFTW
 using MPI
 
-include("domain.jl")
-include("kernels.jl")
+include("core/domain.jl")
+include("kernels/kernels.jl")
 # Dependencies needed by TimeStepper
-include("circulation.jl")
+include("physics/circulation.jl")
 # workspace.jl - Preallocated buffer struct (stub)
-include("workspace.jl")
-include("peskin3d.jl")
-include("poisson3d.jl")
-include("mesh.jl")
-include("dissipation.jl")
+include("core/workspace.jl")
+include("kernels/grid_transfer.jl")
+include("poisson/fft.jl")
+include("core/mesh.jl")
+include("physics/dissipation.jl")
 # Time integration routines
-include("timestep.jl")
+include("integration/timestep.jl")
 # High-level user-facing interface
-include("interface.jl")
+include("integration/interface.jl")
 # Remeshing and advanced solvers
-include("remesh.jl")
-include("remesh_advanced.jl")
-include("poisson_advanced.jl")
-include("vortex_sheets.jl")
-include("checkpoint.jl")
-include("energy.jl")
+include("remeshing/basic.jl")
+include("remeshing/quality.jl")
+include("poisson/solvers.jl")
+include("sheets/sheets.jl")
+include("io/checkpoint.jl")
+include("physics/energy.jl")
 include("particle_management.jl")
 # HPC optimization modules
-include("performance.jl")
-include("fast_linalg.jl")
-include("soa_layout.jl")
+include("diagnostics/performance.jl")
+include("diagnostics/fast_linalg.jl")
+include("core/layout.jl")
 include("cache_optimization.jl")
 
 # Exports organized by source file for better maintainability
