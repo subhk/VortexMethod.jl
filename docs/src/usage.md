@@ -23,7 +23,7 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 - Domain/grid: `DomainSpec(Lx,Ly,Lz)`, `GridSpec(nx,ny,nz)`, `default_domain()`, `default_grid()`
 - Periodic helpers: `wrap_point(x,y,z, domain)`, `wrap_nodes!(nodeX,nodeY,nodeZ, domain)`
 - Spreading/interpolation (MPI): `spread_vorticity_to_grid_mpi`, `interpolate_node_velocity_mpi`
-- Poisson: `poisson_velocity_fft` / `_mpi` (periodic), or see `PoissonAdvanced` for alternatives
+- Poisson: `poisson_velocity_fft` / `_mpi` (periodic), or adaptive Poisson solvers for alternatives
 - Time stepping: `rk2_step!`, `rk2_step_with_dissipation!`; helper `node_velocities`
 - Velocity reuse: `grid_velocity` to compute `(Ux,Uy,Uz)` once; `make_velocity_sampler` to build `(x,y,z)->(u,v,w)` closures
 - Remeshing: `VortexMethod.Remeshing.*`

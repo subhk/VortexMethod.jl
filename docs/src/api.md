@@ -37,7 +37,7 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 ## Poisson solvers
 
-`VortexMethod.Poisson3D`:
+`VortexMethod.Poisson`:
 
 - `curl_rhs_centered(ζx,ζy,ζz, dx,dy,dz)`
 - `curl_rhs_centered!(workspace, u_rhs,v_rhs,w_rhs, ζx,ζy,ζz, dx,dy,dz)`
@@ -45,7 +45,7 @@ This page lists the main user-facing entry points. See docstrings and source for
 - `poisson_velocity_fft_mpi(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
 - `poisson_velocity_pencil_fft(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
 
-`VortexMethod.PoissonAdvanced`:
+`VortexMethod.Poisson`:
 
 - Types: `FFTSolver`, `IterativeSolver`, `MultigridSolver`, `HybridSolver`
 - BCs: `PeriodicBC`, `DirichletBC`, `NeumannBC`

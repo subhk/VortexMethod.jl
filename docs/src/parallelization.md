@@ -16,10 +16,10 @@ Benefits: embarrassingly parallel, no halo exchange, and no custom domain decomp
 ## Poisson solve
 
 !!! note "Centralized Solve"
-    The FFT-based Poisson solver currently runs on rank 0 and broadcasts results. For very large problems, consider `PoissonAdvanced` for distributed solvers.
+    The FFT-based Poisson solver currently runs on rank 0 and broadcasts results. For very large problems, consider `Poisson` adaptive solvers for distributed solvers.
 
 - The FFT-based Poisson solver currently runs on rank 0, computes the full solution `(Ux,Uy,Uz)`, and broadcasts to all ranks.
-- For very large problems, `PoissonAdvanced` provides interfaces for iterative or multigrid solvers. A hybrid solver can try FFT first and fall back if the residual is above a threshold.
+- For very large problems, `Poisson` provides interfaces for iterative or multigrid solvers. A hybrid solver can try FFT first and fall back if the residual is above a threshold.
 
 ## Interpolation to nodes
 
