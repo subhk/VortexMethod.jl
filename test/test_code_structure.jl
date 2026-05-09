@@ -6,6 +6,21 @@ src_root = joinpath(repo_root, "src")
 
 contains_pattern(file, pattern) = occursin(pattern, read(file, String))
 
+const POISSON_INTERNAL_TYPES = [
+    :FFTSolver,
+    :HybridSolver,
+    :IterativeSolver,
+    :PeriodicBC,
+    :DirichletBC,
+    :NeumannBC,
+]
+
+function unqualified_poisson_type_refs(file)
+    text = read(file, String)
+    pattern = Regex("(?<![.])\\b(" * join(string.(POISSON_INTERNAL_TYPES), "|") * ")\\b")
+    return collect(eachmatch(pattern, text))
+end
+
 @testset "code structure" begin
     @testset "source tree is organized by subsystem" begin
         expected_files = [
@@ -128,6 +143,7 @@ contains_pattern(file, pattern) = occursin(pattern, read(file, String))
             :create_soa_layout,
             :PerformanceCounters,
             :reset_counters!,
+            POISSON_INTERNAL_TYPES...,
         ]
 
         for name in internal_exports
@@ -136,6 +152,16 @@ contains_pattern(file, pattern) = occursin(pattern, read(file, String))
 
         @test isdefined(VortexMethod.GridTransfer, :triangle_areas)
         @test isdefined(VortexMethod.Poisson, :PoissonWorkspace)
+        for name in POISSON_INTERNAL_TYPES
+            @test isdefined(VortexMethod.Poisson, name)
+        end
         @test isdefined(VortexMethod.Remeshing, :quality_based_remesh!)
+    end
+
+    @testset "examples qualify Poisson solver internals" begin
+        for example in ["advanced_kh3d.jl", "validation_tests.jl"]
+            refs = unqualified_poisson_type_refs(joinpath(repo_root, "examples", example))
+            @test isempty(refs)
+        end
     end
 end

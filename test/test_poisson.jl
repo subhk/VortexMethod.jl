@@ -55,7 +55,7 @@ end
     v_rhs = reshape(cos.(1:(nx * ny * nz)), nz, ny, nx)
     w_rhs = fill(0.125, nz, ny, nx)
 
-    fft_solver = VortexMethod.FFTSolver()
+    fft_solver = VortexMethod.Poisson.FFTSolver()
     ux, uy, uz = @inferred VortexMethod.Poisson.solve_poisson!(
         fft_solver, u_rhs, v_rhs, w_rhs, domain,
     )
@@ -63,7 +63,11 @@ end
     @test size(uy) == size(v_rhs)
     @test size(uz) == size(w_rhs)
 
-    hybrid_solver = VortexMethod.HybridSolver(fft_solver, VortexMethod.FFTSolver(), Inf)
+    hybrid_solver = VortexMethod.Poisson.HybridSolver(
+        fft_solver,
+        VortexMethod.Poisson.FFTSolver(),
+        Inf,
+    )
     @test fieldtype(typeof(hybrid_solver), :primary) === typeof(hybrid_solver.primary)
     @test fieldtype(typeof(hybrid_solver), :fallback) === typeof(hybrid_solver.fallback)
     @test @inferred(VortexMethod.Poisson.solve_poisson!(

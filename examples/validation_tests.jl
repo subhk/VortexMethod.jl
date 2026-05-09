@@ -6,6 +6,8 @@ using MPI
 using Printf
 using LinearAlgebra
 
+const Poisson = VortexMethod.Poisson
+
 init_mpi!()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
@@ -230,12 +232,12 @@ function test_poisson_solvers()
     
     # Test different solvers
     if rank == 0
-        solvers = [FFTSolver(:spectral), FFTSolver(:fd)]
+        solvers = [Poisson.FFTSolver(:spectral), Poisson.FFTSolver(:fd)]
         solver_names = ["FFT Spectral", "FFT Finite Difference"]
         
         for (i, solver) in enumerate(solvers)
             start_time = time()
-            ux, uy, uz = solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
+            ux, uy, uz = Poisson.solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
             solve_time = time() - start_time
             
             # Compute error against analytical solution
