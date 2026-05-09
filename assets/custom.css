@@ -1,0 +1,525 @@
+/*
+   VortexMethod.jl documentation polish.
+   Keep this layer restrained: Documenter still handles layout, search,
+   navigation, and theme switching.
+*/
+
+:root {
+    --vm-accent: #0e7490;
+    --vm-accent-strong: #155e75;
+    --vm-accent-soft: #e0f2fe;
+    --vm-ink: #172033;
+    --vm-muted: #5f6f86;
+    --vm-surface: #ffffff;
+    --vm-surface-soft: #f8fafc;
+    --vm-border: #d8e2ee;
+    --vm-code-bg: #0f172a;
+    --vm-code-fg: #dbeafe;
+    --vm-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+    --vm-radius: 8px;
+    --julia-purple: #9558b2;
+    --julia-green: #389826;
+    --julia-red: #cb3c33;
+    --julia-blue: #4063d8;
+}
+
+html.theme--documenter-dark,
+html.theme--catppuccin-mocha,
+html.theme--catppuccin-macchiato,
+html.theme--catppuccin-frappe {
+    --vm-accent: #67e8f9;
+    --vm-accent-strong: #a5f3fc;
+    --vm-accent-soft: rgba(103, 232, 249, 0.12);
+    --vm-ink: #ecfeff;
+    --vm-muted: #b6c5d6;
+    --vm-surface: #172033;
+    --vm-surface-soft: #111827;
+    --vm-border: #334155;
+    --vm-code-bg: #020617;
+    --vm-code-fg: #dbeafe;
+    --vm-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-feature-settings: "kern", "liga";
+}
+
+#documenter .docs-main > article {
+    color: var(--vm-ink);
+    line-height: 1.75;
+}
+
+@media screen and (min-width: 1056px) {
+    #documenter .docs-main {
+        max-width: 58rem;
+        padding-right: 1.5rem;
+    }
+}
+
+/* Sidebar and top navigation */
+#documenter .docs-sidebar {
+    border-right: 1px solid var(--vm-border);
+}
+
+#documenter .docs-sidebar .docs-package-name {
+    background:
+        linear-gradient(135deg, rgba(14, 116, 144, 0.20), transparent 70%),
+        var(--vm-surface-soft);
+    border-bottom: 1px solid var(--vm-border);
+    letter-spacing: 0;
+}
+
+#documenter .docs-sidebar .docs-package-name a {
+    color: var(--vm-accent-strong);
+}
+
+#documenter .docs-sidebar .docs-search-query {
+    border: 1px solid var(--vm-border);
+    border-radius: 999px;
+    background: var(--vm-surface);
+    color: var(--vm-muted);
+    box-shadow: none;
+}
+
+#documenter .docs-sidebar .docs-search-query:hover,
+#documenter .docs-sidebar .docs-search-query:focus {
+    border-color: var(--vm-accent);
+    color: var(--vm-accent-strong);
+}
+
+#documenter .docs-sidebar ul.docs-menu .tocitem {
+    border-radius: 6px;
+    margin: 0.125rem 0.5rem;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+#documenter .docs-sidebar ul.docs-menu a.tocitem:hover,
+#documenter .docs-sidebar ul.docs-menu label.tocitem:hover {
+    background: var(--vm-accent-soft);
+    color: var(--vm-accent-strong);
+}
+
+#documenter .docs-sidebar ul.docs-menu li.is-active {
+    border-color: transparent;
+    background: transparent;
+}
+
+#documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem,
+#documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem:hover {
+    background: var(--vm-accent-soft);
+    color: var(--vm-accent-strong);
+    box-shadow: inset 3px 0 0 var(--vm-accent);
+}
+
+#documenter .docs-main header.docs-navbar {
+    border-bottom: 1px solid var(--vm-border);
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+#documenter .docs-navbar-link:hover {
+    color: var(--vm-accent-strong);
+}
+
+/*
+   Documenter themes use highly specific sidebar selectors. Mirror that
+   specificity here so this polish survives theme switching.
+*/
+html[class*="theme--"] #documenter .docs-sidebar {
+    border-right: 1px solid var(--vm-border);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar .docs-package-name {
+    background:
+        linear-gradient(135deg, rgba(14, 116, 144, 0.20), transparent 70%),
+        var(--vm-surface-soft);
+    border-bottom: 1px solid var(--vm-border);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar .docs-package-name a,
+html[class*="theme--"] #documenter .docs-sidebar .docs-package-name a:hover {
+    color: var(--vm-accent-strong);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar #documenter-search-query {
+    border: 1px solid var(--vm-border);
+    border-radius: 999px;
+    background: var(--vm-surface);
+    color: var(--vm-muted);
+    box-shadow: none;
+}
+
+html[class*="theme--"] #documenter .docs-sidebar #documenter-search-query:hover,
+html[class*="theme--"] #documenter .docs-sidebar #documenter-search-query:focus {
+    border-color: var(--vm-accent);
+    color: var(--vm-accent-strong);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu .tocitem {
+    border-radius: 6px;
+}
+
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu a.tocitem:hover,
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu label.tocitem:hover {
+    background: var(--vm-accent-soft);
+    color: var(--vm-accent-strong);
+}
+
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu li.is-active {
+    border-color: transparent;
+    background: transparent;
+}
+
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem,
+html[class*="theme--"] #documenter .docs-sidebar ul.docs-menu li.is-active > .tocitem:hover {
+    background: var(--vm-accent-soft);
+    color: var(--vm-accent-strong);
+    box-shadow: inset 3px 0 0 var(--vm-accent);
+}
+
+html[class*="theme--"] #documenter .docs-main header.docs-navbar {
+    border-bottom: 1px solid var(--vm-border);
+    box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+/* Hero treatment for each page heading */
+#documenter-page > h1:first-child {
+    margin: 0 0 1rem;
+    padding: 2rem;
+    border-radius: var(--vm-radius);
+    color: #ffffff;
+    background:
+        linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(21, 94, 117, 0.92)),
+        repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.08) 0 1px, transparent 1px 22px);
+    box-shadow: var(--vm-shadow);
+}
+
+#documenter-page > h1:first-child .docs-heading-anchor,
+#documenter-page > h1:first-child .docs-heading-anchor-permalink {
+    color: #ffffff;
+}
+
+#documenter-page > h1:first-child .docs-heading-anchor:hover {
+    color: #cffafe;
+}
+
+#documenter-page > h1:first-child + blockquote {
+    margin: -0.25rem 0 2rem;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--vm-border);
+    border-left: 4px solid var(--vm-accent);
+    border-radius: var(--vm-radius);
+    background: var(--vm-surface);
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.05);
+    color: var(--vm-muted);
+    font-style: normal;
+}
+
+#documenter-page > h1:first-child + blockquote p {
+    margin: 0;
+}
+
+/* Typography */
+#documenter-page h1,
+#documenter-page h2,
+#documenter-page h3,
+#documenter-page h4 {
+    color: var(--vm-ink);
+    letter-spacing: 0;
+}
+
+#documenter-page h2 {
+    margin-top: 2.8rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--vm-border);
+}
+
+#documenter-page h2 .docs-heading-anchor {
+    color: var(--vm-ink);
+}
+
+#documenter-page h2::after {
+    content: "";
+    display: block;
+    width: 3rem;
+    height: 3px;
+    margin-top: 0.45rem;
+    border-radius: 999px;
+    background: var(--vm-accent);
+}
+
+#documenter-page h3 {
+    margin-top: 2rem;
+}
+
+#documenter-page p {
+    color: var(--vm-ink);
+}
+
+#documenter-page a {
+    color: var(--vm-accent-strong);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.16em;
+}
+
+#documenter-page a:hover {
+    color: var(--vm-accent);
+}
+
+#documenter-page hr {
+    height: 1px;
+    margin: 2rem 0;
+    border: 0;
+    background: var(--vm-border);
+}
+
+/* Tables */
+#documenter-page table {
+    width: 100%;
+    margin: 1.6rem 0;
+    overflow: hidden;
+    border: 1px solid var(--vm-border);
+    border-radius: var(--vm-radius);
+    border-collapse: separate;
+    border-spacing: 0;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+#documenter-page table th {
+    border-bottom: 1px solid var(--vm-border);
+    background: var(--vm-surface-soft);
+    color: var(--vm-accent-strong);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+#documenter-page table td,
+#documenter-page table th {
+    padding: 0.75rem 0.9rem;
+    vertical-align: top;
+}
+
+#documenter-page table tr:not(:last-child) td {
+    border-bottom: 1px solid var(--vm-border);
+}
+
+#documenter-page table tr:nth-child(even) td {
+    background: rgba(14, 116, 144, 0.035);
+}
+
+#documenter-page table td:first-child {
+    color: var(--vm-accent-strong);
+    font-weight: 700;
+}
+
+/* Code and math */
+#documenter-page code {
+    border: 1px solid var(--vm-border);
+    border-radius: 5px;
+    background: var(--vm-surface-soft);
+    color: var(--vm-accent-strong);
+    font-family: "JuliaMono", "SFMono-Regular", "Menlo", "Consolas", monospace;
+    font-size: 0.88em;
+    padding: 0.1em 0.35em;
+}
+
+#documenter-page pre {
+    margin: 1.6rem 0;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: var(--vm-radius);
+    background: var(--vm-code-bg);
+    box-shadow: var(--vm-shadow);
+}
+
+#documenter-page pre:has(code.language-julia) {
+    position: relative;
+    padding-top: 2rem;
+    border-color: rgba(149, 88, 178, 0.45);
+    background:
+        linear-gradient(180deg, rgba(149, 88, 178, 0.16), transparent 2.15rem),
+        var(--vm-code-bg);
+    box-shadow:
+        0 18px 45px rgba(15, 23, 42, 0.12),
+        inset 0 3px 0 var(--julia-purple);
+}
+
+#documenter-page pre:has(code.language-julia)::before {
+    content: "";
+    position: absolute;
+    top: 0.72rem;
+    left: 1rem;
+    width: 0.72rem;
+    height: 0.72rem;
+    border-radius: 50%;
+    background: var(--julia-red);
+    box-shadow:
+        1.05rem 0 0 var(--julia-green),
+        2.1rem 0 0 var(--julia-blue);
+}
+
+#documenter-page pre:has(code.language-julia)::after {
+    content: "Julia";
+    position: absolute;
+    top: 0.52rem;
+    right: 0.95rem;
+    color: #c4b5fd;
+    font-family: "JuliaMono", "SFMono-Regular", "Menlo", "Consolas", monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+#documenter-page pre code {
+    border: 0;
+    background: transparent;
+    color: var(--vm-code-fg);
+    font-size: 0.9rem;
+    line-height: 1.65;
+    padding: 1.1rem 1.25rem;
+}
+
+#documenter-page .katex-display,
+#documenter-page mjx-container[display="true"],
+#documenter-page .MathJax_Display {
+    margin: 1.6rem 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--vm-border);
+    border-left: 4px solid var(--vm-accent);
+    border-radius: var(--vm-radius);
+    background: var(--vm-surface-soft);
+    overflow-x: auto;
+}
+
+/* Admonitions */
+#documenter-page .admonition {
+    margin: 1.6rem 0;
+    overflow: hidden;
+    border: 1px solid var(--vm-border);
+    border-left: 4px solid var(--vm-accent);
+    border-radius: var(--vm-radius);
+    background: var(--vm-surface);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+#documenter-page .admonition-header {
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid var(--vm-border);
+    background: var(--vm-surface-soft);
+    color: var(--vm-accent-strong);
+    font-weight: 700;
+}
+
+#documenter-page .admonition-body {
+    padding: 0.85rem 0.9rem;
+}
+
+#documenter-page .admonition-body p:last-child {
+    margin-bottom: 0;
+}
+
+#documenter-page .admonition.is-info {
+    border-left-color: #0284c7;
+}
+
+#documenter-page .admonition.is-success {
+    border-left-color: #059669;
+}
+
+#documenter-page .admonition.is-warning {
+    border-left-color: #d97706;
+}
+
+#documenter-page .admonition.is-danger {
+    border-left-color: #dc2626;
+}
+
+/* Quotes and lists */
+#documenter-page blockquote {
+    margin: 1.5rem 0;
+    padding: 0.9rem 1rem;
+    border-left: 4px solid var(--vm-accent);
+    border-radius: 0 var(--vm-radius) var(--vm-radius) 0;
+    background: var(--vm-surface-soft);
+    color: var(--vm-muted);
+}
+
+#documenter-page blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+#documenter-page li {
+    margin: 0.32rem 0;
+}
+
+#documenter-page ul,
+#documenter-page ol {
+    padding-left: 1.35rem;
+}
+
+/* API and generated doc blocks */
+#documenter-page details.docstring,
+#documenter-page .docstring {
+    margin: 1.5rem 0;
+    border: 1px solid var(--vm-border);
+    border-radius: var(--vm-radius);
+    background: var(--vm-surface);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+#documenter-page details.docstring > summary,
+#documenter-page .docstring > header {
+    background: var(--vm-surface-soft);
+    color: var(--vm-accent-strong);
+}
+
+/* Footer */
+#documenter .docs-footer {
+    border-top: 1px solid var(--vm-border);
+}
+
+#documenter .docs-footer .docs-footer-prevpage,
+#documenter .docs-footer .docs-footer-nextpage {
+    color: var(--vm-accent-strong);
+    font-weight: 700;
+}
+
+/* Small screens */
+@media screen and (max-width: 768px) {
+    #documenter-page > h1:first-child {
+        padding: 1.35rem;
+    }
+
+    #documenter-page table {
+        display: block;
+        overflow-x: auto;
+    }
+
+    #documenter-page pre {
+        margin-left: -0.5rem;
+        margin-right: -0.5rem;
+        border-radius: 0;
+    }
+
+    #documenter-page pre code {
+        font-size: 0.82rem;
+    }
+}
+
+@media print {
+    #documenter-page > h1:first-child {
+        color: #000000;
+        background: transparent;
+        box-shadow: none;
+        border: 1px solid #dddddd;
+    }
+
+    #documenter-page pre {
+        box-shadow: none;
+    }
+}
