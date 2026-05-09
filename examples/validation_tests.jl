@@ -129,8 +129,9 @@ function test_advanced_remeshing()
     
     # Apply advanced remeshing
     eleGma = zeros(Float64, size(tri,1), 3)
-    tri_new, changed = VortexMethod.Remeshing.quality_split_triangle!(
+    tri_new = VortexMethod.Remeshing.quality_split_triangle!(
         nodeX, nodeY, nodeZ, tri, 1, domain)
+    changed = size(tri_new, 1) > size(tri, 1)
     
     if changed
         # Recompute triangle coordinates

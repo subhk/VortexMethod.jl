@@ -29,7 +29,7 @@ The solver is organized around the Lagrangian sheet to Eulerian grid pipeline:
 | Kernel operations | `src/kernels.jl`, `src/peskin3d.jl` | Regularized kernel spreading and grid-to-node interpolation |
 | Velocity solve | `src/poisson3d.jl`, `src/poisson_advanced.jl` | Curl RHS construction and periodic FFT, pencil FFT, or advanced Poisson solves |
 | Time integration | `src/timestep.jl` | RK2 stepping, velocity reuse helpers, baroclinic forcing, and optional dissipation |
-| Remeshing | `src/remesh.jl`, `src/remesh_advanced.jl` | Circulation-aware edge splitting, collapse, and flow-adaptive refinement |
+| Remeshing | `src/remeshing/Remeshing.jl`, `src/remeshing/basic.jl`, `src/remeshing/quality.jl` | Circulation-aware edge splitting, collapse, and flow-adaptive refinement |
 | Physics extensions | `src/dissipation.jl`, `src/vortex_sheets.jl`, `src/particle_management.jl` | SFS dissipation, sheet evolution utilities, reconnection, and smoothing |
 | Diagnostics and I/O | `src/energy.jl`, `src/checkpoint.jl` | Energy diagnostics, mesh statistics, checkpoints, and time series output |
 | Performance utilities | `src/performance.jl`, `src/fast_linalg.jl`, `src/soa_layout.jl`, `src/cache_optimization.jl` | Allocation reduction, cache-friendly storage, and small linear algebra helpers |
@@ -56,7 +56,8 @@ checkpointing, and MPI-oriented runs.
   in `src/interface.jl`, then export them from `src/VortexMethod.jl`.
 - Add numerical kernels near the stage they affect instead of routing through
   the high-level interface.
-- Keep topology-changing mesh changes in `src/remesh.jl` or
-  `src/remesh_advanced.jl`, and carry `eleGma` through the return values.
+- Keep topology-changing mesh changes in `src/remeshing/basic.jl` or
+  `src/remeshing/quality.jl`, wired through `src/remeshing/Remeshing.jl`,
+  and carry `eleGma` through the return values.
 - Add focused tests beside the affected subsystem and update this docs page if
   the source layout or public workflow changes.
