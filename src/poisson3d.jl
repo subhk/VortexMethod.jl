@@ -5,6 +5,7 @@ module Poisson3D
 using FFTW
 using MPI
 using PencilFFTs
+using LinearAlgebra
 using ..DomainImpl
 
 export curl_rhs_centered, curl_rhs_centered!, PoissonWorkspace, 
@@ -70,6 +71,12 @@ end
 function require_periodic_boundary(boundary_condition::Symbol)
     boundary_condition == :periodic && return nothing
     throw(ArgumentError("poisson_velocity_fft supports only periodic FFT boundaries; requested boundary_condition=$boundary_condition"))
+end
+
+function init_mpi!()
+    MPI.Finalized() && throw(ErrorException("MPI has already been finalized"))
+    MPI.Initialized() || MPI.Init()
+    return nothing
 end
 
 # FFT-based Poisson solve (periodic): ∇^2 U = RHS -> Û = -RHŜ/k^2
@@ -151,118 +158,90 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
                                      domain::DomainSpec; mode::Symbol=:spectral,
                                      boundary_condition::Symbol=:periodic)
     require_periodic_boundary(boundary_condition)
+    init_mpi!()
     comm = MPI.COMM_WORLD
     nz, ny, nx = size(u_rhs)
-    
-    # Create pencil decomposition for 3D FFTs
-    # PencilFFTs typically uses (z,y,x) ordering for 3D arrays
-    pen = Pencil((nz, ny, nx), comm; permute_dims=(1,2,3))
-    
-    # Create FFT plans
-    fft_plan = PencilFFTPlans(pen, Float64, FFT!)
-    
+
     dx = domain.Lx/nx
     dy = domain.Ly/ny
     dz = (2*domain.Lz)/nz
-    
+
     kx = kvec(nx, domain.Lx)
     ky = kvec(ny, domain.Ly)
     kz = kvec(nz, 2*domain.Lz)
-    
-    # Get local array dimensions for this MPI rank
-    local_dims = size_local(pen, LogicalOrder())
-    
-    # Create local wavenumber grids for this rank's subdomain
-    local_range_z, local_range_y, local_range_x = range_local(pen, LogicalOrder())
-    
-    if mode == :spectral
-        KX = reshape(kx[local_range_x], 1, 1, length(local_range_x))
-        KY = reshape(ky[local_range_y], 1, length(local_range_y), 1) 
-        KZ = reshape(kz[local_range_z], length(local_range_z), 1, 1)
-        sym = KX.^2 .+ KY.^2 .+ KZ.^2
-    elseif mode == :fd
-        # Discrete Laplacian symbol: 2(cos(2πm/n) - 1) / h² for 3-point central difference
-        mx = collect(local_range_x .- 1); my = collect(local_range_y .- 1); mz = collect(local_range_z .- 1)
-        CX = reshape(2.0 .* (cos.(2pi .* mx ./ nx) .- 1.0), 1, 1, length(mx)) ./ (dx^2)
-        CY = reshape(2.0 .* (cos.(2pi .* my ./ ny) .- 1.0), 1, length(my), 1) ./ (dy^2)
-        CZ = reshape(2.0 .* (cos.(2pi .* mz ./ nz) .- 1.0), length(mz), 1, 1) ./ (dz^2)
-        sym = CX .+ CY .+ CZ
-    else
+
+    if mode != :spectral && mode != :fd
         error("Unknown Poisson mode: $mode (use :spectral or :fd)")
     end
-    
-    # Allocate local arrays for this rank
+
+    pen = Pencil((nz, ny, nx), comm)
+    fft_plan = PencilFFTPlan(pen, Transforms.FFT())
+
     u_local = allocate_input(fft_plan)
     v_local = allocate_input(fft_plan)
     w_local = allocate_input(fft_plan)
-    
-    # Copy input data to local arrays (assuming input is already distributed)
-    # In practice, you may need to distribute the data from global arrays
-    u_local .= u_rhs[local_range_z, local_range_y, local_range_x]
-    v_local .= v_rhs[local_range_z, local_range_y, local_range_x]
-    w_local .= w_rhs[local_range_z, local_range_y, local_range_x]
-    
-    # Perform forward FFTs
+
+    u_view = global_view(u_local)
+    v_view = global_view(v_local)
+    w_view = global_view(w_local)
+    @inbounds for I in CartesianIndices(u_view)
+        u_view[I] = u_rhs[I]
+        v_view[I] = v_rhs[I]
+        w_view[I] = w_rhs[I]
+    end
+
     Fu = allocate_output(fft_plan)
     Fv = allocate_output(fft_plan)
     Fw = allocate_output(fft_plan)
-    
+
     mul!(Fu, fft_plan, u_local)
     mul!(Fv, fft_plan, v_local)
     mul!(Fw, fft_plan, w_local)
-    
-    # Apply Poisson operator in Fourier space
-    # Handle k=0 mode to avoid division by zero
-    if 1 in local_range_z && 1 in local_range_y && 1 in local_range_x
-        local_i = findfirst(x -> x == 1, local_range_z)
-        local_j = findfirst(x -> x == 1, local_range_y) 
-        local_k = findfirst(x -> x == 1, local_range_x)
-        sym[local_i, local_j, local_k] = 1.0
+
+    Fu_view = global_view(Fu)
+    Fv_view = global_view(Fv)
+    Fw_view = global_view(Fw)
+    fd_scale = 0.5 / (domain.Lx * domain.Ly * domain.Lz)
+    @inbounds for I in CartesianIndices(Fu_view)
+        k, j, i = Tuple(I)
+        if mode == :spectral
+            sym = kz[k]^2 + ky[j]^2 + kx[i]^2
+            factor = sym == 0.0 ? 0.0 : -1.0 / sym
+        else
+            mx = i - 1
+            my = j - 1
+            mz = k - 1
+            sym = 2.0 * (cos(2pi * mx / nx) - 1.0) / dx^2 +
+                  2.0 * (cos(2pi * my / ny) - 1.0) / dy^2 +
+                  2.0 * (cos(2pi * mz / nz) - 1.0) / dz^2
+            factor = sym == 0.0 ? 0.0 : fd_scale / sym
+        end
+        Fu_view[I] *= factor
+        Fv_view[I] *= factor
+        Fw_view[I] *= factor
     end
-    
-    if mode == :fd
-        scale = 0.5/(domain.Lx*domain.Ly*domain.Lz)
-        Û = scale .* Fu ./ sym
-        V̂ = scale .* Fv ./ sym
-        Ŵ = scale .* Fw ./ sym
-    else
-        Û = -Fu ./ sym
-        V̂ = -Fv ./ sym  
-        Ŵ = -Fw ./ sym
-    end
-    
-    # Set k=0 mode to zero
-    if 1 in local_range_z && 1 in local_range_y && 1 in local_range_x
-        local_i = findfirst(x -> x == 1, local_range_z)
-        local_j = findfirst(x -> x == 1, local_range_y)
-        local_k = findfirst(x -> x == 1, local_range_x)
-        Û[local_i, local_j, local_k] = 0.0 + 0.0im
-        V̂[local_i, local_j, local_k] = 0.0 + 0.0im
-        Ŵ[local_i, local_j, local_k] = 0.0 + 0.0im
-    end
-    
-    # Perform inverse FFTs
+
     ux_local = allocate_input(fft_plan)
     uy_local = allocate_input(fft_plan)
     uz_local = allocate_input(fft_plan)
-    
-    ldiv!(ux_local, fft_plan, Û)
-    ldiv!(uy_local, fft_plan, V̂)
-    ldiv!(uz_local, fft_plan, Ŵ)
-    
-    # Gather results to global arrays using MPI.Allreduce
-    # Each rank writes its local portion to a global-sized array (zeros elsewhere),
-    # then Allreduce with SUM combines all the non-overlapping pieces
+
+    ldiv!(ux_local, fft_plan, Fu)
+    ldiv!(uy_local, fft_plan, Fv)
+    ldiv!(uz_local, fft_plan, Fw)
+
     ux_local_global = zeros(Float64, nz, ny, nx)
     uy_local_global = zeros(Float64, nz, ny, nx)
     uz_local_global = zeros(Float64, nz, ny, nx)
 
-    # Each rank writes its local data to the appropriate region
-    ux_local_global[local_range_z, local_range_y, local_range_x] .= real.(ux_local)
-    uy_local_global[local_range_z, local_range_y, local_range_x] .= real.(uy_local)
-    uz_local_global[local_range_z, local_range_y, local_range_x] .= real.(uz_local)
+    ux_view = global_view(ux_local)
+    uy_view = global_view(uy_local)
+    uz_view = global_view(uz_local)
+    @inbounds for I in CartesianIndices(ux_view)
+        ux_local_global[I] = real(ux_view[I])
+        uy_local_global[I] = real(uy_view[I])
+        uz_local_global[I] = real(uz_view[I])
+    end
 
-    # Combine all ranks' contributions (non-overlapping regions, so SUM works)
     ux_gathered = zeros(Float64, nz, ny, nx)
     uy_gathered = zeros(Float64, nz, ny, nx)
     uz_gathered = zeros(Float64, nz, ny, nx)
@@ -270,9 +249,7 @@ function poisson_velocity_pencil_fft(u_rhs::Array{Float64,3}, v_rhs::Array{Float
     MPI.Allreduce!(ux_local_global, ux_gathered, MPI.SUM, comm)
     MPI.Allreduce!(uy_local_global, uy_gathered, MPI.SUM, comm)
     MPI.Allreduce!(uz_local_global, uz_gathered, MPI.SUM, comm)
-    
-    # Note: Periodic boundary conditions are handled automatically by FFT
-    
+
     return ux_gathered, uy_gathered, uz_gathered
 end
 
@@ -281,6 +258,7 @@ function poisson_velocity_fft_mpi(u_rhs::Array{Float64,3}, v_rhs::Array{Float64,
                                   domain::DomainSpec; mode::Symbol=:spectral,
                                   boundary_condition::Symbol=:periodic)
     require_periodic_boundary(boundary_condition)
+    init_mpi!()
     comm = MPI.COMM_WORLD
     rank = MPI.Comm_rank(comm)
     Ux = Array{Float64}(undef, size(u_rhs))

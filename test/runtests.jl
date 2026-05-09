@@ -1,5 +1,6 @@
 using VortexMethod
 using Test
+using MPI
 
 # Clean up any leftover test files before starting
 test_files_to_clean = [
@@ -21,4 +22,11 @@ end
     include("test_stock_regressions.jl")
     include("test_parallel_fft.jl")
     include("test_performance.jl")
+
+    @testset "MPI parallel correctness launcher" begin
+        mpi_test = joinpath(@__DIR__, "mpi_parallel_correctness.jl")
+        repo_root = dirname(@__DIR__)
+        cmd = `$(MPI.mpiexec()) -n 2 $(Base.julia_cmd()) --project=$repo_root $mpi_test`
+        @test success(cmd)
+    end
 end

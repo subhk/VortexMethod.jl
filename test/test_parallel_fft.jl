@@ -37,6 +37,26 @@ using PencilFFTs
         
         println("poisson_velocity_pencil_fft function exists with correct signature")
     end
+
+    @testset "PencilFFTs direct solve" begin
+        domain = VortexMethod.DomainSpec(1.0, 1.0, 1.0)
+        gr = VortexMethod.GridSpec(4, 4, 4)
+        u_rhs = zeros(Float64, gr.nz, gr.ny, gr.nx)
+        v_rhs = similar(u_rhs)
+        w_rhs = similar(u_rhs)
+        for k in 1:gr.nz, j in 1:gr.ny, i in 1:gr.nx
+            x = (i - 1) / gr.nx
+            y = (j - 1) / gr.ny
+            z = (k - 1) / gr.nz
+            u_rhs[k, j, i] = sin(2pi * x)
+            v_rhs[k, j, i] = cos(2pi * y)
+            w_rhs[k, j, i] = sin(2pi * z)
+        end
+
+        serial = VortexMethod.poisson_velocity_fft(u_rhs, v_rhs, w_rhs, domain)
+        pencil = VortexMethod.poisson_velocity_pencil_fft(u_rhs, v_rhs, w_rhs, domain)
+        @test all(isapprox.(pencil, serial; rtol=1e-10, atol=1e-10))
+    end
     
     @testset "Configuration options" begin
         # These should exist and have the parallel_fft parameter
