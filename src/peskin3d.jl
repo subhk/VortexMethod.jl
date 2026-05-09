@@ -5,12 +5,15 @@ module Peskin3D
 using ..DomainImpl
 using ..Kernels
 using MPI
+using StaticArrays
+using ..Workspace: VortexWorkspace
 
 export init_mpi!, finalize_mpi!,
        triangle_centroids, triangle_areas,
        subtriangle_centroids, subtriangle_centroids4,
        spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_kernel_mpi,
-       interpolate_node_velocity_mpi, interpolate_node_velocity_kernel_mpi
+       interpolate_node_velocity_mpi, interpolate_node_velocity_kernel_mpi,
+       find_elements_nearby!
 
 init_mpi!() = (MPI.Initialized() || MPI.Init(); nothing)
 finalize_mpi!() = (MPI.Finalized() || MPI.Finalize(); nothing)
@@ -62,30 +65,32 @@ function triangle_areas(triXC::AbstractMatrix, triYC::AbstractMatrix, triZC::Abs
     A
 end
 
-@inline function bary_point(a, b, c, i::Int, j::Int, M::Int)
-    rb = i / M
-    rc = j / M
-    return (a[1] + rb * (b[1] - a[1]) + rc * (c[1] - a[1]),
-            a[2] + rb * (b[2] - a[2]) + rc * (c[2] - a[2]),
-            a[3] + rb * (b[3] - a[3]) + rc * (c[3] - a[3]))
+@inline function bary_point(a::SVector{3,T}, b::SVector{3,T}, c::SVector{3,T},
+                             i::Int, j::Int, M::Int) where T
+    rb = T(i) / T(M)
+    rc = T(j) / T(M)
+    return a + rb * (b - a) + rc * (c - a)
 end
 
-@inline function centroid3(a, b, c)
-    return ((a[1] + b[1] + c[1]) / 3,
-            (a[2] + b[2] + c[2]) / 3,
-            (a[3] + b[3] + c[3]) / 3)
+@inline function centroid3(a::SVector{3,T}, b::SVector{3,T}, c::SVector{3,T}) where T
+    return (a + b + c) / T(3)
 end
 
-@inline function maybe_wrap(c, domain::Union{Nothing,DomainSpec})
+@inline function maybe_wrap(c::SVector{3,T}, domain::Union{Nothing,DomainSpec}) where T
     domain === nothing && return c
-    return wrap_point(c[1], c[2], c[3], domain)
+    xw, yw, zw = wrap_point(c[1], c[2], c[3], domain)
+    return SVector{3,T}(T(xw), T(yw), T(zw))
 end
 
 function subtriangle_centroids(p1::NTuple{3,Float64}, p2::NTuple{3,Float64},
                                p3::NTuple{3,Float64}, M::Integer;
                                domain::Union{Nothing,DomainSpec}=nothing)
     M >= 1 || throw(ArgumentError("subtriangle segment count M must be >= 1"))
-    a, b, c = domain === nothing ? (p1, p2, p3) : unwrap_triangle(p1, p2, p3, domain)
+    # pack into SVector for use with updated bary_point/centroid3
+    raw_a, raw_b, raw_c = domain === nothing ? (p1, p2, p3) : unwrap_triangle(p1, p2, p3, domain)
+    a = SVector{3,Float64}(raw_a[1], raw_a[2], raw_a[3])
+    b = SVector{3,Float64}(raw_b[1], raw_b[2], raw_b[3])
+    c = SVector{3,Float64}(raw_c[1], raw_c[2], raw_c[3])
     T = Array{Float64}(undef, M * M, 3)
     idx = 1
 
@@ -101,7 +106,7 @@ function subtriangle_centroids(p1::NTuple{3,Float64}, p2::NTuple{3,Float64},
             v2 = bary_point(a, b, c, tri_idx[2][1], tri_idx[2][2], M)
             v3 = bary_point(a, b, c, tri_idx[3][1], tri_idx[3][2], M)
             ct = maybe_wrap(centroid3(v1, v2, v3), domain)
-            T[idx, :] .= ct
+            T[idx, 1] = ct[1]; T[idx, 2] = ct[2]; T[idx, 3] = ct[3]
             idx += 1
         end
         return T
@@ -112,14 +117,14 @@ function subtriangle_centroids(p1::NTuple{3,Float64}, p2::NTuple{3,Float64},
         v2 = bary_point(a, b, c, i + 1, j, M)
         v3 = bary_point(a, b, c, i, j + 1, M)
         ct = maybe_wrap(centroid3(v1, v2, v3), domain)
-        T[idx, :] .= ct
+        T[idx, 1] = ct[1]; T[idx, 2] = ct[2]; T[idx, 3] = ct[3]
         idx += 1
         if i + j <= M - 2
             v1 = bary_point(a, b, c, i + 1, j, M)
             v2 = bary_point(a, b, c, i + 1, j + 1, M)
             v3 = bary_point(a, b, c, i, j + 1, M)
             ct = maybe_wrap(centroid3(v1, v2, v3), domain)
-            T[idx, :] .= ct
+            T[idx, 1] = ct[1]; T[idx, 2] = ct[2]; T[idx, 3] = ct[3]
             idx += 1
         end
     end
@@ -183,6 +188,21 @@ function find_elements_nearby(x,y,z, epsx,epsy,epsz, triC::AbstractMatrix)
     return nearby
 end
 
+# Non-allocating version with preallocated buffer
+function find_elements_nearby!(buf::Vector{Int}, x::T, y::T, z::T,
+                                epsx::T, epsy::T, epsz::T,
+                                triC::AbstractMatrix{T}) where T
+    empty!(buf)
+    @inbounds for t in 1:size(triC,1)
+        if abs(triC[t,1] - x) <= epsx &&
+           abs(triC[t,2] - y) <= epsy &&
+           abs(triC[t,3] - z) <= epsz
+            push!(buf, t)
+        end
+    end
+    return buf
+end
+
 # Core Peskin sum for a list of triangles (grid vorticity accumulation)
 function peskin_add_ele!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix, 
                          subC, triAreas, tri_list, coord, delr, eps)
@@ -209,29 +229,30 @@ function peskin_add_ele!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix,
     return (sx,sy,sz)
 end
 
-function peskin_add_nearby!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix,
-                            triC::AbstractMatrix, subC, triAreas,
-                            coord::NTuple{3,Float64}, delr::Float64,
-                            eps::NTuple{3,Float64},
-                            shiftx::Float64, shifty::Float64, shiftz::Float64)
-    sx, sy, sz = sum
-    x, y, z = coord
-    epsx, epsy, epsz = eps
+function peskin_add_nearby!(acc::SVector{3,T}, eleGma::AbstractMatrix{T},
+                            triC::AbstractMatrix{T}, subC::Array{T,3},
+                            triAreas::AbstractVector{T},
+                            coord::SVector{3,T}, delr::T,
+                            eps::SVector{3,T},
+                            shift::SVector{3,T}) where T<:AbstractFloat
+    sx = acc[1]; sy = acc[2]; sz = acc[3]
+    x = coord[1]; y = coord[2]; z = coord[3]
+    epsx = eps[1]; epsy = eps[2]; epsz = eps[3]
     n_sub = size(subC, 2)
-    inv_n_sub = 1.0 / n_sub
-    scale = 1.0 / (8.0 * delr^3)
+    inv_n_sub = one(T) / T(n_sub)
+    scale = one(T) / (T(8) * delr^3)
 
     @inbounds for idx in 1:size(triC, 1)
-        cx = triC[idx,1] + shiftx
-        cy = triC[idx,2] + shifty
-        cz = triC[idx,3] + shiftz
+        cx = triC[idx,1] + shift[1]
+        cy = triC[idx,2] + shift[2]
+        cz = triC[idx,3] + shift[3]
         if abs(cx - x) <= epsx && abs(cy - y) <= epsy && abs(cz - z) <= epsz
-            S = 0.0
+            S = zero(T)
             @simd for s in 1:n_sub
-                dx = x - (subC[idx,s,1] + shiftx)
-                dy = y - (subC[idx,s,2] + shifty)
-                dz = z - (subC[idx,s,3] + shiftz)
-                S += (1 + cos(pi*dx/epsx))*(1 + cos(pi*dy/epsy))*(1 + cos(pi*dz/epsz)) * scale
+                dx = x - (subC[idx,s,1] + shift[1])
+                dy = y - (subC[idx,s,2] + shift[2])
+                dz = z - (subC[idx,s,3] + shift[3])
+                S += (1 + cos(T(π)*dx/epsx))*(1 + cos(T(π)*dy/epsy))*(1 + cos(T(π)*dz/epsz)) * scale
             end
             w = triAreas[idx] * S * inv_n_sub
             sx += w * eleGma[idx,1]
@@ -239,32 +260,32 @@ function peskin_add_nearby!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix,
             sz += w * eleGma[idx,3]
         end
     end
-    return sx, sy, sz
+    return SVector{3,T}(sx, sy, sz)
 end
 
-function peskin_add_nearby_kernel!(sum::NTuple{3,Float64}, eleGma::AbstractMatrix,
+function peskin_add_nearby_kernel!(acc::SVector{3,Float64}, eleGma::AbstractMatrix,
                                    triC::AbstractMatrix, subC, triAreas,
-                                   coord::NTuple{3,Float64}, kernel::KernelType,
-                                   eps::NTuple{3,Float64},
-                                   shiftx::Float64, shifty::Float64, shiftz::Float64)
-    sx, sy, sz = sum
-    x, y, z = coord
-    epsx, epsy, epsz = eps
+                                   coord::SVector{3,Float64}, kernel::KernelType,
+                                   eps::SVector{3,Float64},
+                                   shift::SVector{3,Float64})
+    sx = acc[1]; sy = acc[2]; sz = acc[3]
+    x = coord[1]; y = coord[2]; z = coord[3]
+    epsx = eps[1]; epsy = eps[2]; epsz = eps[3]
     delr = kernel_support_radius(kernel)
-    hx, hy, hz = epsx/delr, epsy/delr, epsz/delr
+    hx = epsx/delr; hy = epsy/delr; hz = epsz/delr
     n_sub = size(subC, 2)
     inv_n_sub = 1.0 / n_sub
 
     @inbounds for idx in 1:size(triC, 1)
-        cx = triC[idx,1] + shiftx
-        cy = triC[idx,2] + shifty
-        cz = triC[idx,3] + shiftz
+        cx = triC[idx,1] + shift[1]
+        cy = triC[idx,2] + shift[2]
+        cz = triC[idx,3] + shift[3]
         if abs(cx - x) <= epsx && abs(cy - y) <= epsy && abs(cz - z) <= epsz
             S = 0.0
             @simd for s in 1:n_sub
-                dx = x - (subC[idx,s,1] + shiftx)
-                dy = y - (subC[idx,s,2] + shifty)
-                dz = z - (subC[idx,s,3] + shiftz)
+                dx = x - (subC[idx,s,1] + shift[1])
+                dy = y - (subC[idx,s,2] + shift[2])
+                dz = z - (subC[idx,s,3] + shift[3])
                 S += kernel_function(kernel, dx, dy, dz, hx, hy, hz)
             end
             w = triAreas[idx] * S * inv_n_sub
@@ -273,32 +294,40 @@ function peskin_add_nearby_kernel!(sum::NTuple{3,Float64}, eleGma::AbstractMatri
             sz += w * eleGma[idx,3]
         end
     end
-    return sx, sy, sz
+    return SVector{3,Float64}(sx, sy, sz)
 end
 
 # Accumulate vorticity at a coordinate from periodic tiles (9 tiles in xy like python)
-function peskin_grid_sum(eleGma, triC, subC, coord, ds, triAreas; delr=4.0, 
-                        domain::DomainSpec=default_domain())
-    eps = (delr*ds[1], delr*ds[2], delr*ds[3]) # ds tuple indexing (dx,dy,dz)
-    (sx,sy,sz) = (0.0,0.0,0.0)
-    for (shiftx, shifty, shiftz) in periodic_shifts(domain)
-        (sx, sy, sz) = peskin_add_nearby!((sx,sy,sz), eleGma, triC, subC, triAreas, coord,
-                                          delr, eps, shiftx, shifty, shiftz)
+function peskin_grid_sum(eleGma::AbstractMatrix{Float64}, triC::AbstractMatrix{Float64},
+                         subC::Array{Float64,3}, coord::NTuple{3,Float64},
+                         ds::NTuple{3,<:Real}, triAreas::AbstractVector{Float64};
+                         delr::Real=4.0, domain::DomainSpec=default_domain())
+    eps = SVector{3,Float64}(delr*ds[1], delr*ds[2], delr*ds[3])
+    sv_coord = SVector{3,Float64}(coord[1], coord[2], coord[3])
+    acc = SVector{3,Float64}(0.0, 0.0, 0.0)
+    raw_shifts = periodic_shifts(domain)
+    shifts_svec = ntuple(i -> SVector{3,Float64}(raw_shifts[i][1], raw_shifts[i][2], raw_shifts[i][3]), 27)
+    for shift in shifts_svec
+        acc = peskin_add_nearby!(acc, eleGma, triC, subC, triAreas,
+                                 sv_coord, Float64(delr), eps, shift)
     end
-    return sx, sy, sz
+    return acc[1], acc[2], acc[3]
 end
 
 # Enhanced grid sum with kernel selection
-function peskin_grid_sum_kernel(eleGma, triC, subC, coord, ds, triAreas, 
+function peskin_grid_sum_kernel(eleGma, triC, subC, coord::NTuple{3,Float64}, ds, triAreas,
                         kernel::KernelType; domain::DomainSpec=default_domain())
     delr = kernel_support_radius(kernel)
-    eps = (delr*ds[1], delr*ds[2], delr*ds[3])
-    (sx,sy,sz) = (0.0,0.0,0.0)
-    for (shiftx, shifty, shiftz) in periodic_shifts(domain)
-        (sx, sy, sz) = peskin_add_nearby_kernel!((sx,sy,sz), eleGma, triC, subC, triAreas, coord,
-                                                 kernel, eps, shiftx, shifty, shiftz)
+    eps = SVector{3,Float64}(delr*ds[1], delr*ds[2], delr*ds[3])
+    sv_coord = SVector{3,Float64}(coord[1], coord[2], coord[3])
+    acc = SVector{3,Float64}(0.0, 0.0, 0.0)
+    raw_shifts = periodic_shifts(domain)
+    shifts_svec = ntuple(i -> SVector{3,Float64}(raw_shifts[i][1], raw_shifts[i][2], raw_shifts[i][3]), 27)
+    for shift in shifts_svec
+        acc = peskin_add_nearby_kernel!(acc, eleGma, triC, subC, triAreas,
+                                       sv_coord, kernel, eps, shift)
     end
-    return sx, sy, sz
+    return acc[1], acc[2], acc[3]
 end
 
 # MPI-parallel: spread element vorticity to grid with kernel selection
@@ -538,4 +567,5 @@ end # module
 
 using .Peskin3D: init_mpi!, finalize_mpi!, triangle_centroids, triangle_areas, subtriangle_centroids, subtriangle_centroids4,
                           spread_vorticity_to_grid_mpi, interpolate_node_velocity_mpi,
-                          spread_vorticity_to_grid_kernel_mpi, interpolate_node_velocity_kernel_mpi
+                          spread_vorticity_to_grid_kernel_mpi, interpolate_node_velocity_kernel_mpi,
+                          find_elements_nearby!

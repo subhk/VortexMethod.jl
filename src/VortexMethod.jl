@@ -5,11 +5,13 @@ using MPI
 
 include("domain.jl")
 include("kernels.jl")
+# Dependencies needed by TimeStepper
+include("circulation.jl")
+# workspace.jl - Preallocated buffer struct (stub)
+include("workspace.jl")
 include("peskin3d.jl")
 include("poisson3d.jl")
 include("mesh.jl")
-# Dependencies needed by TimeStepper
-include("circulation.jl")
 include("dissipation.jl")
 # Time integration routines
 include("timestep.jl")
@@ -45,6 +47,7 @@ export DomainSpec, GridSpec,
        init_mpi!, finalize_mpi!,
        spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_kernel_mpi,
        interpolate_node_velocity_mpi, interpolate_node_velocity_kernel_mpi,
+       find_elements_nearby!,
 
 # poisson3d.jl - FFT-based Poisson solvers
        poisson_velocity_fft, poisson_velocity_fft_mpi, poisson_velocity_pencil_fft,
@@ -57,6 +60,10 @@ export DomainSpec, GridSpec,
        triangle_normals, baroclinic_ele_gamma, TriangleGeometry, compute_triangle_geometry,
        node_circulation_from_ele_gamma_mpi, ele_gamma_from_node_circ_mpi,
        triangle_normals_mpi, baroclinic_ele_gamma_mpi, transport_ele_gamma_mpi,
+       node_circulation_from_ele_gamma!, ele_gamma_from_node_circ!,
+
+# workspace.jl - Preallocated buffer struct
+       VortexWorkspace,
 
 # dissipation.jl - Turbulence models and viscosity
        DissipationModel, NoDissipation, SmagorinskyModel, DynamicSmagorinsky,

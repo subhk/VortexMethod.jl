@@ -1,12 +1,14 @@
 module Circulation
 
 using MPI
+using StaticArrays
 using ..DomainImpl
 
 export node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma,
        triangle_normals, baroclinic_ele_gamma, TriangleGeometry, compute_triangle_geometry,
        node_circulation_from_ele_gamma_mpi, ele_gamma_from_node_circ_mpi,
-       triangle_normals_mpi, baroclinic_ele_gamma_mpi, transport_ele_gamma_mpi
+       triangle_normals_mpi, baroclinic_ele_gamma_mpi, transport_ele_gamma_mpi,
+       node_circulation_from_ele_gamma!, ele_gamma_from_node_circ!
 
 # Initialize MPI if not already initialized
 init_mpi!() = (MPI.Initialized() || MPI.Init(); nothing)
@@ -14,15 +16,15 @@ init_mpi!() = (MPI.Initialized() || MPI.Init(); nothing)
 # Cache for triangle geometry to avoid redundant calculations
 struct TriangleGeometry{T<:AbstractFloat}
     areas::Vector{T}
-    edge_vectors::Array{T,3}  # [triangle_id, edge_id, xyz]
-    centroids::Matrix{T}  # [triangle_id, xyz]
+    edge_vectors::Vector{SMatrix{3,3,T,9}}  # one per triangle; column k = edge k (12, 23, 31)
+    centroids::Matrix{T}
 end
 
 # Constructor for triangle geometry cache
 function TriangleGeometry(::Type{T}, nt::Int) where T<:AbstractFloat
     TriangleGeometry{T}(
         Vector{T}(undef, nt),
-        Array{T}(undef, nt, 3, 3),  # 3 edges per triangle, 3 components each
+        Vector{SMatrix{3,3,T,9}}(undef, nt),
         Matrix{T}(undef, nt, 3)
     )
 end
@@ -62,7 +64,10 @@ function triangle_edges_centroid(p₁::NTuple{3,T},
         cx, cy, cz = (p₁[1] + p₂[1] + p₃[1]) / 3,
                      (p₁[2] + p₂[2] + p₃[2]) / 3,
                      (p₁[3] + p₂[3] + p₃[3]) / 3
-        return (X₁₂, Y₁₂, Z₁₂), (X₂₃, Y₂₃, Z₂₃), (X₃₁, Y₃₁, Z₃₁), (cx, cy, cz)
+        return SVector{3,T}(X₁₂, Y₁₂, Z₁₂),
+               SVector{3,T}(X₂₃, Y₂₃, Z₂₃),
+               SVector{3,T}(X₃₁, Y₃₁, Z₃₁),
+               SVector{3,T}(cx, cy, cz)
     end
 
     q₁, q₂, q₃ = unwrap_triangle(p₁, p₂, p₃, domain)
@@ -70,10 +75,10 @@ function triangle_edges_centroid(p₁::NTuple{3,T},
     X₂₃, Y₂₃, Z₂₃ = q₃[1] - q₂[1], q₃[2] - q₂[2], q₃[3] - q₂[3]
     X₃₁, Y₃₁, Z₃₁ = q₁[1] - q₃[1], q₁[2] - q₃[2], q₁[3] - q₃[3]
     cx, cy, cz = periodic_centroid(p₁, p₂, p₃, domain)
-    return (T(X₁₂), T(Y₁₂), T(Z₁₂)),
-           (T(X₂₃), T(Y₂₃), T(Z₂₃)),
-           (T(X₃₁), T(Y₃₁), T(Z₃₁)),
-           (T(cx), T(cy), T(cz))
+    return SVector{3,T}(X₁₂, Y₁₂, Z₁₂),
+           SVector{3,T}(X₂₃, Y₂₃, Z₂₃),
+           SVector{3,T}(X₃₁, Y₃₁, Z₃₁),
+           SVector{3,T}(cx, cy, cz)
 end
 
 @inline function solve_circulation_weights(X₁₂::Float64, Y₁₂::Float64, Z₁₂::Float64,
@@ -133,18 +138,12 @@ function compute_triangle_geometry!(geom::TriangleGeometry{T},
         geom.areas[t] = domain === nothing ? triangle_area_fast(p₁, p₂, p₃) :
                                              triangle_area_unwrapped(p₁, p₂, p₃, domain)
 
-        # Cache edge vectors
-        geom.edge_vectors[t,1,1] = e₁₂[1]  # X₁₂
-        geom.edge_vectors[t,1,2] = e₁₂[2]  # Y₁₂
-        geom.edge_vectors[t,1,3] = e₁₂[3]  # Z₁₂
-
-        geom.edge_vectors[t,2,1] = e₂₃[1]  # X₂₃
-        geom.edge_vectors[t,2,2] = e₂₃[2]  # Y₂₃
-        geom.edge_vectors[t,2,3] = e₂₃[3]  # Z₂₃
-
-        geom.edge_vectors[t,3,1] = e₃₁[1]  # X₃₁
-        geom.edge_vectors[t,3,2] = e₃₁[2]  # Y₃₁
-        geom.edge_vectors[t,3,3] = e₃₁[3]  # Z₃₁
+        # Cache edge vectors (column-major: column k = edge k)
+        geom.edge_vectors[t] = SMatrix{3,3,T,9}(
+            e₁₂[1], e₁₂[2], e₁₂[3],
+            e₂₃[1], e₂₃[2], e₂₃[3],
+            e₃₁[1], e₃₁[2], e₃₁[3]
+        )
 
         # Cache centroid
         geom.centroids[t,1] = centroid[1]
@@ -175,9 +174,9 @@ function node_circulation_from_ele_gamma(geom::TriangleGeometry, element_gamma::
 
     @inbounds for t in 1:nt
         # Use cached edge vectors
-        X₁₂, Y₁₂, Z₁₂ = geom.edge_vectors[t,1,1], geom.edge_vectors[t,1,2], geom.edge_vectors[t,1,3]
-        X₂₃, Y₂₃, Z₂₃ = geom.edge_vectors[t,2,1], geom.edge_vectors[t,2,2], geom.edge_vectors[t,2,3]
-        X₃₁, Y₃₁, Z₃₁ = geom.edge_vectors[t,3,1], geom.edge_vectors[t,3,2], geom.edge_vectors[t,3,3]
+        X₁₂ = geom.edge_vectors[t][1,1]; Y₁₂ = geom.edge_vectors[t][2,1]; Z₁₂ = geom.edge_vectors[t][3,1]
+        X₂₃ = geom.edge_vectors[t][1,2]; Y₂₃ = geom.edge_vectors[t][2,2]; Z₂₃ = geom.edge_vectors[t][3,2]
+        X₃₁ = geom.edge_vectors[t][1,3]; Y₃₁ = geom.edge_vectors[t][2,3]; Z₃₁ = geom.edge_vectors[t][3,3]
 
         # Use cached area
         Aₜ = geom.areas[t]
@@ -190,6 +189,26 @@ function node_circulation_from_ele_gamma(geom::TriangleGeometry, element_gamma::
         τ[t,1] = τ₁; τ[t,2] = τ₂; τ[t,3] = τ₃
     end
     return τ
+end
+
+# Float64-only: solve_circulation_weights is Float64-pinned; generalize with T in Task 8
+# In-place zero-allocation variant
+function node_circulation_from_ele_gamma!(out::AbstractMatrix{Float64},
+                                          geom::TriangleGeometry,
+                                          element_gamma::AbstractMatrix)
+    nt = length(geom.areas)
+    @inbounds for t in 1:nt
+        X₁₂ = geom.edge_vectors[t][1,1]; Y₁₂ = geom.edge_vectors[t][2,1]; Z₁₂ = geom.edge_vectors[t][3,1]
+        X₂₃ = geom.edge_vectors[t][1,2]; Y₂₃ = geom.edge_vectors[t][2,2]; Z₂₃ = geom.edge_vectors[t][3,2]
+        X₃₁ = geom.edge_vectors[t][1,3]; Y₃₁ = geom.edge_vectors[t][2,3]; Z₃₁ = geom.edge_vectors[t][3,3]
+        Aₜ = geom.areas[t]
+        τ₁, τ₂, τ₃ = solve_circulation_weights(X₁₂, Y₁₂, Z₁₂, X₂₃, Y₂₃, Z₂₃, X₃₁, Y₃₁, Z₃₁,
+                                                Aₜ*element_gamma[t,1],
+                                                Aₜ*element_gamma[t,2],
+                                                Aₜ*element_gamma[t,3])
+        out[t,1] = τ₁; out[t,2] = τ₂; out[t,3] = τ₃
+    end
+    return out
 end
 
 # Backward-compatible wrapper
@@ -208,9 +227,9 @@ function ele_gamma_from_node_circ(geom::TriangleGeometry, node_τ::AbstractMatri
     @inbounds for t in 1:nt
 
         # Use cached edge vectors (X₃₁ = p₁ - p₃, etc.)
-        X₁₂, Y₁₂, Z₁₂ = geom.edge_vectors[t,1,1], geom.edge_vectors[t,1,2], geom.edge_vectors[t,1,3]
-        X₂₃, Y₂₃, Z₂₃ = geom.edge_vectors[t,2,1], geom.edge_vectors[t,2,2], geom.edge_vectors[t,2,3]
-        X₃₁, Y₃₁, Z₃₁ = geom.edge_vectors[t,3,1], geom.edge_vectors[t,3,2], geom.edge_vectors[t,3,3]
+        X₁₂ = geom.edge_vectors[t][1,1]; Y₁₂ = geom.edge_vectors[t][2,1]; Z₁₂ = geom.edge_vectors[t][3,1]
+        X₂₃ = geom.edge_vectors[t][1,2]; Y₂₃ = geom.edge_vectors[t][2,2]; Z₂₃ = geom.edge_vectors[t][3,2]
+        X₃₁ = geom.edge_vectors[t][1,3]; Y₃₁ = geom.edge_vectors[t][2,3]; Z₃₁ = geom.edge_vectors[t][3,3]
 
         τ₁, τ₂, τ₃ = node_τ[t,1], node_τ[t,2], node_τ[t,3]
 
@@ -221,6 +240,25 @@ function ele_gamma_from_node_circ(geom::TriangleGeometry, node_τ::AbstractMatri
         eleGma[t,3] = (τ₁*Z₁₂ + τ₂*Z₂₃ + τ₃*Z₃₁) * inv_A
     end
     return eleGma
+end
+
+# Float64-only: inv_A and dot products are Float64; generalize with T in Task 8
+# In-place zero-allocation variant
+function ele_gamma_from_node_circ!(out::AbstractMatrix{Float64},
+                                   geom::TriangleGeometry,
+                                   node_τ::AbstractMatrix)
+    nt = length(geom.areas)
+    @inbounds for t in 1:nt
+        X₁₂ = geom.edge_vectors[t][1,1]; Y₁₂ = geom.edge_vectors[t][2,1]; Z₁₂ = geom.edge_vectors[t][3,1]
+        X₂₃ = geom.edge_vectors[t][1,2]; Y₂₃ = geom.edge_vectors[t][2,2]; Z₂₃ = geom.edge_vectors[t][3,2]
+        X₃₁ = geom.edge_vectors[t][1,3]; Y₃₁ = geom.edge_vectors[t][2,3]; Z₃₁ = geom.edge_vectors[t][3,3]
+        τ₁, τ₂, τ₃ = node_τ[t,1], node_τ[t,2], node_τ[t,3]
+        inv_A = 1.0 / geom.areas[t]
+        out[t,1] = (τ₁*X₁₂ + τ₂*X₂₃ + τ₃*X₃₁) * inv_A
+        out[t,2] = (τ₁*Y₁₂ + τ₂*Y₂₃ + τ₃*Y₃₁) * inv_A
+        out[t,3] = (τ₁*Z₁₂ + τ₂*Z₂₃ + τ₃*Z₃₁) * inv_A
+    end
+    return out
 end
 
 # Backward-compatible wrapper
@@ -361,9 +399,9 @@ function node_circulation_from_ele_gamma_mpi(geom::TriangleGeometry, element_gam
 
     # Strided work splitting across MPI ranks
     @inbounds for t in (rank+1):nprocs:nt
-        X₁₂, Y₁₂, Z₁₂ = geom.edge_vectors[t,1,1], geom.edge_vectors[t,1,2], geom.edge_vectors[t,1,3]
-        X₂₃, Y₂₃, Z₂₃ = geom.edge_vectors[t,2,1], geom.edge_vectors[t,2,2], geom.edge_vectors[t,2,3]
-        X₃₁, Y₃₁, Z₃₁ = geom.edge_vectors[t,3,1], geom.edge_vectors[t,3,2], geom.edge_vectors[t,3,3]
+        X₁₂ = geom.edge_vectors[t][1,1]; Y₁₂ = geom.edge_vectors[t][2,1]; Z₁₂ = geom.edge_vectors[t][3,1]
+        X₂₃ = geom.edge_vectors[t][1,2]; Y₂₃ = geom.edge_vectors[t][2,2]; Z₂₃ = geom.edge_vectors[t][3,2]
+        X₃₁ = geom.edge_vectors[t][1,3]; Y₃₁ = geom.edge_vectors[t][2,3]; Z₃₁ = geom.edge_vectors[t][3,3]
 
         Aₜ = geom.areas[t]
         τ₁, τ₂, τ₃ = solve_circulation_weights(X₁₂, Y₁₂, Z₁₂,
@@ -407,9 +445,9 @@ function ele_gamma_from_node_circ_mpi(geom::TriangleGeometry, node_τ::AbstractM
 
     # Strided work splitting across MPI ranks
     @inbounds for t in (rank+1):nprocs:nt
-        X₁₂, Y₁₂, Z₁₂ = geom.edge_vectors[t,1,1], geom.edge_vectors[t,1,2], geom.edge_vectors[t,1,3]
-        X₂₃, Y₂₃, Z₂₃ = geom.edge_vectors[t,2,1], geom.edge_vectors[t,2,2], geom.edge_vectors[t,2,3]
-        X₃₁, Y₃₁, Z₃₁ = geom.edge_vectors[t,3,1], geom.edge_vectors[t,3,2], geom.edge_vectors[t,3,3]
+        X₁₂ = geom.edge_vectors[t][1,1]; Y₁₂ = geom.edge_vectors[t][2,1]; Z₁₂ = geom.edge_vectors[t][3,1]
+        X₂₃ = geom.edge_vectors[t][1,2]; Y₂₃ = geom.edge_vectors[t][2,2]; Z₂₃ = geom.edge_vectors[t][3,2]
+        X₃₁ = geom.edge_vectors[t][1,3]; Y₃₁ = geom.edge_vectors[t][2,3]; Z₃₁ = geom.edge_vectors[t][3,3]
 
         τ₁, τ₂, τ₃ = node_τ[t,1], node_τ[t,2], node_τ[t,3]
 
@@ -544,4 +582,5 @@ end # module
 using .Circulation: node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma,
                     triangle_normals, baroclinic_ele_gamma, TriangleGeometry, compute_triangle_geometry,
                     node_circulation_from_ele_gamma_mpi, ele_gamma_from_node_circ_mpi,
-                    triangle_normals_mpi, baroclinic_ele_gamma_mpi, transport_ele_gamma_mpi
+                    triangle_normals_mpi, baroclinic_ele_gamma_mpi, transport_ele_gamma_mpi,
+                    node_circulation_from_ele_gamma!, ele_gamma_from_node_circ!
