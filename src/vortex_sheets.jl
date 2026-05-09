@@ -103,7 +103,7 @@ end
 
 # Evolve vortex sheet using classical method
 function evolve_sheet!(sheet::LagrangianSheet, evolution::ClassicalEvolution, 
-                      velocity_field::Function, dt::Float64, domain::DomainSpec)
+                      velocity_field, dt::Float64, domain::DomainSpec)
     n_nodes = size(sheet.nodes, 1)
     
     # Simple Euler step for node positions
@@ -130,7 +130,7 @@ end
 
 # Advanced adaptive evolution
 function evolve_sheet!(sheet::LagrangianSheet, evolution::AdaptiveEvolution,
-                      velocity_field::Function, dt::Float64, domain::DomainSpec)
+                      velocity_field, dt::Float64, domain::DomainSpec)
     # First, evolve using classical method
     evolve_sheet!(sheet, ClassicalEvolution(), velocity_field, dt, domain)
     
@@ -153,7 +153,7 @@ end
 
 # High-order Runge-Kutta evolution
 function evolve_sheet!(sheet::LagrangianSheet, evolution::HighOrderEvolution,
-                      velocity_field::Function, dt::Float64, domain::DomainSpec)
+                      velocity_field, dt::Float64, domain::DomainSpec)
     if evolution.order == 2
         # RK2 evolution
         evolve_sheet_rk2!(sheet, velocity_field, dt, domain)
@@ -169,28 +169,22 @@ function evolve_sheet!(sheet::LagrangianSheet, evolution::HighOrderEvolution,
 end
 
 # RK2 evolution for sheet
-function evolve_sheet_rk2!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, domain::DomainSpec)
+function evolve_sheet_rk2!(sheet::LagrangianSheet, velocity_field, dt::Float64, domain::DomainSpec)
     n_nodes = size(sheet.nodes, 1)
-    nodes_backup = copy(sheet.nodes)
     
-    # Stage 1: Euler step to midpoint
-    for i in 1:n_nodes
-        x, y, z = sheet.nodes[i, 1], sheet.nodes[i, 2], sheet.nodes[i, 3]
-        u, v, w = velocity_field(x, y, z)
+    @inbounds for i in 1:n_nodes
+        x0 = sheet.nodes[i, 1]
+        y0 = sheet.nodes[i, 2]
+        z0 = sheet.nodes[i, 3]
+        u1, v1, w1 = velocity_field(x0, y0, z0)
+        xm = x0 + 0.5 * dt * u1
+        ym = y0 + 0.5 * dt * v1
+        zm = z0 + 0.5 * dt * w1
+        u2, v2, w2 = velocity_field(xm, ym, zm)
         
-        sheet.nodes[i, 1] += 0.5 * dt * u
-        sheet.nodes[i, 2] += 0.5 * dt * v
-        sheet.nodes[i, 3] += 0.5 * dt * w
-    end
-    
-    # Stage 2: Full step using midpoint velocities
-    for i in 1:n_nodes
-        x, y, z = sheet.nodes[i, 1], sheet.nodes[i, 2], sheet.nodes[i, 3]
-        u, v, w = velocity_field(x, y, z)
-        
-        sheet.nodes[i, 1] = nodes_backup[i, 1] + dt * u
-        sheet.nodes[i, 2] = nodes_backup[i, 2] + dt * v
-        sheet.nodes[i, 3] = nodes_backup[i, 3] + dt * w
+        sheet.nodes[i, 1] = x0 + dt * u2
+        sheet.nodes[i, 2] = y0 + dt * v2
+        sheet.nodes[i, 3] = z0 + dt * w2
         
         # Apply periodic BC
         sheet.nodes[i, 1] = mod(sheet.nodes[i, 1], domain.Lx)
@@ -199,124 +193,128 @@ function evolve_sheet_rk2!(sheet::LagrangianSheet, velocity_field::Function, dt:
         
         sheet.age[i] += dt
     end
+
+    return sheet
 end
 
 # RK4 evolution for sheet
-function evolve_sheet_rk4!(sheet::LagrangianSheet, velocity_field::Function, dt::Float64, domain::DomainSpec)
+function evolve_sheet_rk4!(sheet::LagrangianSheet, velocity_field, dt::Float64, domain::DomainSpec)
     n_nodes = size(sheet.nodes, 1)
-    nodes_orig = copy(sheet.nodes)
-    
-    # Storage for RK stages
-    k1 = zeros(n_nodes, 3)
-    k2 = zeros(n_nodes, 3)
-    k3 = zeros(n_nodes, 3)
-    k4 = zeros(n_nodes, 3)
-    
-    # Stage 1
-    for i in 1:n_nodes
-        x, y, z = sheet.nodes[i, 1], sheet.nodes[i, 2], sheet.nodes[i, 3]
-        u, v, w = velocity_field(x, y, z)
-        k1[i, :] = [u, v, w]
-    end
-    
-    # Stage 2
-    sheet.nodes .= nodes_orig .+ 0.5 * dt * k1
-    for i in 1:n_nodes
-        x, y, z = sheet.nodes[i, 1], sheet.nodes[i, 2], sheet.nodes[i, 3]
-        u, v, w = velocity_field(x, y, z)
-        k2[i, :] = [u, v, w]
-    end
-    
-    # Stage 3
-    sheet.nodes .= nodes_orig .+ 0.5 * dt * k2
-    for i in 1:n_nodes
-        x, y, z = sheet.nodes[i, 1], sheet.nodes[i, 2], sheet.nodes[i, 3]
-        u, v, w = velocity_field(x, y, z)
-        k3[i, :] = [u, v, w]
-    end
-    
-    # Stage 4
-    sheet.nodes .= nodes_orig .+ dt * k3
-    for i in 1:n_nodes
-        x, y, z = sheet.nodes[i, 1], sheet.nodes[i, 2], sheet.nodes[i, 3]
-        u, v, w = velocity_field(x, y, z)
-        k4[i, :] = [u, v, w]
-    end
-    
-    # Final update
-    sheet.nodes .= nodes_orig .+ (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
-    
-    # Apply periodic BC and update ages
-    for i in 1:n_nodes
-        sheet.nodes[i, 1] = mod(sheet.nodes[i, 1], domain.Lx)
-        sheet.nodes[i, 2] = mod(sheet.nodes[i, 2], domain.Ly)
-        sheet.nodes[i, 3] = mod(sheet.nodes[i, 3] + domain.Lz, 2*domain.Lz) - domain.Lz
+
+    @inbounds for i in 1:n_nodes
+        x0 = sheet.nodes[i, 1]
+        y0 = sheet.nodes[i, 2]
+        z0 = sheet.nodes[i, 3]
+
+        k1x, k1y, k1z = velocity_field(x0, y0, z0)
+        k2x, k2y, k2z = velocity_field(
+            x0 + 0.5 * dt * k1x,
+            y0 + 0.5 * dt * k1y,
+            z0 + 0.5 * dt * k1z,
+        )
+        k3x, k3y, k3z = velocity_field(
+            x0 + 0.5 * dt * k2x,
+            y0 + 0.5 * dt * k2y,
+            z0 + 0.5 * dt * k2z,
+        )
+        k4x, k4y, k4z = velocity_field(
+            x0 + dt * k3x,
+            y0 + dt * k3y,
+            z0 + dt * k3z,
+        )
+
+        sheet.nodes[i, 1] = mod(x0 + (dt / 6) * (k1x + 2*k2x + 2*k3x + k4x), domain.Lx)
+        sheet.nodes[i, 2] = mod(y0 + (dt / 6) * (k1y + 2*k2y + 2*k3y + k4y), domain.Ly)
+        sheet.nodes[i, 3] = mod(
+            z0 + (dt / 6) * (k1z + 2*k2z + 2*k3z + k4z) + domain.Lz,
+            2*domain.Lz,
+        ) - domain.Lz
         sheet.age[i] += dt
     end
+
+    return sheet
+end
+
+@inline function triangle_unit_normal(nodes::AbstractMatrix{Float64}, connectivity::AbstractMatrix{Int}, t::Int)
+    v1 = connectivity[t, 1]
+    v2 = connectivity[t, 2]
+    v3 = connectivity[t, 3]
+
+    p1x = nodes[v1, 1]; p1y = nodes[v1, 2]; p1z = nodes[v1, 3]
+    e1x = nodes[v2, 1] - p1x
+    e1y = nodes[v2, 2] - p1y
+    e1z = nodes[v2, 3] - p1z
+    e2x = nodes[v3, 1] - p1x
+    e2y = nodes[v3, 2] - p1y
+    e2z = nodes[v3, 3] - p1z
+
+    nx = e1y * e2z - e1z * e2y
+    ny = e1z * e2x - e1x * e2z
+    nz = e1x * e2y - e1y * e2x
+    inv_norm = inv(sqrt(nx*nx + ny*ny + nz*nz) + eps(Float64))
+    return nx * inv_norm, ny * inv_norm, nz * inv_norm
 end
 
 # Compute curvature at each node
 function compute_sheet_curvature(sheet::LagrangianSheet)
     n_nodes = size(sheet.nodes, 1)
+    n_triangles = size(sheet.connectivity, 1)
     curvatures = zeros(Float64, n_nodes)
-    
-    # Build node-to-triangle connectivity
-    node_triangles = [Int[] for _ in 1:n_nodes]
-    for t in 1:size(sheet.connectivity, 1)
-        for i in 1:3
-            node = sheet.connectivity[t, i]
-            push!(node_triangles[node], t)
+
+    counts = zeros(Int, n_nodes)
+    @inbounds for t in 1:n_triangles
+        counts[sheet.connectivity[t, 1]] += 1
+        counts[sheet.connectivity[t, 2]] += 1
+        counts[sheet.connectivity[t, 3]] += 1
+    end
+
+    offsets = Vector{Int}(undef, n_nodes + 1)
+    offsets[1] = 1
+    @inbounds for i in 1:n_nodes
+        offsets[i + 1] = offsets[i] + counts[i]
+    end
+
+    cursor = copy(offsets)
+    node_triangles = Vector{Int}(undef, 3 * n_triangles)
+    @inbounds for t in 1:n_triangles
+        node1 = sheet.connectivity[t, 1]
+        node2 = sheet.connectivity[t, 2]
+        node3 = sheet.connectivity[t, 3]
+        node_triangles[cursor[node1]] = t
+        cursor[node1] += 1
+        node_triangles[cursor[node2]] = t
+        cursor[node2] += 1
+        node_triangles[cursor[node3]] = t
+        cursor[node3] += 1
+    end
+
+    @inbounds for i in 1:n_nodes
+        first_triangle = offsets[i]
+        last_triangle = offsets[i + 1] - 1
+        if last_triangle > first_triangle
+            n1x, n1y, n1z = triangle_unit_normal(sheet.nodes, sheet.connectivity, node_triangles[first_triangle])
+            curvature = 0.0
+            for pos in (first_triangle + 1):last_triangle
+                nx, ny, nz = triangle_unit_normal(sheet.nodes, sheet.connectivity, node_triangles[pos])
+                curvature += acos(clamp(n1x*nx + n1y*ny + n1z*nz, -1.0, 1.0))
+            end
+            curvatures[i] = curvature / (last_triangle - first_triangle)
         end
     end
-    
-    # Compute curvature for each node
-    for i in 1:n_nodes
-        if length(node_triangles[i]) >= 2
-            # Get neighboring triangles
-            triangles = node_triangles[i]
-            normals = []
-            
-            for t in triangles
-                # Compute triangle normal
-                v1, v2, v3 = sheet.connectivity[t, 1], sheet.connectivity[t, 2], sheet.connectivity[t, 3]
-                p1 = sheet.nodes[v1, :]
-                p2 = sheet.nodes[v2, :]
-                p3 = sheet.nodes[v3, :]
-                
-                e1 = p2 - p1
-                e2 = p3 - p1
-                normal = cross(e1, e2)
-                normal = normal / (norm(normal) + eps())
-                push!(normals, normal)
-            end
-            
-            # Estimate curvature from normal variation
-            if length(normals) >= 2
-                curvature = 0.0
-                for j in 2:length(normals)
-                    angle = acos(clamp(dot(normals[1], normals[j]), -1.0, 1.0))
-                    curvature += angle
-                end
-                curvatures[i] = curvature / (length(normals) - 1)
-            end
-        end
-    end
-    
+
     return curvatures
 end
 
 # Detect sheet rollup regions
 function detect_sheet_rollup(sheet::LagrangianSheet; vorticity_threshold::Float64=1.0)
     n_triangles = size(sheet.connectivity, 1)
-    rollup_regions = Bool[]
+    rollup_regions = Vector{Bool}(undef, n_triangles)
     
-    for t in 1:n_triangles
-        # Get triangle vorticity magnitude
-        vort_mag = norm(sheet.strength[t, :])
-        
-        # Check if vorticity exceeds threshold
-        is_rollup = vort_mag > vorticity_threshold
-        push!(rollup_regions, is_rollup)
+    @inbounds for t in 1:n_triangles
+        gx = sheet.strength[t, 1]
+        gy = sheet.strength[t, 2]
+        gz = sheet.strength[t, 3]
+        rollup_regions[t] = sqrt(gx*gx + gy*gy + gz*gz) > vorticity_threshold
     end
     
     return rollup_regions
@@ -441,7 +439,7 @@ function reconnect_sheet_nodes!(sheet::LagrangianSheet, node1::Int, node2::Int, 
 end
 
 # Track sheet interface using level sets (for Eulerian approach)
-function track_sheet_interface!(sheet::EulerianSheet, velocity_field::Function, dt::Float64)
+function track_sheet_interface!(sheet::EulerianSheet, velocity_field, dt::Float64)
     # Evolve level set using velocity field
     nz, ny, nx = size(sheet.level_set)
     new_level_set = copy(sheet.level_set)
@@ -486,9 +484,9 @@ function track_sheet_interface!(sheet::EulerianSheet, velocity_field::Function, 
 end
 
 # Adaptive sheet tracking combining multiple methods
-function adaptive_sheet_tracking!(sheet::LagrangianSheet, 
-                                velocity_field::Function, 
-                                dt::Float64, 
+function adaptive_sheet_tracking!(sheet::LagrangianSheet,
+                                velocity_field,
+                                dt::Float64,
                                 domain::DomainSpec;
                                 curvature_threshold::Float64=1.0, 
                                 quality_threshold::Float64=0.3)
@@ -517,9 +515,9 @@ function compute_mesh_quality_sheet(sheet::LagrangianSheet, domain::DomainSpec)
     
     for t in 1:n_triangles
         v1, v2, v3 = sheet.connectivity[t, 1], sheet.connectivity[t, 2], sheet.connectivity[t, 3]
-        p1 = tuple(sheet.nodes[v1, :]...)
-        p2 = tuple(sheet.nodes[v2, :]...)
-        p3 = tuple(sheet.nodes[v3, :]...)
+        p1 = (sheet.nodes[v1, 1], sheet.nodes[v1, 2], sheet.nodes[v1, 3])
+        p2 = (sheet.nodes[v2, 1], sheet.nodes[v2, 2], sheet.nodes[v2, 3])
+        p3 = (sheet.nodes[v3, 1], sheet.nodes[v3, 2], sheet.nodes[v3, 3])
         
         # Use periodic minimum-image quality metrics from RemeshAdvanced module
         quality = element_quality_metrics_periodic(p1, p2, p3, domain)

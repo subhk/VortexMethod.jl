@@ -128,6 +128,37 @@ end
     @test result32 isa SVector{3,Float32}
 end
 
+@testset "Vortex sheet tracking allocations" begin
+    domain = VortexMethod.default_domain()
+    nodeX, nodeY, nodeZ, tri, _, _, _ =
+        VortexMethod.structured_mesh(20, 20; domain=domain, amp=0.0)
+    eleGma = ones(size(tri, 1), 3)
+    velocity_field = (x, y, z) -> (0.1, 0.2, 0.3)
+
+    function make_sheet()
+        return VortexMethod.VortexSheet(copy(nodeX), copy(nodeY), copy(nodeZ), copy(tri), copy(eleGma))
+    end
+
+    sheet = make_sheet()
+    VortexMethod.VortexSheets.evolve_sheet_rk2!(sheet, velocity_field, 0.01, domain)
+    GC.gc()
+    @test @allocated(VortexMethod.VortexSheets.evolve_sheet_rk2!(sheet, velocity_field, 0.01, domain)) < 5_000
+
+    sheet = make_sheet()
+    VortexMethod.VortexSheets.evolve_sheet_rk4!(sheet, velocity_field, 0.01, domain)
+    GC.gc()
+    @test @allocated(VortexMethod.VortexSheets.evolve_sheet_rk4!(sheet, velocity_field, 0.01, domain)) < 5_000
+
+    sheet = make_sheet()
+    VortexMethod.compute_sheet_curvature(sheet)
+    GC.gc()
+    @test @allocated(VortexMethod.compute_sheet_curvature(sheet)) < 100_000
+
+    VortexMethod.detect_sheet_rollup(sheet)
+    GC.gc()
+    @test @allocated(VortexMethod.detect_sheet_rollup(sheet)) < 10_000
+end
+
 @testset "High-level workspace hot paths" begin
     domain = VortexMethod.default_domain()
     gr = VortexMethod.GridSpec(6, 6, 6)

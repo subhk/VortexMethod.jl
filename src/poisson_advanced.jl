@@ -8,6 +8,7 @@ using MPI
 using SparseArrays
 using LinearAlgebra
 using ..DomainImpl
+using ..Poisson3D: poisson_velocity_fft
 
 export PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver, 
        HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
@@ -28,42 +29,47 @@ struct NeumannBC <: BoundaryCondition
 end
 
 # FFT-based solver (spectral method)
-struct FFTSolver <: PoissonSolver
+struct FFTSolver{B<:BoundaryCondition} <: PoissonSolver
     mode::Symbol  # :spectral or :fd
-    bc::BoundaryCondition
-    FFTSolver(mode=:spectral, bc=PeriodicBC()) = new(mode, bc)
+    bc::B
 end
 
+FFTSolver(mode=:spectral, bc::BoundaryCondition=PeriodicBC()) =
+    FFTSolver{typeof(bc)}(mode, bc)
+
 # Iterative solvers (CG, BiCGSTAB, etc.)
-struct IterativeSolver <: PoissonSolver
+struct IterativeSolver{B<:BoundaryCondition} <: PoissonSolver
     method::Symbol  # :cg, :bicgstab, :gmres
     tolerance::Float64
     max_iterations::Int
     preconditioner::Symbol  # :none, :jacobi, :ilu
-    bc::BoundaryCondition
-    IterativeSolver(method=:cg, tol=1e-8, maxiter=1000, precond=:jacobi, bc=PeriodicBC()) = 
-        new(method, tol, maxiter, precond, bc)
+    bc::B
 end
 
+IterativeSolver(method=:cg, tol=1e-8, maxiter=1000, precond=:jacobi, bc::BoundaryCondition=PeriodicBC()) =
+    IterativeSolver{typeof(bc)}(method, tol, maxiter, precond, bc)
+
 # Multigrid solver
-struct MultigridSolver <: PoissonSolver
+struct MultigridSolver{B<:BoundaryCondition} <: PoissonSolver
     levels::Int
     smoother::Symbol  # :jacobi, :gauss_seidel, :sor
     cycle_type::Symbol  # :v_cycle, :w_cycle, :fmg
     tolerance::Float64
-    bc::BoundaryCondition
-    MultigridSolver(levels=3, smoother=:gauss_seidel, cycle=:v_cycle, tol=1e-8, bc=PeriodicBC()) = 
-        new(levels, smoother, cycle, tol, bc)
+    bc::B
 end
 
+MultigridSolver(levels=3, smoother=:gauss_seidel, cycle=:v_cycle, tol=1e-8, bc::BoundaryCondition=PeriodicBC()) =
+    MultigridSolver{typeof(bc)}(levels, smoother, cycle, tol, bc)
+
 # Hybrid solver combining multiple methods
-struct HybridSolver <: PoissonSolver
-    primary::PoissonSolver
-    fallback::PoissonSolver
+struct HybridSolver{P<:PoissonSolver,F<:PoissonSolver} <: PoissonSolver
+    primary::P
+    fallback::F
     switch_criterion::Float64  # Switch to fallback if residual > criterion
-    HybridSolver(primary=FFTSolver(), fallback=IterativeSolver(), criterion=1e-6) = 
-        new(primary, fallback, criterion)
 end
+
+HybridSolver(primary::P=FFTSolver(), fallback::F=IterativeSolver(), criterion=1e-6) where {P<:PoissonSolver,F<:PoissonSolver} =
+    HybridSolver{P,F}(primary, fallback, criterion)
 
 # Enhanced FFT solver with boundary condition handling
 function solve_poisson!(solver::FFTSolver, u_rhs::Array{Float64,3}, v_rhs::Array{Float64,3}, w_rhs::Array{Float64,3}, 

@@ -404,6 +404,20 @@ function _apply_workspace_dissipation!(::VortexWorkspace{T},
     return eleGma
 end
 
+function _apply_workspace_dissipation!(::VortexWorkspace{T},
+                                       model::DissipationModel,
+                                       eleGma::AbstractMatrix{T},
+                                       triXC::AbstractMatrix,
+                                       triYC::AbstractMatrix,
+                                       triZC::AbstractMatrix,
+                                       domain::DomainSpec,
+                                       gr::GridSpec,
+                                       dt::T;
+                                       poisson_mode::Symbol=:spectral,
+                                       parallel_fft::Bool=false) where T<:AbstractFloat
+    return apply_dissipation!(model, eleGma, triXC, triYC, triZC, domain, gr, Float64(dt))
+end
+
 function _apply_workspace_dissipation!(ws::VortexWorkspace{T},
                                        model::SmagorinskyModel,
                                        eleGma::AbstractMatrix{T},

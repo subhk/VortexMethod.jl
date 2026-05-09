@@ -364,7 +364,7 @@ CacheAwareMesh(triXC::Matrix{Float64}, triYC::Matrix{Float64}, triZC::Matrix{Flo
                grid_resolution::NTuple{3,Int}) = CacheAwareMesh(Float64, triXC, triYC, triZC, grid_resolution)
 
 # Hierarchical grid traversal for cache-friendly particle-grid operations
-function hierarchical_grid_traversal(operation_func::Function, grid::Array{T,3}, 
+function hierarchical_grid_traversal(operation_func, grid::Array{T,3},
                                     particles::Matrix{T}, block_size::Int=64) where T
     nz, ny, nx = size(grid)
     n_particles = size(particles, 1)

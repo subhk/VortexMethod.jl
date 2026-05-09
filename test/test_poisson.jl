@@ -48,6 +48,29 @@ end
                                                             u_rhs, v_rhs, w_rhs, domain)) < 10_000
 end
 
+@testset "Advanced Poisson solvers use concrete dispatch" begin
+    domain = VortexMethod.default_domain()
+    nz, ny, nx = 4, 4, 4
+    u_rhs = reshape(sin.(1:(nx * ny * nz)), nz, ny, nx)
+    v_rhs = reshape(cos.(1:(nx * ny * nz)), nz, ny, nx)
+    w_rhs = fill(0.125, nz, ny, nx)
+
+    fft_solver = VortexMethod.FFTSolver()
+    ux, uy, uz = @inferred VortexMethod.PoissonAdvanced.solve_poisson!(
+        fft_solver, u_rhs, v_rhs, w_rhs, domain,
+    )
+    @test size(ux) == size(u_rhs)
+    @test size(uy) == size(v_rhs)
+    @test size(uz) == size(w_rhs)
+
+    hybrid_solver = VortexMethod.HybridSolver(fft_solver, VortexMethod.FFTSolver(), Inf)
+    @test fieldtype(typeof(hybrid_solver), :primary) === typeof(hybrid_solver.primary)
+    @test fieldtype(typeof(hybrid_solver), :fallback) === typeof(hybrid_solver.fallback)
+    @test @inferred(VortexMethod.PoissonAdvanced.solve_poisson!(
+        hybrid_solver, u_rhs, v_rhs, w_rhs, domain,
+    )) isa NTuple{3,Array{Float64,3}}
+end
+
 @testset "Curl RHS uses second-order periodic differences" begin
     domain = VortexMethod.default_domain()
     nx, ny, nz = 6, 5, 4

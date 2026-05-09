@@ -324,7 +324,7 @@ end
 # Anisotropic remeshing based on flow gradients
 function anisotropic_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                            tri::Array{Int,2}, eleGma::AbstractMatrix,
-                           velocity_field::Function, domain::DomainSpec;
+                           velocity_field, domain::DomainSpec;
                            refinement_threshold::Float64=0.1, max_elements::Int=50000)
     nt = size(tri, 1)
     elements_to_refine = Int[]
@@ -422,7 +422,7 @@ end
 # Flow-adaptive remeshing combining multiple criteria
 function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                               tri::Array{Int,2}, eleGma::AbstractMatrix,
-                              velocity_field::Function, domain::DomainSpec;
+                              velocity_field, domain::DomainSpec;
                               quality_weight::Float64=0.3, gradient_weight::Float64=0.4,
                               curvature_weight::Float64=0.3, refinement_threshold::Float64=0.5,
                               max_aspect_ratio::Float64=3.0,
