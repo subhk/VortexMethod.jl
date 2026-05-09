@@ -1,4 +1,5 @@
 using Test
+using VortexMethod
 
 repo_root = dirname(@__DIR__)
 src_root = joinpath(repo_root, "src")
@@ -84,5 +85,57 @@ contains_pattern(file, pattern) = occursin(pattern, read(file, String))
                 end
             end
         end
+    end
+
+    @testset "root exports expose public API only" begin
+        root_exports = Set(names(VortexMethod))
+
+        public_exports = [
+            :DomainSpec,
+            :GridSpec,
+            :VortexWorkspace,
+            :Simulation,
+            :Clock,
+            :VortexSheetModel,
+            :structured_mesh,
+            :time_step!,
+            :run!,
+            :set!,
+            :rk2_step!,
+            :rk2_step_with_dissipation!,
+            :poisson_velocity_fft,
+            :poisson_velocity_fft!,
+            :node_velocities,
+            :grid_velocity,
+        ]
+
+        for name in public_exports
+            @test name in root_exports
+        end
+
+        internal_exports = [
+            :triangle_areas,
+            :triangle_centroids,
+            :PoissonWorkspace,
+            :curl_rhs_centered,
+            :find_elements_nearby!,
+            :element_splitting!,
+            :quality_based_remesh!,
+            :MeshQuality,
+            :solve_3x3!,
+            :fast_det_3x3,
+            :TriangleSoA,
+            :create_soa_layout,
+            :PerformanceCounters,
+            :reset_counters!,
+        ]
+
+        for name in internal_exports
+            @test !(name in root_exports)
+        end
+
+        @test isdefined(VortexMethod.GridTransfer, :triangle_areas)
+        @test isdefined(VortexMethod.Poisson, :PoissonWorkspace)
+        @test isdefined(VortexMethod.Remeshing, :quality_based_remesh!)
     end
 end

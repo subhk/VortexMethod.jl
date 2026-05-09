@@ -3,133 +3,103 @@ module VortexMethod
 using FFTW
 using MPI
 
+# Core data model and layouts
 include("core/domain.jl")
+include("core/mesh.jl")
+include("core/layout.jl")
+
+# Kernels and grid transfer
 include("kernels/kernels.jl")
-# Dependencies needed by TimeStepper
+
+# Physics
 include("physics/circulation.jl")
-# workspace.jl - Preallocated buffer struct (stub)
+
+# Workspace depends on circulation geometry; grid transfer defines workspace-backed methods.
 include("core/workspace.jl")
 include("kernels/grid_transfer.jl")
+
+# Poisson solvers
 include("poisson/Poisson.jl")
-include("core/mesh.jl")
+
+# Physics modules depending on grid transfer and Poisson
 include("physics/dissipation.jl")
-# Time integration routines
+include("physics/energy.jl")
+
+# Time integration and user interface
 include("integration/timestep.jl")
-# High-level user-facing interface
 include("integration/interface.jl")
-# Remeshing
+
+# Remeshing, sheets, I/O, and diagnostics
 include("remeshing/Remeshing.jl")
 include("sheets/sheets.jl")
 include("io/checkpoint.jl")
-include("physics/energy.jl")
 include("particle_management.jl")
-# HPC optimization modules
-include("diagnostics/performance.jl")
 include("diagnostics/fast_linalg.jl")
-include("core/layout.jl")
+include("diagnostics/performance.jl")
 
-# Exports organized by subsystem for better maintainability
-
-# domain.jl - Domain specification and periodic boundary conditions
-export DomainSpec, GridSpec,
-       default_domain, default_grid,
+# Curated public surface. Subsystem internals remain available by qualified
+# names, for example VortexMethod.GridTransfer.triangle_areas.
+export DomainSpec, GridSpec, default_domain, default_grid,
+       grid_vectors, grid_spacing, grid_mesh,
        wrap_point, wrap_nodes!,
-       periodic_delta, unwrap_triangle, periodic_centroid,
-       periodic_triangle_area, periodic_shifts,
-
-# kernels.jl - Interpolation kernels and spreading functions  
-       KernelType, PeskinStandard, PeskinCosine, M4Prime, AreaWeighting,
-
-# grid_transfer.jl - MPI parallel spreading and interpolation
-       init_mpi!, finalize_mpi!,
-       spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
-       spread_vorticity_to_grid_kernel_mpi,
-       interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
-       interpolate_node_velocity_kernel_mpi,
-       find_elements_nearby!,
-
-# Poisson FFT solvers
-       poisson_velocity_fft, poisson_velocity_fft!, poisson_velocity_fft_mpi,
-       poisson_velocity_fft_mpi!, poisson_velocity_pencil_fft,
-       poisson_velocity_pencil_fft!,
-
-# mesh.jl - Mesh generation and connectivity
        structured_mesh,
-
-# circulation.jl - Circulation management and transport
-       node_circulation_from_ele_gamma, ele_gamma_from_node_circ, transport_ele_gamma,
-       triangle_normals, baroclinic_ele_gamma, TriangleGeometry, compute_triangle_geometry,
-       node_circulation_from_ele_gamma_mpi, ele_gamma_from_node_circ_mpi,
-       triangle_normals_mpi, baroclinic_ele_gamma_mpi, transport_ele_gamma_mpi,
-       node_circulation_from_ele_gamma!, ele_gamma_from_node_circ!,
-
-# workspace.jl - Preallocated buffer struct
        VortexWorkspace,
 
-# dissipation.jl - Turbulence models and viscosity
+       KernelType, PeskinStandard, PeskinCosine, M4Prime, AreaWeighting,
+
+       init_mpi!, finalize_mpi!,
+       spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
+       spread_vorticity_to_grid_kernel_mpi, spread_vorticity_to_grid_kernel_mpi!,
+       interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
+       interpolate_node_velocity_kernel_mpi, interpolate_node_velocity_kernel_mpi!,
+
+       poisson_velocity_fft, poisson_velocity_fft!,
+       poisson_velocity_fft_mpi, poisson_velocity_fft_mpi!,
+       poisson_velocity_pencil_fft, poisson_velocity_pencil_fft!,
+
+       node_circulation_from_ele_gamma, ele_gamma_from_node_circ,
+       transport_ele_gamma, baroclinic_ele_gamma,
+       node_circulation_from_ele_gamma_mpi, ele_gamma_from_node_circ_mpi,
+       transport_ele_gamma_mpi, baroclinic_ele_gamma_mpi,
+       node_circulation_from_ele_gamma!, ele_gamma_from_node_circ!,
+
        DissipationModel, NoDissipation, SmagorinskyModel, DynamicSmagorinsky,
        VortexStretchingDissipation, MixedScaleModel,
        apply_dissipation!, compute_eddy_viscosity, filter_width,
 
-# timestep.jl - Time integration and velocity computation
-       node_velocities, node_velocities!, rk2_step!, rk2_step_with_dissipation!,
-       grid_velocity, grid_velocity!, make_velocity_sampler,
+       grid_ke, gamma_ke,
 
-# interface.jl - High-level user-facing API
+       node_velocities, node_velocities!,
+       grid_velocity, grid_velocity!,
+       make_velocity_sampler,
+       rk2_step!, rk2_step_with_dissipation!,
+
        Periodic, Bounded, Flat, RectilinearGrid, Clock, VortexSheetModel,
        Simulation, set!, time_step!, run!,
 
-# remeshing - Basic remeshing operations
-       detect_max_edge_length, detect_min_edge_length,
-       element_splitting!, edge_flip_small_edge!, remesh_pass!,
+       detect_max_edge_length, detect_min_edge_length, remesh_pass!,
+       compute_mesh_quality, anisotropic_remesh!,
+       curvature_based_remesh!, flow_adaptive_remesh!,
 
-# remeshing - Advanced remeshing with flow adaptation
-       MeshQuality, compute_mesh_quality, quality_based_remesh!,
-       element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
-       curvature_based_remesh!, flow_adaptive_remesh!, quality_split_triangle!,
-
-# Poisson solver types and adaptive solvers
-       PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver,
-       HybridSolver, BoundaryCondition, PeriodicBC, DirichletBC, NeumannBC,
-       solve_poisson_adaptive!, solve_poisson_mpi!,
-
-# sheets.jl - Vortex sheet tracking and evolution
        VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet,
        HybridSheet, evolve_sheet!, track_sheet_interface!,
-       compute_sheet_curvature, detect_sheet_rollup, check_sheet_reconnection!,
-       reconnect_sheet_nodes!, adaptive_sheet_tracking!, compute_mesh_quality_sheet,
+       compute_sheet_curvature, detect_sheet_rollup,
+       check_sheet_reconnection!, reconnect_sheet_nodes!,
+       adaptive_sheet_tracking!,
 
-# checkpoint.jl - JLD2-based checkpointing and time series
        save_checkpoint!, save_checkpoint_jld2!, load_latest_checkpoint,
-       load_latest_jld2, load_checkpoint_jld2, load_latest_checkpoint_jld2, load_checkpoint,
-       save_state!, mesh_stats, save_state_timeseries!, series_times, load_series_snapshot, load_series_nearest_time,
+       load_latest_jld2, load_checkpoint_jld2, load_latest_checkpoint_jld2,
+       load_checkpoint, save_state!, mesh_stats, save_state_timeseries!,
+       series_times, load_series_snapshot, load_series_nearest_time,
        find_series_files, get_series_info,
 
-# energy.jl - Energy calculations and diagnostics
-       grid_ke, gamma_ke,
-
-# particle_management.jl - Adaptive particle insertion/removal
        insert_particles_periodic!, remove_particles_periodic!,
        compact_mesh!, adaptive_particle_control!,
        ParticleInsertionCriteria, ParticleRemovalCriteria,
        insert_vortex_blob_periodic!, remove_weak_vortices!,
        maintain_particle_count!, redistribute_particles_periodic!,
-       # MPI synchronized versions (Approach B: identical operations on all ranks)
        insert_particles_periodic_mpi!, remove_particles_periodic_mpi!,
        adaptive_particle_control_mpi!, maintain_particle_count_mpi!,
-       redistribute_particles_periodic_mpi!,
-
-# performance.jl - Performance monitoring and profiling
-       @vortex_time, PerformanceCounters, reset_counters!, print_performance_report,
-       enable_profiling!, disable_profiling!,
-
-# fast_linalg.jl - Optimized linear algebra for small matrices
-       solve_3x3!, solve_4x3!, fast_inv_3x3!, fast_det_3x3, fast_cross_product!,
-       batch_solve_3x3!, TriangleMatrix3x3, EdgeVectorCache, fast_triangle_area,
-
-# layout.jl - Structure of Arrays memory layout
-       TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA,
-       aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!,
-       soa_triangle_areas!, soa_circulation_solve!, create_soa_layout
+       redistribute_particles_periodic_mpi!
 
 end
