@@ -62,7 +62,7 @@ for it in 1:nsteps
     ds_max = 0.80*max(dx,dy)
     ds_min = 0.05*max(dx,dy)
     if it % remesh_every == 0
-        tri, eleGma, changed = VortexMethod.Remesh.remesh_pass!(
+        tri, eleGma, changed = VortexMethod.Remeshing.remesh_pass!(
             nodeX, nodeY, nodeZ, tri, eleGma, ds_max, ds_min;
             domain=domain, ar_max=ar_max,
         )

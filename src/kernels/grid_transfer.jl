@@ -1,6 +1,6 @@
 # 3D Peskin spreading and interpolation with MPI
 
-module Peskin3D
+module GridTransfer
 
 using ..DomainImpl
 using ..Kernels
@@ -936,9 +936,9 @@ end
 
 end # module
 
-using .Peskin3D: init_mpi!, finalize_mpi!, triangle_centroids, triangle_areas, subtriangle_centroids, subtriangle_centroids4,
-                          spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
-                          interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
-                          spread_vorticity_to_grid_kernel_mpi, spread_vorticity_to_grid_kernel_mpi!,
-                          interpolate_node_velocity_kernel_mpi, interpolate_node_velocity_kernel_mpi!,
-                          find_elements_nearby!
+using .GridTransfer: init_mpi!, finalize_mpi!, triangle_centroids, triangle_areas, subtriangle_centroids, subtriangle_centroids4,
+                     spread_vorticity_to_grid_mpi, spread_vorticity_to_grid_mpi!,
+                     interpolate_node_velocity_mpi, interpolate_node_velocity_mpi!,
+                     spread_vorticity_to_grid_kernel_mpi, spread_vorticity_to_grid_kernel_mpi!,
+                     interpolate_node_velocity_kernel_mpi, interpolate_node_velocity_kernel_mpi!,
+                     find_elements_nearby!

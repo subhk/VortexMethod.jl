@@ -4,8 +4,8 @@
 module Dissipation
 
 using ..DomainImpl
-using ..Peskin3D
-using ..Poisson3D
+using ..GridTransfer
+using ..Poisson
 using LinearAlgebra
 
 export DissipationModel, NoDissipation, SmagorinskyModel, DynamicSmagorinsky,

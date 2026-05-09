@@ -7,7 +7,7 @@ comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
 nprocs = MPI.Comm_size(comm)
 
-const Peskin = VortexMethod.Peskin3D
+const Peskin = VortexMethod.GridTransfer
 
 function serial_spread_reference(eleGma, triXC, triYC, triZC, domain, gr)
     x, y, z = VortexMethod.grid_vectors(domain, gr)

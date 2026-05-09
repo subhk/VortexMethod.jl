@@ -25,14 +25,14 @@ using PencilFFTs
     end
     
     @testset "VortexMethod integration" begin
-        @test isdefined(VortexMethod, :Poisson3D)
+        @test isdefined(VortexMethod, :Poisson)
         @test isdefined(VortexMethod, :TimeStepper)
         println("VortexMethod modules loaded successfully")
     end
     
     @testset "PencilFFTs function existence" begin
         # Check if our new function exists in the module
-        @test hasmethod(VortexMethod.Poisson3D.poisson_velocity_pencil_fft, 
+        @test hasmethod(VortexMethod.Poisson.poisson_velocity_pencil_fft, 
                        (Array{Float64,3}, Array{Float64,3}, Array{Float64,3}, VortexMethod.DomainSpec))
         
         println("poisson_velocity_pencil_fft function exists with correct signature")

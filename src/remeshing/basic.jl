@@ -1,11 +1,3 @@
-module Remesh
-
-export detect_max_edge_length, detect_min_edge_length,
-       element_splitting!, edge_flip_small_edge!, remesh_pass!
-
-using ..DomainImpl
-using ..Circulation: transport_ele_gamma
-
 # Minimum image convention for periodic boundaries
 @inline min_image(d::Float64, L::Float64) = begin
     if L <= 0; return d; end
@@ -519,8 +511,3 @@ function remesh_pass!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vec
     wrap_nodes!(nodeX, nodeY, nodeZ, domain)
     return tri, eleGma_work, changed
 end
-
-end # module
-
-using .Remesh: detect_max_edge_length, detect_min_edge_length,
-               element_splitting!, edge_flip_small_edge!, remesh_pass!

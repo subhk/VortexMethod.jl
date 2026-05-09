@@ -1,8 +1,8 @@
 module Energy
 
 using ..DomainImpl
-using ..Poisson3D
-using ..Peskin3D
+using ..Poisson
+using ..GridTransfer
 
 export grid_ke, gamma_ke
 

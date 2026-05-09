@@ -8,7 +8,7 @@ using ..Circulation
 using MPI
 using Random
 
-# MPI initialization helper (same pattern as peskin3d.jl and circulation.jl)
+# MPI initialization helper (same pattern as grid_transfer.jl and circulation.jl)
 init_mpi!() = (MPI.Initialized() || MPI.Init(); nothing)
 
 export insert_particles_periodic!, remove_particles_periodic!,

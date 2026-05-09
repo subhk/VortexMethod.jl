@@ -243,7 +243,7 @@ function run_kh_simulation(args::Dict, parallel_fft::Bool, label::String="")
         # Remeshing with performance monitoring
         if it % remesh_every == 0
             remesh_start = time()
-            tri, eleGma, changed = VortexMethod.Remesh.remesh_pass!(
+            tri, eleGma, changed = VortexMethod.Remeshing.remesh_pass!(
                 nodeX, nodeY, nodeZ, tri, eleGma, ds_max, ds_min;
                 domain=domain, ar_max=ar_max,
             )

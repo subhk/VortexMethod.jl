@@ -29,7 +29,7 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 ## Spreading and interpolation (MPI)
 
-`VortexMethod.Peskin3D`:
+`VortexMethod.GridTransfer`:
 
 - `spread_vorticity_to_grid_mpi(eleGma, triXC, triYC, triZC, domain, gr)`
 - `interpolate_node_velocity_mpi(Ux, Uy, Uz, nodeX, nodeY, nodeZ, domain, gr)`
@@ -37,7 +37,7 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 ## Poisson solvers
 
-`VortexMethod.Poisson3D`:
+`VortexMethod.Poisson`:
 
 - `curl_rhs_centered(ζx,ζy,ζz, dx,dy,dz)`
 - `curl_rhs_centered!(workspace, u_rhs,v_rhs,w_rhs, ζx,ζy,ζz, dx,dy,dz)`
@@ -45,7 +45,7 @@ This page lists the main user-facing entry points. See docstrings and source for
 - `poisson_velocity_fft_mpi(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
 - `poisson_velocity_pencil_fft(u_rhs,v_rhs,w_rhs, domain; mode=:spectral)`
 
-`VortexMethod.PoissonAdvanced`:
+`VortexMethod.Poisson`:
 
 - Types: `FFTSolver`, `IterativeSolver`, `MultigridSolver`, `HybridSolver`
 - BCs: `PeriodicBC`, `DirichletBC`, `NeumannBC`
@@ -70,13 +70,13 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 ## Remeshing
 
-`VortexMethod.Remesh`:
+`VortexMethod.Remeshing`:
 
 - `remesh_pass!(nodeX,nodeY,nodeZ, tri, eleGma, ds_max, ds_min; domain, ...)`
   returns `(tri_new, eleGma_new, changed)`
 - Utilities: `detect_max_edge_length`, `detect_min_edge_length`
 
-`VortexMethod.RemeshAdvanced`:
+`VortexMethod.Remeshing`:
 
 - `compute_mesh_quality(triXC,triYC,triZC, domain)` (periodic) and variants
 - `flow_adaptive_remesh!(nodeX,nodeY,nodeZ, tri, eleGma, velocity_field, domain; thresholds...)`
@@ -86,10 +86,10 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 ## Vortex sheets
 
-`VortexMethod.VortexSheets`:
+`VortexMethod.Sheets`:
 
 - Types: `LagrangianSheet`, `EulerianSheet`, `HybridSheet`
-- Evolution: `evolve_sheet!(sheet, evolution, velocity_field, dt, domain)` with `Classical`, `Adaptive`, or `HighOrder` strategies
+- Evolution: `evolve_sheet!(sheet, evolution, velocity_field, dt, domain)` with `ClassicalEvolution`, `AdaptiveEvolution`, or `HighOrderEvolution` strategies
 - Analysis: `compute_sheet_curvature(...)`, `detect_sheet_rollup(...)`
 - Reconnection/smoothing: `check_sheet_reconnection!(..., domain)`, `reconnect_sheet_nodes!(..., domain)`, `smooth_local_curvature!(..., domain)`
 

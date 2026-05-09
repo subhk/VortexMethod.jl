@@ -1,6 +1,6 @@
 # Structure of Arrays (SoA) memory layout for improved vectorization and cache performance
 
-module SoALayout
+module Layout
 
 # Using built-in Julia SIMD capabilities
 
@@ -303,6 +303,6 @@ end
 
 end # module
 
-using .SoALayout: TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA,
-                  aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!,
-                  soa_triangle_areas!, soa_circulation_solve!, create_soa_layout
+using .Layout: TriangleSoA, NodeSoA, VorticitySoA, VelocitySoA,
+               aos_to_soa!, soa_to_aos!, vectorized_kernel_eval!,
+               soa_triangle_areas!, soa_circulation_solve!, create_soa_layout

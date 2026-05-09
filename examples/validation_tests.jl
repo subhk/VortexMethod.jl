@@ -6,6 +6,9 @@ using MPI
 using Printf
 using LinearAlgebra
 
+const Poisson = VortexMethod.Poisson
+const Sheets = VortexMethod.Sheets
+
 init_mpi!()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
@@ -129,8 +132,9 @@ function test_advanced_remeshing()
     
     # Apply advanced remeshing
     eleGma = zeros(Float64, size(tri,1), 3)
-    tri_new, changed = VortexMethod.RemeshAdvanced.quality_split_triangle!(
+    tri_new = VortexMethod.Remeshing.quality_split_triangle!(
         nodeX, nodeY, nodeZ, tri, 1, domain)
+    changed = size(tri_new, 1) > size(tri, 1)
     
     if changed
         # Recompute triangle coordinates
@@ -229,12 +233,12 @@ function test_poisson_solvers()
     
     # Test different solvers
     if rank == 0
-        solvers = [FFTSolver(:spectral), FFTSolver(:fd)]
+        solvers = [Poisson.FFTSolver(:spectral), Poisson.FFTSolver(:fd)]
         solver_names = ["FFT Spectral", "FFT Finite Difference"]
         
         for (i, solver) in enumerate(solvers)
             start_time = time()
-            ux, uy, uz = solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
+            ux, uy, uz = Poisson.solve_poisson!(solver, u_rhs, v_rhs, w_rhs, domain)
             solve_time = time() - start_time
             
             # Compute error against analytical solution
@@ -282,7 +286,7 @@ function test_vortex_sheet_tracking()
     initial_center = mean(sheet.nodes, dims=1)
     
     for step in 1:n_steps
-        evolve_sheet!(sheet, VortexSheets.ClassicalEvolution(), velocity_field, dt, domain)
+        evolve_sheet!(sheet, Sheets.ClassicalEvolution(), velocity_field, dt, domain)
     end
     
     final_center = mean(sheet.nodes, dims=1)

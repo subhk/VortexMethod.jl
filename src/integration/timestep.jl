@@ -2,8 +2,8 @@ module TimeStepper
 
 using MPI
 using ..DomainImpl
-using ..Poisson3D
-using ..Peskin3D
+using ..Poisson
+using ..GridTransfer
 using ..Circulation
 using ..Dissipation
 using ..Kernels
@@ -24,7 +24,7 @@ end
 
 function refresh_workspace_geometry!(ws::VortexWorkspace, triXC, triYC, triZC,
                                      domain::DomainSpec, gr::GridSpec)
-    Peskin3D._recompute_geometry!(ws, triXC, triYC, triZC, domain, gr)
+    GridTransfer._recompute_geometry!(ws, triXC, triYC, triZC, domain, gr)
     ws.geom_dirty[] = false
     return nothing
 end

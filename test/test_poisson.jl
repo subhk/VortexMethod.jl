@@ -55,18 +55,22 @@ end
     v_rhs = reshape(cos.(1:(nx * ny * nz)), nz, ny, nx)
     w_rhs = fill(0.125, nz, ny, nx)
 
-    fft_solver = VortexMethod.FFTSolver()
-    ux, uy, uz = @inferred VortexMethod.PoissonAdvanced.solve_poisson!(
+    fft_solver = VortexMethod.Poisson.FFTSolver()
+    ux, uy, uz = @inferred VortexMethod.Poisson.solve_poisson!(
         fft_solver, u_rhs, v_rhs, w_rhs, domain,
     )
     @test size(ux) == size(u_rhs)
     @test size(uy) == size(v_rhs)
     @test size(uz) == size(w_rhs)
 
-    hybrid_solver = VortexMethod.HybridSolver(fft_solver, VortexMethod.FFTSolver(), Inf)
+    hybrid_solver = VortexMethod.Poisson.HybridSolver(
+        fft_solver,
+        VortexMethod.Poisson.FFTSolver(),
+        Inf,
+    )
     @test fieldtype(typeof(hybrid_solver), :primary) === typeof(hybrid_solver.primary)
     @test fieldtype(typeof(hybrid_solver), :fallback) === typeof(hybrid_solver.fallback)
-    @test @inferred(VortexMethod.PoissonAdvanced.solve_poisson!(
+    @test @inferred(VortexMethod.Poisson.solve_poisson!(
         hybrid_solver, u_rhs, v_rhs, w_rhs, domain,
     )) isa NTuple{3,Array{Float64,3}}
 end
@@ -103,7 +107,7 @@ end
         w_exp[k,j,i] = -(dYdx - dXdy)
     end
 
-    u_rhs, v_rhs, w_rhs = VortexMethod.curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
+    u_rhs, v_rhs, w_rhs = VortexMethod.Poisson.curl_rhs_centered(ζx, ζy, ζz, dx, dy, dz)
 
     @test u_rhs ≈ u_exp
     @test v_rhs ≈ v_exp
@@ -111,5 +115,5 @@ end
 end
 
 @testset "Curl RHS workspace does not retain old derivative buffers" begin
-    @test fieldcount(VortexMethod.Poisson3D.PoissonWorkspace{Float64}) == 0
+    @test fieldcount(VortexMethod.Poisson.PoissonWorkspace{Float64}) == 0
 end

@@ -8,7 +8,7 @@
     dx,dy,dz = VortexMethod.grid_spacing(domain, VortexMethod.default_grid())
     ds_max = 0.5 * max(dx,dy)
     ds_min = 1e-6
-    tri2, eleGma2, changed = VortexMethod.Remesh.remesh_pass!(
+    tri2, eleGma2, changed = VortexMethod.Remeshing.remesh_pass!(
         nodeX, nodeY, nodeZ, tri, eleGma, ds_max, ds_min;
         domain=domain, compact=true,
     )

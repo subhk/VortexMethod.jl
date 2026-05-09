@@ -6,6 +6,8 @@ using VortexMethod
 using MPI
 using Printf
 
+const Poisson = VortexMethod.Poisson
+
 init_mpi!()
 comm = MPI.COMM_WORLD
 rank = MPI.Comm_rank(comm)
@@ -21,9 +23,9 @@ gr = default_grid()
 # Solver options
 kernel_type = M4Prime(2.0)  # Use M4' kernel for better accuracy
 dissipation_model = DynamicSmagorinsky(0.17, 10)  # Dynamic Smagorinsky model
-poisson_solver = HybridSolver(
-    FFTSolver(:spectral, PeriodicBC()),
-    IterativeSolver(:cg, 1e-8, 1000, :jacobi, PeriodicBC()),
+poisson_solver = Poisson.HybridSolver(
+    Poisson.FFTSolver(:spectral, Poisson.PeriodicBC()),
+    Poisson.IterativeSolver(:cg, 1e-8, 1000, :jacobi, Poisson.PeriodicBC()),
     1e-6
 )
 
