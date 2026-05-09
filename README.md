@@ -4,7 +4,7 @@
 [![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://subhk.github.io/VortexMethod.jl)
 [![Coverage](https://codecov.io/gh/subhk/VortexMethod.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/subhk/VortexMethod.jl)
 
-VortexMethod.jl is a Julia implementation of 3D Lagrangian vortex-sheet methods for inviscid, incompressible flows with density interfaces. It combines vortex-in-cell spreading, FFT-based Poisson solves, adaptive remeshing, MPI parallelism, and checkpointing tools for research simulations.
+VortexMethod.jl is a Julia implementation of 3D Lagrangian vortex-sheet methods for inviscid, incompressible flows with density interfaces. It combines vortex-in-cell spreading, FFT-based Poisson solves, adaptive remeshing, MPI parallelism, and checkpointing tools.
 
 ## Features
 
