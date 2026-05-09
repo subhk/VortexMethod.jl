@@ -40,28 +40,6 @@ simulation = Simulation(model; Δt=1e-3, stop_iteration=10)
 run!(simulation)
 ```
 
-## Examples
-
-```sh
-julia --project examples/simple3d.jl
-mpirun -n 4 julia --project examples/kh3d.jl
-mpirun -n 4 julia --project examples/advanced_kh3d.jl
-```
-
-See [examples/](examples/) and the [documentation](https://subhk.github.io/VortexMethod.jl) for lower-level array workflows, remeshing recipes, validation plots, and checkpoint/time-series usage.
-
-## Test
-
-```sh
-julia --project -e 'using Pkg; Pkg.test()'
-```
-
-MPI sanity check:
-
-```sh
-julia --project -e 'using MPI; run(`$(MPI.mpiexec()) -n 2 julia --project test/mpi_sanity.jl`)'
-```
-
 ## Reference
 
 This package follows the regularized vortex sheet method developed in:
