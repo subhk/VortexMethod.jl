@@ -26,7 +26,7 @@ mpirun -n 4 julia --project examples/advanced_kh3d.jl
 - Poisson: `poisson_velocity_fft` / `_mpi` (periodic), or see `PoissonAdvanced` for alternatives
 - Time stepping: `rk2_step!`, `rk2_step_with_dissipation!`; helper `node_velocities`
 - Velocity reuse: `grid_velocity` to compute `(Ux,Uy,Uz)` once; `make_velocity_sampler` to build `(x,y,z)->(u,v,w)` closures
-- Remeshing: `VortexMethod.Remesh.*` and `VortexMethod.RemeshAdvanced.*`
+- Remeshing: `VortexMethod.Remeshing.*`
 - Vortex sheets: see `VortexMethod.VortexSheets`
 - Checkpoints: `save_checkpoint!`, `save_state!`, `save_state_timeseries!`
 
@@ -60,7 +60,7 @@ For direct array control:
 
 ```
 vel = make_velocity_sampler(eleGma, triXC, triYC, triZC, domain, gr)
-tri_new, eleGma_new, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
+tri_new, eleGma_new, changed = VortexMethod.Remeshing.flow_adaptive_remesh!(
     nodeX, nodeY, nodeZ, tri, eleGma, vel, domain;
     max_aspect_ratio=3.0, min_angle_quality=0.4, min_jacobian_quality=0.4,
     max_skewness=0.8, grad_threshold=0.2, curvature_threshold=0.6,

@@ -77,8 +77,8 @@ for it in 1:nsteps
     end
     # simple edge-length based diagnostics; thresholds from grid spacing
     ds_max, ds_min = stock_kh_remesh_thresholds(domain, gr)
-    tmax, maxedge = VortexMethod.Remesh.detect_max_edge_length(triXC, triYC, triZC, ds_max)
-    tmin, minedge = VortexMethod.Remesh.detect_min_edge_length(triXC, triYC, triZC, ds_min)
+    tmax, maxedge = VortexMethod.Remeshing.detect_max_edge_length(triXC, triYC, triZC, ds_max)
+    tmin, minedge = VortexMethod.Remeshing.detect_min_edge_length(triXC, triYC, triZC, ds_min)
     # aspect ratio diagnostic (max over all triangles)
     function max_aspect_ratio(triXC, triYC, triZC, domain)
         nt = size(triXC,1)
@@ -105,7 +105,7 @@ for it in 1:nsteps
     end
     ARmax = max_aspect_ratio(triXC, triYC, triZC, domain)
     if it % remesh_every == 0
-        tri, eleGma, changed = VortexMethod.Remesh.remesh_pass!(
+        tri, eleGma, changed = VortexMethod.Remeshing.remesh_pass!(
             nodeX, nodeY, nodeZ, tri, eleGma, ds_max, ds_min;
             domain=domain, ar_max=ar_max,
         )

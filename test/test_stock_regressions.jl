@@ -30,7 +30,7 @@ end
         eleGma = [1.2 -0.4 0.3]
 
         before = _total_circulation(copy(nodeX), copy(nodeY), copy(nodeZ), tri, eleGma, domain)
-        tri2, eleGma2, changed = VortexMethod.Remesh.remesh_pass!(
+        tri2, eleGma2, changed = VortexMethod.Remeshing.remesh_pass!(
             nodeX, nodeY, nodeZ, tri, eleGma, 0.2, 1e-6;
             domain=domain, compact=false, max_flips=0, max_merges=0,
         )
@@ -43,23 +43,23 @@ end
 
     @testset "legacy topology-only remesh APIs are removed" begin
         @test !hasmethod(
-            VortexMethod.Remesh.remesh_pass!,
+            VortexMethod.Remeshing.remesh_pass!,
             Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}, Matrix{Int}, Float64, Float64},
         )
         @test !hasmethod(
-            VortexMethod.RemeshAdvanced.quality_based_remesh!,
+            VortexMethod.Remeshing.quality_based_remesh!,
             Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}, Matrix{Int}, VortexMethod.DomainSpec},
         )
         @test !hasmethod(
-            VortexMethod.RemeshAdvanced.anisotropic_remesh!,
+            VortexMethod.Remeshing.anisotropic_remesh!,
             Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}, Matrix{Int}, Function, VortexMethod.DomainSpec},
         )
         @test !hasmethod(
-            VortexMethod.RemeshAdvanced.curvature_based_remesh!,
+            VortexMethod.Remeshing.curvature_based_remesh!,
             Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}, Matrix{Int}, VortexMethod.DomainSpec},
         )
         @test !hasmethod(
-            VortexMethod.RemeshAdvanced.flow_adaptive_remesh!,
+            VortexMethod.Remeshing.flow_adaptive_remesh!,
             Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}, Matrix{Int}, Function, VortexMethod.DomainSpec},
         )
     end
@@ -114,7 +114,7 @@ end
         old_areas = VortexMethod.Peskin3D.triangle_areas(triXC0, triYC0, triZC0; domain=domain)
         old_total = vec(sum(old_areas .* eleGma; dims=1))
 
-        tri2, eleGma2, changed = VortexMethod.Remesh.remesh_pass!(
+        tri2, eleGma2, changed = VortexMethod.Remeshing.remesh_pass!(
             nodeX, nodeY, nodeZ, tri, eleGma, 100.0, 0.02;
             domain=domain, compact=false, max_flips=0, max_merges=1,
         )
@@ -141,7 +141,7 @@ end
         eleGma = [0.2 0.5 -0.3]
 
         before = _total_circulation(copy(nodeX), copy(nodeY), copy(nodeZ), tri, eleGma, domain)
-        tri2, eleGma2, changed = VortexMethod.RemeshAdvanced.quality_based_remesh!(
+        tri2, eleGma2, changed = VortexMethod.Remeshing.quality_based_remesh!(
             nodeX, nodeY, nodeZ, tri, eleGma, domain;
             max_aspect_ratio=1.01, max_elements=16,
         )
@@ -168,7 +168,7 @@ end
             neighbor_gamma'
         ]
 
-        tri2, eleGma2, changed = VortexMethod.RemeshAdvanced.quality_based_remesh!(
+        tri2, eleGma2, changed = VortexMethod.Remeshing.quality_based_remesh!(
             nodeX, nodeY, nodeZ, tri, eleGma, domain;
             max_aspect_ratio=10.0,
             max_skewness=Inf,

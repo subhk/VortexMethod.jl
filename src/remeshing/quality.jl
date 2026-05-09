@@ -1,14 +1,6 @@
 # Advanced remeshing with sophisticated quality metrics and splitting criteria
 # Based on thesis Chapter 3.4 - Element Remeshing
 
-module RemeshAdvanced
-
-using ..DomainImpl
-
-export MeshQuality, compute_mesh_quality, quality_based_remesh!,
-       element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
-       curvature_based_remesh!, flow_adaptive_remesh!
-
 @inline function smart_midpoint(nodeX::Vector{Float64}, nodeY::Vector{Float64}, nodeZ::Vector{Float64},
                                 a::Int, b::Int, domain::DomainSpec)
     dx = nodeX[a] - nodeX[b]
@@ -525,9 +517,3 @@ function flow_adaptive_remesh!(nodeX::Vector{Float64}, nodeY::Vector{Float64}, n
     return apply_split_refinements!(nodeX, nodeY, nodeZ, tri, eleGma,
                                     elements_to_refine, domain, max_elements)
 end
-
-end # module
-
-using .RemeshAdvanced: MeshQuality, compute_mesh_quality, quality_based_remesh!,
-                       element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
-                       curvature_based_remesh!, flow_adaptive_remesh!

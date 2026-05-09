@@ -5,7 +5,7 @@ module VortexSheets
 
 using ..DomainImpl
 using ..Kernels
-using ..RemeshAdvanced: element_quality_metrics_periodic
+using ..Remeshing: element_quality_metrics_periodic
 using LinearAlgebra
 
 export VortexSheet, SheetEvolution, LagrangianSheet, EulerianSheet, 
@@ -519,7 +519,7 @@ function compute_mesh_quality_sheet(sheet::LagrangianSheet, domain::DomainSpec)
         p2 = (sheet.nodes[v2, 1], sheet.nodes[v2, 2], sheet.nodes[v2, 3])
         p3 = (sheet.nodes[v3, 1], sheet.nodes[v3, 2], sheet.nodes[v3, 3])
         
-        # Use periodic minimum-image quality metrics from RemeshAdvanced module
+        # Use periodic minimum-image quality metrics from Remeshing module
         quality = element_quality_metrics_periodic(p1, p2, p3, domain)
         qualities[t] = quality.jacobian_quality
     end

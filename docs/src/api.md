@@ -70,13 +70,13 @@ This page lists the main user-facing entry points. See docstrings and source for
 
 ## Remeshing
 
-`VortexMethod.Remesh`:
+`VortexMethod.Remeshing`:
 
 - `remesh_pass!(nodeX,nodeY,nodeZ, tri, eleGma, ds_max, ds_min; domain, ...)`
   returns `(tri_new, eleGma_new, changed)`
 - Utilities: `detect_max_edge_length`, `detect_min_edge_length`
 
-`VortexMethod.RemeshAdvanced`:
+`VortexMethod.Remeshing`:
 
 - `compute_mesh_quality(triXC,triYC,triZC, domain)` (periodic) and variants
 - `flow_adaptive_remesh!(nodeX,nodeY,nodeZ, tri, eleGma, velocity_field, domain; thresholds...)`

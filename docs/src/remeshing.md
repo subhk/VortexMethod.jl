@@ -105,12 +105,12 @@ For **non-coplanar** children (spline/cylindrical midpoints):
 2. Apply circulation assignment to coplanar children
 3. Move node to perturbed position (stretches vortex lines without changing circulation)
 
-## Baseline pass (`VortexMethod.Remesh.remesh_pass!`)
+## Baseline pass (`VortexMethod.Remeshing.remesh_pass!`)
 
 Call signature:
 
 ```julia
-tri_new, eleGma_new, changed = VortexMethod.Remesh.remesh_pass!(
+tri_new, eleGma_new, changed = VortexMethod.Remeshing.remesh_pass!(
     nodeX, nodeY, nodeZ, tri, eleGma, ds_max, ds_min; domain
 )
 ```
@@ -167,12 +167,12 @@ Node merging operates in conjunction with edge splitting:
 
 The in-sheet merging case shows that element count increases proportionally to surface area—indicating consistent element sizes are maintained.
 
-## Advanced, thesis-style refinement (`VortexMethod.RemeshAdvanced.flow_adaptive_remesh!`)
+## Advanced, thesis-style refinement (`VortexMethod.Remeshing.flow_adaptive_remesh!`)
 
 Uses strict thresholds designed to match the thesis:
 
 ```julia
-tri_new, eleGma_new, changed = VortexMethod.RemeshAdvanced.flow_adaptive_remesh!(
+tri_new, eleGma_new, changed = VortexMethod.Remeshing.flow_adaptive_remesh!(
     nodeX, nodeY, nodeZ, tri, eleGma, velocity_field, domain;
     max_aspect_ratio=3.0,
     max_skewness=0.8,

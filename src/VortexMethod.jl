@@ -17,9 +17,8 @@ include("physics/dissipation.jl")
 include("integration/timestep.jl")
 # High-level user-facing interface
 include("integration/interface.jl")
-# Remeshing and advanced solvers
-include("remeshing/basic.jl")
-include("remeshing/quality.jl")
+# Remeshing
+include("remeshing/Remeshing.jl")
 include("sheets/sheets.jl")
 include("io/checkpoint.jl")
 include("physics/energy.jl")
@@ -81,14 +80,14 @@ export DomainSpec, GridSpec,
        Periodic, Bounded, Flat, RectilinearGrid, Clock, VortexSheetModel,
        Simulation, set!, time_step!, run!,
 
-# remesh.jl - Basic remeshing operations
+# remeshing - Basic remeshing operations
        detect_max_edge_length, detect_min_edge_length,
        element_splitting!, edge_flip_small_edge!, remesh_pass!,
 
-# remesh_advanced.jl - Advanced remeshing with flow adaptation
+# remeshing - Advanced remeshing with flow adaptation
        MeshQuality, compute_mesh_quality, quality_based_remesh!,
        element_quality_metrics, element_quality_metrics_periodic, anisotropic_remesh!,
-       curvature_based_remesh!, flow_adaptive_remesh!,
+       curvature_based_remesh!, flow_adaptive_remesh!, quality_split_triangle!,
 
 # Poisson solver types and adaptive solvers
        PoissonSolver, FFTSolver, IterativeSolver, MultigridSolver,

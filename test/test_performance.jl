@@ -39,12 +39,12 @@ using StaticArrays
     remesh_nodeX, remesh_nodeY, remesh_nodeZ, remesh_tri, _, _, _ =
         VortexMethod.structured_mesh(8, 8; domain=domain)
     remesh_eleGma = zeros(size(remesh_tri, 1), 3)
-    VortexMethod.RemeshAdvanced.anisotropic_remesh!(
+    VortexMethod.Remeshing.anisotropic_remesh!(
         remesh_nodeX, remesh_nodeY, remesh_nodeZ, remesh_tri, remesh_eleGma,
         velocity_field, domain; refinement_threshold=1e9,
     )
     GC.gc()
-    @test @allocated(VortexMethod.RemeshAdvanced.anisotropic_remesh!(
+    @test @allocated(VortexMethod.Remeshing.anisotropic_remesh!(
         remesh_nodeX, remesh_nodeY, remesh_nodeZ, remesh_tri, remesh_eleGma,
         velocity_field, domain; refinement_threshold=1e9,
     )) < 8_000
@@ -52,12 +52,12 @@ using StaticArrays
     split_nodeX, split_nodeY, split_nodeZ, split_tri, _, _, _ =
         VortexMethod.structured_mesh(8, 8; domain=domain)
     split_eleGma = ones(size(split_tri, 1), 3)
-    VortexMethod.RemeshAdvanced.quality_based_remesh!(
+    VortexMethod.Remeshing.quality_based_remesh!(
         copy(split_nodeX), copy(split_nodeY), copy(split_nodeZ), copy(split_tri),
         split_eleGma, domain; max_aspect_ratio=0.1, max_elements=10_000,
     )
     GC.gc()
-    @test @allocated(VortexMethod.RemeshAdvanced.quality_based_remesh!(
+    @test @allocated(VortexMethod.Remeshing.quality_based_remesh!(
         copy(split_nodeX), copy(split_nodeY), copy(split_nodeZ), copy(split_tri),
         split_eleGma, domain; max_aspect_ratio=0.1, max_elements=10_000,
     )) < 100_000
