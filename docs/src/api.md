@@ -89,7 +89,7 @@ This page lists the main user-facing entry points. See docstrings and source for
 `VortexMethod.Sheets`:
 
 - Types: `LagrangianSheet`, `EulerianSheet`, `HybridSheet`
-- Evolution: `evolve_sheet!(sheet, evolution, velocity_field, dt, domain)` with `Classical`, `Adaptive`, or `HighOrder` strategies
+- Evolution: `evolve_sheet!(sheet, evolution, velocity_field, dt, domain)` with `ClassicalEvolution`, `AdaptiveEvolution`, or `HighOrderEvolution` strategies
 - Analysis: `compute_sheet_curvature(...)`, `detect_sheet_rollup(...)`
 - Reconnection/smoothing: `check_sheet_reconnection!(..., domain)`, `reconnect_sheet_nodes!(..., domain)`, `smooth_local_curvature!(..., domain)`
 

@@ -52,31 +52,17 @@ also re-exported from `VortexMethod`.
 | `src/io/` | `VortexMethod.Checkpoint` | Checkpoint files, JLD2 time series, snapshot loading, and mesh statistics |
 | `src/diagnostics/` | `VortexMethod.Diagnostics`, `VortexMethod.FastLinAlg` | Allocation/performance diagnostics and small dense linear algebra helpers |
 
-## Where to start
+## Where to Start
 
-- Domain/grid setup: start in `src/core/domain.jl` for `DomainSpec`,
-  `GridSpec`, grid vectors, grid spacing, and periodic wrapping; use
-  `src/core/mesh.jl` for structured sheet generation.
-- Kernel/grid transfer: start in `src/kernels/kernels.jl` for kernel types and
-  support radii, then `src/kernels/grid_transfer.jl` for
-  `VortexMethod.GridTransfer` spreading, interpolation, and workspace-backed
-  methods.
-- Poisson solves: start in `src/poisson/Poisson.jl`, which includes
-  `src/poisson/fft.jl` and `src/poisson/solvers.jl` and exposes
-  `VortexMethod.Poisson`.
-- Time stepping: start in `src/integration/timestep.jl` for
-  `VortexMethod.TimeStepper`, `node_velocities`, `grid_velocity`,
-  `make_velocity_sampler`, and RK2 updates.
-- Remeshing: start in `src/remeshing/Remeshing.jl` for the
-  `VortexMethod.Remeshing` namespace, then follow into `basic.jl` for baseline
-  remeshing or `quality.jl` for quality and adaptive methods.
-- Checkpointing: start in `src/io/checkpoint.jl` for
-  `VortexMethod.Checkpoint`, including single snapshots, JLD2 time series, and
-  restart helpers.
-- Diagnostics: start in `src/diagnostics/performance.jl` for
-  `VortexMethod.Diagnostics`, `src/diagnostics/fast_linalg.jl` for
-  `VortexMethod.FastLinAlg`, and `src/physics/energy.jl` for kinetic-energy
-  diagnostics.
+- Domain and grid setup: `src/core/`
+- Grid transfer and Peskin kernels: `src/kernels/`
+- Poisson solvers and RHS construction: `src/poisson/`
+- Time stepping: `src/integration/`
+- Circulation, dissipation, and energy: `src/physics/`
+- Remeshing and quality checks: `src/remeshing/`
+- Vortex sheet tracking: `src/sheets/`
+- Checkpointing: `src/io/`
+- Profiling and small optimized kernels: `src/diagnostics/`
 
 ## Tests and examples
 
